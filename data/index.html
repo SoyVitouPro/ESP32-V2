@@ -278,7 +278,7 @@
           <div class="row">
             <label for="clockAuto">Auto Update</label>
             <div class="inline">
-              <input id="clockAuto" type="checkbox" />
+              <input id="clockAuto" type="checkbox" checked />
               <span class="muted">Interval</span>
               <select id="clockInterval">
                 <option value="1">1s</option>
@@ -287,6 +287,7 @@
                 <option value="30">30s</option>
                 <option value="60">60s</option>
               </select>
+              <span id="clockStatus" class="muted" style="margin-left:10px;"></span>
             </div>
           </div>
           <div class="btns">
@@ -376,6 +377,7 @@
 
       // Stop all running content (comprehensive cleanup)
       function stopAllRunningContent() {
+        console.log('stopAllRunningContent called - stopping everything including clock timer');
         // Stop text animation
         stopPreviewAnim();
 
@@ -384,8 +386,10 @@
 
         // Stop clock LED timer (only when explicitly stopping all content)
         if (clockTimer) {
+          console.log('Clearing clock timer in stopAllRunningContent');
           clearInterval(clockTimer);
           clockTimer = 0;
+          updateClockStatus();
         }
 
         // Stop video
@@ -404,6 +408,7 @@
 
         // Stop clock preview only (keep LED timer running)
         stopClockPreview();
+        // IMPORTANT: Don't clear clockTimer here - it should continue running on LED
 
         // Stop video preview and upload
         stopVideoPreview();
@@ -679,8 +684,11 @@
       }
 
       async function renderAndUploadClock(){
-        // Stop all other modes when starting clock render
-        stopAllRunningContent();
+        // Stop other modes but preserve clock timer
+        stopPreviewAnim();
+        stopVideoPreview();
+        stopThemeTimers();
+        // Don't stop clock timer here - it should keep running
 
         const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
         const offx=parseInt($('offx').value,10); const offy=parseInt($('offy').value,10);
@@ -895,8 +903,8 @@
             const period = Math.round(1000/Math.max(1, Math.min(30,currentThemeFps)));
             window.__themeTimer=setInterval(step, period);
             step();
-            // Stop other modes when previewing theme
-            stopAllRunningContent();
+            // Stop other content for preview only (keep LED running)
+            stopContentForPreview();
           }catch(e){ alert('Theme error: '+e.message); }
           try{
             const fd = new FormData(); fd.append('file', f, f.name);
@@ -1089,6 +1097,21 @@
           clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
         });
 
+        // Update clock status display
+        function updateClockStatus() {
+          const statusEl = document.getElementById('clockStatus');
+          if (statusEl) {
+            if (clockTimer) {
+              const sec = parseInt($('clockInterval').value,10)||5;
+              statusEl.textContent = `✅ Active (${sec}s)`;
+              statusEl.style.color = '#2aa198';
+            } else {
+              statusEl.textContent = '❌ Inactive';
+              statusEl.style.color = '#93a1b1';
+            }
+          }
+        }
+
         // Clock start button
         const btnClock = document.getElementById('btnClock');
         if (btnClock) btnClock.addEventListener('click', async ()=>{
@@ -1096,11 +1119,78 @@
           if ($('clockAuto').checked){
             if (clockTimer) clearInterval(clockTimer);
             const sec = parseInt($('clockInterval').value,10)||5;
-            clockTimer = setInterval(renderAndUploadClock, sec*1000);
+            clockTimer = setInterval(async ()=>{
+              console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
+              try {
+                await renderAndUploadClock();
+              } catch(err) {
+                console.error('Clock auto-update error:', err);
+                // Don't clear timer on error, let it continue
+              }
+            }, sec*1000);
+            console.log('Clock auto-update timer started, interval:', sec, 'seconds');
+            updateClockStatus();
           } else {
-            if (clockTimer) { clearInterval(clockTimer); clockTimer=0; }
+            if (clockTimer) {
+              clearInterval(clockTimer);
+              clockTimer = 0;
+              console.log('Clock auto-update timer stopped');
+              updateClockStatus();
+            }
           }
         });
+
+        // Clock auto-update checkbox change handler
+        const clockAuto = document.getElementById('clockAuto');
+        if (clockAuto) {
+          clockAuto.addEventListener('change', async ()=>{
+            if (clockAuto.checked && clockTimer === 0) {
+              // Start timer if checked and no timer running
+              const sec = parseInt($('clockInterval').value,10)||5;
+              clockTimer = setInterval(async ()=>{
+                console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
+                try {
+                  await renderAndUploadClock();
+                } catch(err) {
+                  console.error('Clock auto-update error:', err);
+                }
+              }, sec*1000);
+              console.log('Clock auto-update timer started from checkbox');
+              updateClockStatus();
+            } else if (!clockAuto.checked && clockTimer) {
+              // Stop timer if unchecked
+              clearInterval(clockTimer);
+              clockTimer = 0;
+              console.log('Clock auto-update timer stopped from checkbox');
+              updateClockStatus();
+            }
+          });
+        }
+
+        // Clock interval change handler
+        const clockInterval = document.getElementById('clockInterval');
+        if (clockInterval) {
+          clockInterval.addEventListener('change', async ()=>{
+            if (clockTimer) {
+              // Restart timer with new interval
+              clearInterval(clockTimer);
+              const sec = parseInt(clockInterval.value,10)||5;
+              clockTimer = setInterval(async ()=>{
+                console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
+                try {
+                  await renderAndUploadClock();
+                } catch(err) {
+                  console.error('Clock auto-update error:', err);
+                }
+              }, sec*1000);
+              console.log('Clock interval updated to:', sec, 'seconds');
+              updateClockStatus();
+            }
+          });
+        }
+
+        // Initialize clock status display
+        updateClockStatus();
 
         // Video events
         const btnVideoStart = document.getElementById('btnVideoStart');

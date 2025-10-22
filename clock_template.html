@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Clock Theme Template</title>
+  </head>
+  <body>
+    <!-- FPS hint read by the uploader UI (1–30). -->
+    <fps>1</fps>
+
+    <!--
+      Minimal theme template for the Theme tab.
+      Notes:
+      - Do NOT query the DOM or call getContext() here. The host page provides
+        a 2D canvas context to themeRender(ctx, w, h, state, t).
+      - Define themeInit() to return your state/config object.
+      - Define themeRender() to draw a frame using the provided ctx.
+    -->
+    <script>
+      function themeInit() {
+        return {
+          format: '24',                 // '24' or '12'
+          color: '#ffffff',             // text color
+          bg: '#000000',                // background color
+          fontFamily: 'system-ui, Arial, sans-serif',
+          weight: 'bold'
+        };
+      }
+
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+      function formatTime(fmt, d) {
+        let h = d.getHours();
+        let suffix = '';
+        if (fmt === '12') {
+          suffix = (h < 12) ? ' AM' : ' PM';
+          h = h % 12; if (h === 0) h = 12;
+        }
+        return (pad(h) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())) + suffix;
+      }
+
+      // Fit a font size that keeps the clock within the canvas bounds
+      function computeFontSize(ctx, w, h, family, weight) {
+        // Initial guess proportional to height
+        let size = Math.max(8, Math.floor(h * 0.7));
+        const sample = '88:88:88'; // widest typical time sample
+        for (let i = 0; i < 20; i++) { // cap iterations
+          ctx.font = `${weight} ${size}px ${family}`;
+          const m = ctx.measureText(sample);
+          const textW = Math.ceil(m.width);
+          const textH = Math.ceil(size * 1.1);
+          if (textW <= w - 4 && textH <= h - 4) break;
+          size = Math.max(8, size - 2);
+        }
+        return size;
+      }
+
+      function themeRender(ctx, w, h, state, t) {
+        // Clear background
+        ctx.fillStyle = state.bg || '#000000';
+        ctx.fillRect(0, 0, w, h);
+
+        // Compute font and draw time centered
+        const family = state.fontFamily || 'system-ui, Arial, sans-serif';
+        const weight = state.weight || 'bold';
+        const size = computeFontSize(ctx, w, h, family, weight);
+        ctx.font = `${weight} ${size}px ${family}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = state.color || '#ffffff';
+
+        const now = new Date(t || Date.now());
+        const text = formatTime(state.format || '24', now);
+        ctx.fillText(text, Math.floor(w * 0.5), Math.floor(h * 0.5));
+      }
+    </script>
+  </body>
+</html>
+

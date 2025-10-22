@@ -1,0 +1,2 @@
+▌now pls update to 1 pannel only /home/acleda/Documents/PlatformIO/Projects/esp_khmer_text/src/main.cpp, and remove setting configuration for this /home/acleda/
+▌Documents/PlatformIO/Projects/esp_khmer_text/data/index.html do you see setting icon? pls remove that feature.

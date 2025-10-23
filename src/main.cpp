@@ -67,6 +67,13 @@ static const char* AP_PASS = "12345678"; // 8+ chars required
 
 WebServer server(80);
 
+// CORS headers for cross-origin requests
+void sendCORSHeaders() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
 // Uploaded text bitmap (RGB565), text-only cropped image
 static std::vector<uint8_t> uploadBuf;      // raw bytes as received (header + pixels)
 static std::vector<uint16_t> textPixels;    // pixels only, RGB565
@@ -175,6 +182,7 @@ static const char FALLBACK_HTML[] PROGMEM = R"HTML(
 )HTML";
 
 void handleRoot() {
+  sendCORSHeaders();
   File f = LittleFS.open("/index.html", "r");
   if (!f) {
     server.send_P(200, "text/html; charset=utf-8", FALLBACK_HTML);
@@ -186,6 +194,7 @@ void handleRoot() {
 
 // Generic file handler for CSS, JS, images, etc.
 void handleStaticFile() {
+  sendCORSHeaders();
   String path = server.uri();
   if (path == "/") {
     path = "/index.html";
@@ -259,6 +268,7 @@ void handleUploadData() {
 }
 
 void handleUploadDone() {
+  sendCORSHeaders();
   // Read options
   bgColor = hexTo565(server.arg("bg"));
   userOffX = server.hasArg("offx") ? server.arg("offx").toInt() : 0;
@@ -410,8 +420,40 @@ void handleUploadBgData() {
 }
 
 void handleUploadBgDone() {
+  sendCORSHeaders();
   // No additional args needed; just acknowledge
   server.send(200, "text/plain", "OK");
+}
+
+// Handle theme file upload at /upload_theme
+void handleUploadTheme() {
+  HTTPUpload& up = server.upload();
+  static File themeFile;
+
+  if (up.status == UPLOAD_FILE_START) {
+    Serial.println("/upload_theme: START");
+    // Open file for writing
+    themeFile = LittleFS.open("/theme.html", "w");
+    if (!themeFile) {
+      Serial.println("/upload_theme: Failed to open file for writing");
+    }
+  } else if (up.status == UPLOAD_FILE_WRITE) {
+    if (themeFile) {
+      themeFile.write(up.buf, up.currentSize);
+    }
+  } else if (up.status == UPLOAD_FILE_END) {
+    Serial.printf("/upload_theme: END bytes=%u\n", (unsigned)up.totalSize);
+    if (themeFile) {
+      themeFile.close();
+      Serial.println("/upload_theme: Theme saved to /theme.html");
+      sendCORSHeaders();
+      server.send(200, "text/plain", "Theme uploaded successfully");
+    } else {
+      Serial.println("/upload_theme: Failed to save theme (file not open)");
+      sendCORSHeaders();
+      server.send(500, "text/plain", "Failed to save theme");
+    }
+  }
 }
 
 void setup() {
@@ -492,6 +534,33 @@ void setup() {
   server.onNotFound(handleStaticFile);
   server.on("/upload", HTTP_POST, handleUploadDone, handleUploadData);
   server.on("/upload_bg", HTTP_POST, handleUploadBgDone, handleUploadBgData);
+  server.on("/upload_theme", HTTP_POST, [](){ server.send(200, "text/plain", "Theme upload complete"); }, handleUploadTheme);
+
+  // CORS preflight handler
+  server.on("/upload", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/upload_bg", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/upload_theme", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/theme_status", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/panel_info", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/panel_layout", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
   // Panel layout configuration: configure panel arrangement
   // usage: POST /panel_layout layout=1x1
   server.on("/panel_layout", HTTP_POST, [](){
@@ -501,6 +570,7 @@ void setup() {
     if (l == "1x1") { new_rows = 1; new_cols = 1; }
     else { server.send(400, "text/plain", "Invalid layout"); return; }
 
+    sendCORSHeaders();
     if (new_rows == cur_rows && new_cols == cur_cols) { server.send(200, "text/plain", "OK"); return; }
 
     // Recreate virtual panel with new layout
@@ -522,6 +592,7 @@ void setup() {
 
     // Adjust active mask to hardware count (1 panel)
     g_panel_active.assign((size_t)cur_rows * (size_t)cur_cols, 1);
+    sendCORSHeaders();
     server.send(200, "text/plain", "OK");
   });
   // Panel info endpoint (detected/configured count)
@@ -547,7 +618,16 @@ void setup() {
       json += String(v);
     }
     json += "]}";
+    sendCORSHeaders();
     server.send(200, "application/json", json);
+  });
+  // Theme status endpoint
+  server.on("/theme_status", HTTP_GET, [](){
+    sendCORSHeaders();
+    File f = LittleFS.open("/theme.html", "r");
+    String status = f ? "{\"theme_uploaded\":true}" : "{\"theme_uploaded\":false}";
+    if (f) f.close();
+    server.send(200, "application/json", status);
   });
   server.begin();
 }

@@ -433,8 +433,8 @@
           clearInterval(window.__playTimer);
           window.__playTimer = null;
         }
-        // Also clear the theme object to prevent re-use
-        window.__theme = null;
+        // Don't clear the theme object here - keep it for reuse
+        // Only clear when uploading a new theme
       }
 
       // Stop preview animation
@@ -885,16 +885,62 @@
           const inp = document.getElementById('themeFile');
           const f = inp && inp.files && inp.files[0];
           if(!f){ alert('Choose a theme HTML file first'); return; }
+
+          // Clear any existing theme before uploading new one
+          console.log('Clearing existing theme before upload...');
+          window.__theme = null;
+          window.themeInitBackup = null;
+          window.themeRenderBackup = null;
+          window.__themeTimer = null;
+          window.__playTimer = null;
+
           const txt = await f.text();
+          console.log('Theme file loaded, size:', txt.length);
+
           const m = txt.match(/<fps>\s*(\d{1,2})\s*<\/fps>/i);
           const currentThemeFps = m ? Math.max(1, Math.min(30, parseInt(m[1],10)||1)) : 1;
+          console.log('Theme FPS:', currentThemeFps);
+
           try{
             const mscript = txt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
             if(!mscript) throw new Error('No <script> in theme');
             const code = mscript[1];
-            const api = Function(`${code}; return {init: (typeof themeInit!=='undefined'?themeInit:null), render: (typeof themeRender!=='undefined'?themeRender:null)};`)();
-            if(!api || !api.render){ throw new Error('themeRender() not found'); }
+            console.log('Script code found, length:', code.length);
+
+            // Execute the theme script in global scope to make functions available
+            try {
+              eval(code);
+              console.log('Theme script executed successfully');
+            } catch(evalErr) {
+              console.error('Theme script execution failed:', evalErr);
+              throw new Error('Theme script execution failed: ' + evalErr.message);
+            }
+
+            // Check if functions are available globally
+            const api = {
+              init: (typeof themeInit !== 'undefined') ? themeInit : null,
+              render: (typeof themeRender !== 'undefined') ? themeRender : null
+            };
+
+            // Store functions also in global scope for backup
+            window.themeInitBackup = (typeof themeInit !== 'undefined') ? themeInit : null;
+            window.themeRenderBackup = (typeof themeRender !== 'undefined') ? themeRender : null;
+
+            console.log('Theme functions check - init:', typeof themeInit, 'render:', typeof themeRender);
+            console.log('API object:', api);
+            console.log('API.init type:', typeof api.init);
+            console.log('API.render type:', typeof api.render);
+
+            if(!api || !api.render){
+              console.error('API object or render function missing');
+              console.error('API exists:', !!api);
+              console.error('API.render exists:', !!(api && api.render));
+              throw new Error('themeRender() not found');
+            }
+
+            console.log('Theme API loaded successfully');
             window.__theme = api;
+
             const pv = getPreviewCanvas();
             const pctx = pv.getContext('2d');
             const state = api.init ? api.init() : {};
@@ -905,35 +951,156 @@
             step();
             // Stop other content for preview only (keep LED running)
             stopContentForPreview();
-          }catch(e){ alert('Theme error: '+e.message); }
-          try{
-            const fd = new FormData(); fd.append('file', f, f.name);
-            await fetch(apiBase + '/upload_theme',{method:'POST', body:fd});
-          }catch(_){ /* ignore */ }
+
+            // Upload theme to ESP32
+            try{
+              console.log('Uploading theme to ESP32...');
+              console.log('File name:', f.name);
+              console.log('File size:', f.size);
+
+              const fd = new FormData();
+              fd.append('file', f, f.name);
+
+              const response = await fetch(apiBase + '/upload_theme',{
+                method:'POST',
+                body:fd
+              });
+
+              console.log('Response status:', response.status);
+              console.log('Response ok:', response.ok);
+
+              if (response.ok) {
+                const responseText = await response.text();
+                console.log('Response text:', responseText);
+                console.log('Theme uploaded successfully to ESP32');
+              } else {
+                console.error('Theme upload failed:', response.status);
+                const errorText = await response.text();
+                console.error('Error response:', errorText);
+                alert('Theme upload failed: ' + errorText);
+              }
+            }catch(uploadErr){
+              console.error('Theme upload error:', uploadErr);
+              alert('Theme uploaded for preview but failed to save to device: ' + uploadErr.message);
+            }
+
+          }catch(e){
+            console.error('Theme parsing error:', e);
+            alert('Theme error: '+e.message);
+            // Clear all theme related objects on error
+            window.__theme = null;
+            window.themeInitBackup = null;
+            window.themeRenderBackup = null;
+            window.__themeTimer = null;
+            window.__playTimer = null;
+          }
         });
         if (btnThemeStart) btnThemeStart.addEventListener('click', async ()=>{
+          console.log('Start button clicked');
+          console.log('window.__theme:', window.__theme);
+
           const pv = getPreviewCanvas();
           const pctx = pv.getContext('2d');
-          if(!window.__theme || !window.__theme.render){ alert('Upload a theme first'); return; }
+
+          if(!window.__theme){
+            console.log('No window.__theme object found');
+            alert('Upload a theme first (no theme object)');
+            return;
+          }
+          if(!window.__theme.render){
+            console.log('window.__theme.render function missing');
+            alert('Upload a theme first (no render function)');
+            return;
+          }
+
+          console.log('Theme object found, checking device status...');
+
+          // Check if theme is actually uploaded on ESP32
+          try {
+            const r = await fetch(apiBase + '/theme_status', { cache:'no-store' });
+            const status = await r.json();
+            console.log('Theme status:', status);
+            if (!status.theme_uploaded) {
+              alert('Theme not yet uploaded to device. Please upload the theme first.');
+              return;
+            }
+          } catch(err) {
+            console.error('Theme status check failed:', err);
+            alert('Failed to check theme status. Please try uploading again.');
+            return;
+          }
+
+          console.log('Starting theme playback on LED panel...');
 
           // Stop all other modes when starting theme playback
+          // BUT preserve the theme object (don't let stopAllRunningContent clear it)
+          const currentTheme = window.__theme;
+          const currentInitBackup = window.themeInitBackup;
+          const currentRenderBackup = window.themeRenderBackup;
+
           stopAllRunningContent();
 
+          // Restore theme object after cleanup
+          window.__theme = currentTheme;
+          window.themeInitBackup = currentInitBackup;
+          window.themeRenderBackup = currentRenderBackup;
+          console.log('Theme object restored after cleanup');
+
           const api = window.__theme;
-          const state = api.init ? api.init() : {};
+          console.log('Theme API:', api);
+          console.log('API.init type:', typeof api.init);
+          console.log('API.render type:', typeof api.render);
+
+          // Fallback to backup functions if main ones are lost
+          if (!api.init && window.themeInitBackup) {
+            api.init = window.themeInitBackup;
+            console.log('Using backup init function');
+          }
+          if (!api.render && window.themeRenderBackup) {
+            api.render = window.themeRenderBackup;
+            console.log('Using backup render function');
+          }
+
+          let state = {};
+          if (api.init && typeof api.init === 'function') {
+            try {
+              state = api.init();
+              console.log('Theme init state:', state);
+            } catch(initErr) {
+              console.error('Theme init error:', initErr);
+              state = {};
+            }
+          } else {
+            console.log('No init function, using empty state');
+          }
           if(window.__playTimer) clearInterval(window.__playTimer);
           const step=async()=>{
-            api.render(pctx, pv.width, pv.height, state, Date.now());
+            try {
+              if (api.render && typeof api.render === 'function') {
+                api.render(pctx, pv.width, pv.height, state, Date.now());
+              } else {
+                console.error('API.render is not a function!');
+                return;
+              }
+            } catch(renderErr) {
+              console.error('Theme render error:', renderErr);
+              return;
+            }
             // Pack RGB565 and POST to device
             const img=pctx.getImageData(0,0,pv.width,pv.height);
             const w=pv.width,h=pv.height; const d=img.data; const buf=new Uint8Array(4+w*h*2);
             buf[0]=w&255; buf[1]=w>>8; buf[2]=h&255; buf[3]=h>>8; let i=4;
             for(let k=0;k<d.length;k+=4){ const r=d[k],g=d[k+1],b=d[k+2]; const v=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>>3); buf[i++]=v&255; buf[i++]=v>>8; }
             const fd=new FormData(); fd.append('image', new Blob([buf],{type:'application/octet-stream'}),'frame.rgb565');
-            try{ await fetch(apiBase + '/upload',{method:'POST', body:fd}); }catch(_){ }
+            try{
+              await fetch(apiBase + '/upload',{method:'POST', body:fd});
+            }catch(err){
+              console.error('Frame upload failed:', err);
+            }
           };
           window.__playTimer=setInterval(step, 1000);
           step();
+          console.log('Theme playback started');
         });
       }
 

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Test Clock Theme</title>
+  </head>
+  <body>
+    <!-- FPS hint read by the uploader UI (1-30). -->
+    <fps>1</fps>
+
+    <!--
+      Test Theme Clock Template
+      This is a simple working clock theme that should work with the theme system.
+
+      The system looks for these required functions:
+      - themeInit(): Called once, returns state object
+      - themeRender(): Called each frame, draws to canvas
+
+      If these functions don't exist, you'll get "no theme object" error.
+    -->
+    <script>
+      // Required: Initialize theme state
+      function themeInit() {
+        console.log('themeInit called');
+        return {
+          format: '24',        // '24' or '12' hour format
+          color: '#00ff00',    // Green text color
+          bg: '#000000',       // Black background
+          fontFamily: 'Arial, sans-serif',
+          weight: 'bold'
+        };
+      }
+
+      // Helper: Pad numbers with leading zero
+      function pad(n) {
+        return (n < 10 ? '0' : '') + n;
+      }
+
+      // Helper: Format time string
+      function formatTime(fmt, d) {
+        let h = d.getHours();
+        let suffix = '';
+        if (fmt === '12') {
+          suffix = (h < 12) ? ' AM' : ' PM';
+          h = h % 12;
+          if (h === 0) h = 12;
+        }
+        return (pad(h) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())) + suffix;
+      }
+
+      // Required: Render function called each frame
+      // ctx: 2D canvas context
+      // w: canvas width
+      // h: canvas height
+      // state: theme state from themeInit()
+      // t: current timestamp
+      function themeRender(ctx, w, h, state, t) {
+        console.log('themeRender called with canvas size:', w, 'x', h);
+
+        // Clear background
+        ctx.fillStyle = state.bg || '#000000';
+        ctx.fillRect(0, 0, w, h);
+
+        // Calculate font size to fit canvas
+        const baseSize = Math.max(10, Math.floor(h * 0.6));
+        ctx.font = `bold ${baseSize}px ${state.fontFamily || 'Arial'}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = state.color || '#ffffff';
+
+        // Get current time and format
+        const now = new Date(t || Date.now());
+        const timeString = formatTime(state.format || '24', now);
+
+        // Draw time centered on canvas
+        ctx.fillText(timeString, Math.floor(w * 0.5), Math.floor(h * 0.5));
+
+        console.log('Drew time:', timeString);
+      }
+
+      // Test function to verify functions exist
+      console.log('Theme loaded, themeInit exists:', typeof themeInit);
+      console.log('Theme loaded, themeRender exists:', typeof themeRender);
+    </script>
+  </body>
+</html>

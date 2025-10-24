@@ -331,7 +331,7 @@
         // Stop clock LED timer (only when explicitly stopping all content)
         if (clockTimer) {
           console.log('Clearing clock timer in stopAllRunningContent');
-          clearInterval(clockTimer);
+          cancelAnimationFrame(clockTimer);
           clockTimer = 0;
           // updateClockStatus(); // Function doesn't exist - removed
         }
@@ -1427,6 +1427,38 @@
         });
       }
 
+      // Smooth clock timer function
+      function startSmoothClockTimer() {
+        let lastUploadTime = 0;
+        const UPLOAD_INTERVAL = 1000; // 1 second
+
+        const updateClock = async (timestamp) => {
+          // Update preview immediately for smooth visual feedback
+          if (document.getElementById('clockConfig').style.display !== 'none') {
+            drawClockPreviewFrame();
+          }
+
+          // Upload to ESP32 at precise intervals
+          if (timestamp - lastUploadTime >= UPLOAD_INTERVAL) {
+            lastUploadTime = timestamp;
+            try {
+              console.log('Clock upload at:', new Date().toLocaleTimeString());
+              await renderAndUploadClock();
+            } catch(err) {
+              console.error('Clock upload error:', err);
+            }
+          }
+
+          // Continue the animation loop if clock timer is still active
+          if (clockTimer) {
+            clockTimer = requestAnimationFrame(updateClock);
+          }
+        };
+
+        // Start the animation loop
+        clockTimer = requestAnimationFrame(updateClock);
+      }
+
       // Event listeners
       function initEventListeners() {
         // Main render button - tab-aware
@@ -1447,17 +1479,10 @@
             } else if (clockMode) {
               // Apply clock settings (but don't stop existing timer)
               await renderAndUploadClock();
-              // Start clock timer if not already running
+              // Start smooth clock timer if not already running
               if (!clockTimer) {
-                clockTimer = setInterval(async ()=>{
-                  console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
-                  try {
-                    await renderAndUploadClock();
-                  } catch(err) {
-                    console.error('Clock auto-update error:', err);
-                  }
-                }, 1000);
-                console.log('Clock auto-update timer started');
+                startSmoothClockTimer();
+                console.log('Smooth clock timer started');
               }
             } else if (videoMode) {
               // Video mode - handled by separate Start/Stop buttons

@@ -269,18 +269,14 @@ void handleUploadData() {
 
 void handleUploadDone() {
   sendCORSHeaders();
-  // Read options
+  // Read options - force centering and disable animation
   bgColor = hexTo565(server.arg("bg"));
-  userOffX = server.hasArg("offx") ? server.arg("offx").toInt() : 0;
-  userOffY = server.hasArg("offy") ? server.arg("offy").toInt() : 0;
-  animate = server.hasArg("animate") && server.arg("animate") == "1";
-  String dir = server.arg("dir");
-  animDir = (dir == "right") ? +1 : -1; // default left
-  animSpeedMs = server.hasArg("speed") ? constrain(server.arg("speed").toInt(), 2, 50) : 20;
-  // loop gap in pixels: 1..25 (UI sends positive gap)
-  int iv = server.hasArg("interval") ? server.arg("interval").toInt() : 1;
-  if (iv < 1) iv = 1; if (iv > 25) iv = 25;
-  loopOffsetPx = (int16_t)iv;
+  userOffX = 0; // Force center horizontally
+  userOffY = 0; // Force center vertically
+  animate = false; // Disable animation
+  animDir = -1; // default left (not used when animation is disabled)
+  animSpeedMs = 20; // Default speed (not used when animation is disabled)
+  loopOffsetPx = 5; // Default interval (not used when animation is disabled)
   // brightness percent 0..100
   if (server.hasArg("brightness")) {
     int bp = constrain(server.arg("brightness").toInt(), 0, 100);

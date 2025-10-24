@@ -27,7 +27,7 @@
       button { background: var(--accent); color: #093a39; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
       .icon-btn { background:#233040; color:var(--fg); border:0; border-radius:8px; padding:6px 10px; cursor:pointer; }
       .icon-btn:hover { background:#2d3b4d; }
-      .tab { background:#233040; color: var(--fg); border:0; border-radius:8px; padding:8px 12px; cursor:pointer; }
+      .tab { background:#233040; color: var(--fg); border:0; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:14px; }
       .tab.active { background: var(--accent); color:#093a39; }
       #previewBar { position: sticky; top: calc(var(--header-h) - 14px); z-index: 10; background: #0b0f14; padding: 4px 0; border-bottom: 1px solid #1f2a35; }
       #previewInner { display:flex; justify-content:center; }
@@ -52,9 +52,6 @@
   <body>
     <header>
       <h1>LED Configuration</h1>
-      <div class="actions" style="position:absolute; right:16px; display:flex; gap:8px;">
-        <button id="btnPanelConfig" class="icon-btn" title="Panel Configuration" aria-label="Panel Configuration">⚙️</button>
-      </div>
     </header>
     <main style="display:flex; flex-direction:column; height: calc(100vh - var(--header-h));">
       <div id="previewBar">
@@ -68,11 +65,13 @@
       <div class="card">
         <div class="row" id="modeTabs">
           <label>Mode</label>
-          <div class="inline" style="gap:8px; flex-wrap:wrap;">
-            <button id="tabText" class="tab active">Text</button>
-            <button id="tabClock" class="tab">Clock</button>
-            <button id="tabVideo" class="tab">Video</button>
-            <button id="tabTheme" class="tab">Theme</button>
+          <div class="inline" style="gap:8px; flex-wrap:wrap; align-items:center;">
+            <button id="tabText" class="tab active" title="Text">🏠</button>
+            <button id="tabClock" class="tab" title="Clock">🕐</button>
+            <button id="tabVideo" class="tab" title="Video">🎬</button>
+            <button id="tabTheme" class="tab" title="Theme">🎨</button>
+            <button id="btnTextPreview" style="margin-left:24px; padding:5px 8px; font-size:13px; background:#2d3b4d; color:var(--fg); border:0; border-radius:5px; cursor:pointer;" title="Preview">👁️</button>
+            <button id="btn" style="padding:5px 8px; font-size:13px; background:var(--accent); color:#093a39; border:0; border-radius:5px; cursor:pointer;">Apply</button>
           </div>
         </div>
         <div id="textConfig">
@@ -80,50 +79,14 @@
           <label for="text">Text</label>
           <input id="text" type="text" value="សួរស្ដីបង" />
         </div>
-        <div class="row group-text">
-          <label for="customFont">Font</label>
-          <div class="inline" style="gap:8px; flex-wrap:wrap;">
-            <input id="customFont" type="file" accept=".woff2,.woff,.ttf,.otf" />
-            <span class="muted">Uses default Khmer fonts if none uploaded</span>
-          </div>
-        </div>
-        <div class="row group-text" id="fontSourceRow">
-          <label>Font Source</label>
-          <div class="inline" style="gap:12px; flex-wrap:wrap;">
-            <label class="muted" for="fontDefault" style="display:inline-flex; align-items:center; gap:6px;">
-              <input type="radio" name="fontSource" id="fontDefault" value="default" checked /> Default
-            </label>
-            <label class="muted" for="fontUploaded" style="display:inline-flex; align-items:center; gap:6px;">
-              <input type="radio" name="fontSource" id="fontUploaded" value="uploaded" disabled /> Uploaded
-            </label>
-          </div>
-        </div>
-        <div class="row group-text" id="fontSizeRow" style="margin-top: 17px;">
+            <div class="row group-text" id="fontSizeRow" style="margin-top: 17px;">
           <label for="fontSize">Font Size</label>
           <div class="inline" id="fontSizeInline">
             <input id="fontSize" type="range" min="10" max="50" value="30" />
             <span id="fontSizeVal">30 px</span>
           </div>
         </div>
-        <div class="row" id="panelRow">
-          <label for="pw">Panel:</label>
-          <div class="inline" style="gap:8px; flex-wrap:nowrap;">
-            <select id="pw">
-              <option value="64">64</option>
-              <option value="128" selected>128</option>
-              <option value="192">192</option>
-              <option value="256">256</option>
-            </select>
-            <span>×</span>
-            <select id="ph">
-              <option value="64" selected>64</option>
-              <option value="128">128</option>
-              <option value="192">192</option>
-              <option value="256">256</option>
-            </select>
-          </div>
-        </div>
-        <div class="row group-text">
+              <div class="row group-text">
           <label for="color">Text Color</label>
           <input id="color" type="color" value="#ffffff" />
         </div>
@@ -132,81 +95,6 @@
           <div class="inline">
             <input id="brightness" type="range" min="0" max="100" value="80" />
             <span id="brightnessVal">80%</span>
-          </div>
-        </div>
-        <div class="row">
-          <div style="grid-column: 1 / span 2; display:flex; align-items:center; gap:10px;">
-            <label for="textBg" style="margin:0;">Text Background</label>
-            <input id="textBg" type="checkbox" />
-          </div>
-        </div>
-        <div class="row">
-          <label></label>
-          <div class="inline">
-            <span class="muted">Color</span>
-            <span class="muted" style="margin-left:16px">Padding</span>
-            <span class="muted" style="margin-left:16px">Rounded</span>
-            <span class="muted" style="margin-left:16px">Radius</span>
-          </div>
-        </div>
-        <div class="row">
-          <label></label>
-          <div class="inline">
-            <input id="textBgColor" type="color" value="#000000" />
-            <select id="textBgPad">
-              <option value="0">0 px</option>
-              <option value="2" selected>2 px</option>
-              <option value="4">4 px</option>
-              <option value="6">6 px</option>
-              <option value="8">8 px</option>
-              <option value="10">10 px</option>
-            </select>
-            <input id="textBgRound" type="checkbox" />
-            <select id="textBgRadius">
-              <option value="0">0 px</option>
-              <option value="4">4 px</option>
-              <option value="6" selected>6 px</option>
-              <option value="8">8 px</option>
-              <option value="10">10 px</option>
-              <option value="12">12 px</option>
-              <option value="16">16 px</option>
-              <option value="20">20 px</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <label for="bgMode">Background</label>
-          <div class="inline">
-            <select id="bgMode">
-              <option value="color">Color</option>
-              <option value="image">Image</option>
-            </select>
-            <input id="bg" type="color" value="#000000" />
-            <input id="imageFile" type="file" accept="image/*" style="display:none" />
-          </div>
-        </div>
-        <div class="row" id="imageFitRow" style="display:none;">
-          <label></label>
-          <div class="inline">
-            <select id="imageFit">
-              <option value="fill">Fill Panel</option>
-              <option value="fit">Fit Inside</option>
-              <option value="original">Original Size</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <label for="offx">Shift X</label>
-          <div class="inline">
-            <input id="offx" type="range" min="-256" max="256" value="0" />
-            <span id="offxVal">0</span>
-          </div>
-        </div>
-        <div class="row">
-          <label for="offy">Shift Y</label>
-          <div class="inline">
-            <input id="offy" type="range" min="-128" max="128" value="0" />
-            <span id="offyVal">0</span>
           </div>
         </div>
         <div class="row">
@@ -233,12 +121,28 @@
             <span id="intervalVal">5 px</span>
           </div>
         </div>
-        <div class="btns">
-          <button id="btnTextPreview">Preview Text</button>
-          <button id="btn">Render & Upload</button>
-          <button id="center">Center Text</button>
+          <div class="row">
+          <label for="bgMode">Background</label>
+          <div class="inline">
+            <select id="bgMode">
+              <option value="color">Color</option>
+              <option value="image">Image</option>
+            </select>
+            <input id="bg" type="color" value="#000000" />
+            <input id="imageFile" type="file" accept="image/*" style="display:none" />
+          </div>
         </div>
-        </div> <!-- end #textConfig -->
+        <div class="row" id="imageFitRow" style="display:none;">
+          <label></label>
+          <div class="inline">
+            <select id="imageFit">
+              <option value="fill">Fill Panel</option>
+              <option value="fit">Fit Inside</option>
+              <option value="original">Original Size</option>
+            </select>
+          </div>
+        </div>
+            </div> <!-- end #textConfig -->
         <div id="themeConfig" style="display:none;">
           <div class="row">
             <label for="themeFile">Upload Theme</label>
@@ -247,7 +151,66 @@
           <div class="btns">
             <button id="btnThemeUpload">Preview</button>
             <button id="btnThemeStart">Start</button>
+            <button id="btnThemeReapply" style="background: #28a745;">Reapply</button>
           </div>
+
+          <!-- Theme Controls Section -->
+          <div class="row" id="themeControlsSection" style="display:none;">
+            <label>Theme Controls</label>
+            <div style="background: #1a2332; padding: 12px; border-radius: 8px; border: 1px solid #2a3a4a;">
+              <!-- Font Size Control -->
+              <div style="margin-bottom: 12px;">
+                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🔠 Font Size</div>
+                <div class="inline" style="gap: 8px; align-items: center;">
+                  <input id="fontSizeSlider" type="range" min="10" max="100" value="60" style="width: 120px; flex: 1;">
+                  <span id="fontSizeDisplay" style="color: var(--muted); min-width: 35px; text-align: right;">60%</span>
+                </div>
+              </div>
+
+              <!-- Text Color Control -->
+              <div style="margin-bottom: 12px;">
+                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🎨 Text Color</div>
+                <div class="inline" style="gap: 8px;">
+                  <input id="themeTextColor" type="color" value="#00ff00" style="width: 50px; height: 32px;">
+                  <span id="textColorHex" style="color: var(--muted); font-family: monospace;">#00ff00</span>
+                </div>
+              </div>
+
+              <!-- Background Color Control -->
+              <div style="margin-bottom: 12px;">
+                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🖼️ Background</div>
+                <div class="inline" style="gap: 8px;">
+                  <input id="themeBgColor" type="color" value="#000000" style="width: 50px; height: 32px;">
+                  <span id="bgColorHex" style="color: var(--muted); font-family: monospace;">#000000</span>
+                </div>
+              </div>
+
+              <!-- Time Format -->
+              <div style="margin-bottom: 12px;">
+                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🕐 Time Format</div>
+                <div class="inline">
+                  <select id="themeTimeFormat" style="width: 120px;">
+                    <option value="24">24-hour</option>
+                    <option value="12">12-hour</option>
+                  </select>
+                  <label style="margin-left: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" id="themeShowSeconds" checked> Show Seconds
+                  </label>
+                </div>
+              </div>
+
+              <!-- Effects -->
+              <div>
+                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">✨ Effects</div>
+                <div class="inline" style="gap: 12px;">
+                  <label style="color: var(--muted); display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" id="themePulseAnimation"> Pulse
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Preview uses the main preview canvas above -->
           <div class="row">
             <label>Themes</label>
@@ -275,26 +238,7 @@
             <label for="clockColor">Clock Color</label>
             <input id="clockColor" type="color" value="#ffffff" />
           </div>
-          <div class="row">
-            <label for="clockAuto">Auto Update</label>
-            <div class="inline">
-              <input id="clockAuto" type="checkbox" checked />
-              <span class="muted">Interval</span>
-              <select id="clockInterval">
-                <option value="1">1s</option>
-                <option value="5" selected>5s</option>
-                <option value="10">10s</option>
-                <option value="30">30s</option>
-                <option value="60">60s</option>
-              </select>
-              <span id="clockStatus" class="muted" style="margin-left:10px;"></span>
-            </div>
-          </div>
-          <div class="btns">
-            <button id="btnClockPreview">Preview Clock</button>
-            <button id="btnClock">Start Clock</button>
-          </div>
-        </div> <!-- end #clockConfig -->
+                  </div> <!-- end #clockConfig -->
         <div id="videoConfig" style="display:none">
           <div class="row">
             <label for="videoFile">Video</label>
@@ -389,7 +333,7 @@
           console.log('Clearing clock timer in stopAllRunningContent');
           clearInterval(clockTimer);
           clockTimer = 0;
-          updateClockStatus();
+          // updateClockStatus(); // Function doesn't exist - removed
         }
 
         // Stop video
@@ -425,16 +369,22 @@
 
       // Stop theme timers when switching away from theme tab
       function stopThemeTimers() {
+        console.log('stopThemeTimers called - stopping all theme timers');
+
         if (window.__themeTimer) {
           clearInterval(window.__themeTimer);
           window.__themeTimer = null;
+          console.log('Stopped theme preview timer');
         }
         if (window.__playTimer) {
           clearInterval(window.__playTimer);
           window.__playTimer = null;
+          console.log('Stopped theme play timer');
         }
+
         // Don't clear the theme object here - keep it for reuse
         // Only clear when uploading a new theme
+        console.log('Theme timers stopped');
       }
 
       // Stop preview animation
@@ -472,33 +422,38 @@
       }
 
       function getFontFamily() {
-        const useUploaded = (document.getElementById('fontUploaded') && document.getElementById('fontUploaded').checked);
-        if (useUploaded && userFontLoaded) return `'UserFont', system-ui, Arial, sans-serif`;
         return `'Noto Sans Khmer', 'Khmer OS Content', system-ui, Arial, sans-serif`;
       }
 
       // Initialize preview animation
       function initPreviewAnim() {
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
+        const pw = 128; const ph = 64; // Fixed panel size
         const size=parseInt($('fontSize').value,10);
         const text=$('text').value;
         const fam = getFontFamily();
         const font = `bold ${size}px ${fam}`;
 
-        // measure text width (approx, includes padding if enabled)
+        // measure text width
         ctx.font=font; ctx.textBaseline='middle'; ctx.textAlign='left';
         const m = ctx.measureText(text);
-        const pad = $('textBg').checked ? (parseInt($('textBgPad').value,10) || 0) : 0;
-        textW = Math.ceil(m.width) + pad*2;
-        textH = Math.ceil(size*1.2) + pad*2;
+        textW = Math.ceil(m.width);
+        textH = Math.ceil(size*1.2);
         const gap = parseInt($('interval').value,10) || 1;
         spacing = Math.max(1, textW + gap);
 
-        if ($('dir').value === 'left') {
-          head0 = pw; head1 = head0 + spacing;
-        } else {
-          head0 = -textW; head1 = head0 - spacing;
+        // Calculate how many copies we need to fill the screen + buffer
+        const totalCopies = Math.ceil((pw + spacing * 2) / spacing) + 2;
+
+        // Initialize all heads
+        heads = [];
+        for (let i = 0; i < totalCopies; i++) {
+          if ($('dir').value === 'left') {
+            heads.push(pw + (i * spacing)); // Start copies from right edge with spacing
+          } else {
+            heads.push(-textW - (i * spacing)); // Start copies from left edge with spacing
+          }
         }
+
         lastTs = 0; accMs = 0;
       }
 
@@ -510,8 +465,7 @@
         const font = `bold ${size}px ${fam}`;
         const color=$('color').value;
         const bg=$('bg').value;
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
-        const offx=parseInt($('offx').value,10); const offy=parseInt($('offy').value,10);
+        const pw = 128; const ph = 64; // Fixed panel size
 
         c.width = pw; c.height = ph;
         ctx.clearRect(0,0,c.width,c.height);
@@ -534,67 +488,23 @@
           ctx.drawImage(loadedImg, dx, dy, dw, dh);
         }
 
-        // text background box (optional) and text overlay
-        const cy = Math.floor(ph*0.5) + offy;
-        const pad = $('textBg').checked ? (parseInt($('textBgPad').value,10) || 0) : 0;
+        // Text overlay - automatically centered with slight adjustment
+        const cy = Math.floor(ph*0.5) + 2; // Moved down 2 pixels for better centering
         ctx.font=font; ctx.textBaseline='middle'; ctx.fillStyle=color;
 
         if (animated && text.length > 0) {
-          // draw two heads for seamless wrap
+          // draw all heads for continuous stream
           ctx.textAlign='left';
-          const drawAt = (leftX) => {
-            const xLeft = Math.floor(leftX) + offx;
-            if ($('textBg').checked){
-              ctx.fillStyle = $('textBgColor').value;
-              if ($('textBgRound').checked) {
-                const r = parseInt($('textBgRadius').value,10) || 0;
-                const rr = Math.max(0, Math.min(r, Math.min(textW,textH)/2));
-                ctx.beginPath();
-                const rx = xLeft - pad, ry = cy - Math.floor(textH/2);
-                const rw = textW, rh = textH;
-                ctx.moveTo(rx+rr, ry);
-                ctx.arcTo(rx+rw, ry,   rx+rw, ry+rh, rr);
-                ctx.arcTo(rx+rw, ry+rh, rx,     ry+rh, rr);
-                ctx.arcTo(rx,     ry+rh, rx,     ry,     rr);
-                ctx.arcTo(rx,     ry,   rx+rw,   ry,     rr);
-                ctx.closePath();
-                ctx.fill();
-              } else {
-                ctx.fillRect(xLeft - pad, cy - Math.floor(textH/2), textW, textH);
-              }
-              ctx.fillStyle = color;
+          heads.forEach(headX => {
+            const xLeft = Math.floor(headX);
+            if (xLeft >= -textW && xLeft <= pw) { // Only draw if visible or about to be visible
+              ctx.fillText(text, xLeft, cy);
             }
-            ctx.fillText(text, xLeft, cy);
-          };
-          drawAt(head0);
-          drawAt(head1);
+          });
         } else {
           // static centered
-          const cx = Math.floor(pw*0.5) + offx;
           ctx.textAlign='center';
-          if ($('textBg').checked){
-            const m = ctx.measureText(text);
-            const tw = Math.ceil(m.width) + pad*2;
-            const th = Math.ceil(size*1.2) + pad*2;
-            ctx.fillStyle = $('textBgColor').value;
-            if ($('textBgRound').checked) {
-              const r = parseInt($('textBgRadius').value,10) || 0;
-              const rr = Math.max(0, Math.min(r, Math.min(tw,th)/2));
-              const rx = cx - Math.floor(tw/2), ry = cy - Math.floor(th/2);
-              ctx.beginPath();
-              ctx.moveTo(rx+rr, ry);
-              ctx.arcTo(rx+tw, ry,   rx+tw, ry+th, rr);
-              ctx.arcTo(rx+tw, ry+th, rx,    ry+th, rr);
-              ctx.arcTo(rx,    ry+th, rx,    ry,    rr);
-              ctx.arcTo(rx,    ry,   rx+tw,  ry,    rr);
-              ctx.closePath();
-              ctx.fill();
-            } else {
-              ctx.fillRect(cx - Math.floor(tw/2), cy - Math.floor(th/2), tw, th);
-            }
-            ctx.fillStyle = color;
-          }
-          ctx.fillText(text, cx, cy);
+          ctx.fillText(text, Math.floor(pw*0.5), cy);
         }
       }
 
@@ -610,18 +520,37 @@
         const speed = parseInt($('speed').value,10) || 30;
         accMs += (ts - lastTs); lastTs = ts;
 
+        const pw = 128; // Fixed panel width
         while (accMs >= speed) {
           accMs -= speed;
-          if ($('dir').value === 'left') { head0 -= 1; head1 -= 1; }
-          else { head0 += 1; head1 += 1; }
-          const pw = parseInt($('pw').value,10);
-          // recycle heads
+
+          // Move all heads
           if ($('dir').value === 'left') {
-            if (head0 + textW <= 0) head0 = head1 + spacing;
-            if (head1 + textW <= 0) head1 = head0 + spacing;
+            heads.forEach((head, index) => {
+              heads[index] = head - 1;
+            });
+
+            // Recycle any head that goes completely off screen
+            heads.forEach((head, index) => {
+              if (head + textW <= 0) {
+                // Find the rightmost head to position after it
+                let rightmost = Math.max(...heads);
+                heads[index] = rightmost + spacing;
+              }
+            });
           } else {
-            if (head0 >= pw) head0 = head1 - spacing;
-            if (head1 >= pw) head1 = head0 - spacing;
+            heads.forEach((head, index) => {
+              heads[index] = head + 1;
+            });
+
+            // Recycle any head that goes completely off screen
+            heads.forEach((head, index) => {
+              if (head >= pw) {
+                // Find the leftmost head to position before it
+                let leftmost = Math.min(...heads);
+                heads[index] = leftmost - spacing;
+              }
+            });
           }
         }
         drawPreviewFrame(true);
@@ -637,8 +566,7 @@
       }
 
       function drawClockPreviewFrame(){
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
-        const offx=parseInt($('offx').value,10); const offy=parseInt($('offy').value,10);
+        const pw = 128; const ph = 64; // Fixed panel size
         const fmt = $('clockFormat').value;
         const size = parseInt($('clockSize').value,10);
         const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
@@ -664,10 +592,10 @@
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(loadedImg, dx, dy, dw, dh);
         }
-        // draw time centered
+        // draw time centered with slight adjustment
         ctx.font = font; ctx.textBaseline='middle'; ctx.textAlign='center'; ctx.fillStyle=col;
         const txt = formatTime(fmt);
-        ctx.fillText(txt, Math.floor(pw*0.5)+offx, Math.floor(ph*0.5)+offy);
+        ctx.fillText(txt, Math.floor(pw*0.5), Math.floor(ph*0.5) + 4); // Moved down 4 pixels
       }
 
       function startClockPreview(){
@@ -690,8 +618,7 @@
         stopThemeTimers();
         // Don't stop clock timer here - it should keep running
 
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
-        const offx=parseInt($('offx').value,10); const offy=parseInt($('offy').value,10);
+        const pw = 128; const ph = 64; // Fixed panel size
         const fmt = $('clockFormat').value;
         const size = parseInt($('clockSize').value,10);
         const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
@@ -701,7 +628,7 @@
         tctx.fillStyle=bg; tctx.fillRect(0,0,pw,ph);
         tctx.font=font; tctx.textBaseline='middle'; tctx.textAlign='center'; tctx.fillStyle=col;
         const txt = formatTime(fmt);
-        tctx.fillText(txt, Math.floor(pw*0.5)+offx, Math.floor(ph*0.5)+offy);
+        tctx.fillText(txt, Math.floor(pw*0.5), Math.floor(ph*0.5) + 4); // Moved down 4 pixels
         const out = tctx.getImageData(0,0,pw,ph);
         const buf = new Uint8Array(4 + pw*ph*2);
         buf[0]=pw&255; buf[1]=(pw>>8)&255; buf[2]=ph&255; buf[3]=(ph>>8)&255;
@@ -833,6 +760,9 @@
           stopPreviewAnim(); drawVideoPreviewFrame();
         } else if (clockMode) {
           stopPreviewAnim(); drawClockPreviewFrame();
+          // Start clock preview animation (update every second)
+          if (clockPreviewTimer) clearInterval(clockPreviewTimer);
+          clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
         } else if (textMode && $('animate').checked && $('text').value.trim().length > 0) {
           stopPreviewAnim(); initPreviewAnim(); drawPreviewFrame(true); rafId = requestAnimationFrame(animatePreview);
         } else {
@@ -855,20 +785,26 @@
           if (which==='text'){
             tabText.classList.add('active'); tabClock.classList.remove('active'); if (tabVideo) tabVideo.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
             textCfg.style.display='block'; clockCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            // Don't stop anything automatically - let user decide when to start/stop
+            showThemeControls(false); // Hide theme controls when not on theme tab
           } else if (which==='clock') {
             tabClock.classList.add('active'); tabText.classList.remove('active'); if (tabVideo) tabVideo.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
             clockCfg.style.display='block'; textCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            // Don't stop anything automatically - let user decide when to start/stop
+            showThemeControls(false); // Hide theme controls when not on theme tab
+
+            // NOTE: Removed automatic clock start - clock will only start when Apply is clicked
+            console.log('Switched to Clock tab - clock will start when Apply is clicked');
           } else if (which==='video') {
             if (tabVideo) tabVideo.classList.add('active'); tabText.classList.remove('active'); tabClock.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
             if (videoCfg) videoCfg.style.display='block'; textCfg.style.display='none'; clockCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            // Don't stop anything automatically - let user decide when to start/stop
+            showThemeControls(false); // Hide theme controls when not on theme tab
           } else if (which==='theme') {
             if (tabTheme) tabTheme.classList.add('active'); if (tabVideo) tabVideo.classList.remove('active'); tabText.classList.remove('active'); tabClock.classList.remove('active');
             if (themeCfg) themeCfg.style.display='block';
             textCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; clockCfg.style.display='none';
-            // Don't stop anything automatically - let user decide when to start/stop
+            // Show theme controls if a theme is loaded
+            if (window.__theme) {
+              showThemeControls(true);
+            }
           }
           // Don't drawPreview() on tab switch - keep current state
         }
@@ -888,14 +824,31 @@
 
           // Clear any existing theme before uploading new one
           console.log('Clearing existing theme before upload...');
+
+          // Hide theme controls during upload
+          showThemeControls(false);
+
+          // Stop all theme timers and clear theme objects
+          if (window.__themeTimer) {
+            clearInterval(window.__themeTimer);
+            window.__themeTimer = null;
+            console.log('Stopped theme preview timer');
+          }
+          if (window.__playTimer) {
+            clearInterval(window.__playTimer);
+            window.__playTimer = null;
+            console.log('Stopped theme play timer');
+          }
+
           window.__theme = null;
           window.themeInitBackup = null;
           window.themeRenderBackup = null;
-          window.__themeTimer = null;
-          window.__playTimer = null;
 
-          const txt = await f.text();
+          let txt = await f.text();
           console.log('Theme file loaded, size:', txt.length);
+
+          // Inject current control values into the theme
+          txt = injectThemeSettings(txt);
 
           const m = txt.match(/<fps>\s*(\d{1,2})\s*<\/fps>/i);
           const currentThemeFps = m ? Math.max(1, Math.min(30, parseInt(m[1],10)||1)) : 1;
@@ -940,6 +893,16 @@
 
             console.log('Theme API loaded successfully');
             window.__theme = api;
+
+            // Show theme controls and initialize them
+            showThemeControls(true);
+            if (!window.themeControlsInitialized) {
+              initThemeControls();
+              window.themeControlsInitialized = true;
+            }
+
+            // Update control values to match theme defaults
+            updateControlValuesFromTheme();
 
             const pv = getPreviewCanvas();
             const pctx = pv.getContext('2d');
@@ -987,15 +950,245 @@
           }catch(e){
             console.error('Theme parsing error:', e);
             alert('Theme error: '+e.message);
-            // Clear all theme related objects on error
+
+            // Hide theme controls on error
+            showThemeControls(false);
+
+            // Clear all theme timers and objects on error
+            if (window.__themeTimer) {
+              clearInterval(window.__themeTimer);
+              window.__themeTimer = null;
+            }
+            if (window.__playTimer) {
+              clearInterval(window.__playTimer);
+              window.__playTimer = null;
+            }
             window.__theme = null;
             window.themeInitBackup = null;
             window.themeRenderBackup = null;
-            window.__themeTimer = null;
-            window.__playTimer = null;
           }
         });
-        if (btnThemeStart) btnThemeStart.addEventListener('click', async ()=>{
+      }
+
+      // ========================================
+      // 🎛️ THEME CONTROLS FUNCTIONS (Global Scope)
+      // ========================================
+
+      // Inject current control values into theme HTML
+      function injectThemeSettings(themeHtml) {
+        console.log('Injecting current control values into theme...');
+
+        // Get current control values
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const themeTextColor = document.getElementById('themeTextColor');
+        const themeBgColor = document.getElementById('themeBgColor');
+        const themeTimeFormat = document.getElementById('themeTimeFormat');
+        const themeShowSeconds = document.getElementById('themeShowSeconds');
+        const themePulseAnimation = document.getElementById('themePulseAnimation');
+
+        // Collect current settings
+        const currentSettings = {
+          fontSize: fontSizeSlider ? parseInt(fontSizeSlider.value) : 60,
+          textColor: themeTextColor ? themeTextColor.value : '#00ff00',
+          bgColor: themeBgColor ? themeBgColor.value : '#000000',
+          timeFormat: themeTimeFormat ? themeTimeFormat.value : '24',
+          showSeconds: themeShowSeconds ? themeShowSeconds.checked : true,
+          pulseAnimation: themePulseAnimation ? themePulseAnimation.checked : false,
+          showDate: false // Always false since we removed the control
+        };
+
+        console.log('Current settings to inject:', currentSettings);
+
+        // Find and replace theme settings in the HTML
+        let modifiedHtml = themeHtml;
+
+        // Replace font size
+        modifiedHtml = modifiedHtml.replace(/fontSize:\s*\d+/g, `fontSize: ${currentSettings.fontSize}`);
+        modifiedHtml = modifiedHtml.replace(/fontSize:\s*'[^']*'/g, `fontSize: ${currentSettings.fontSize}`);
+
+        // Replace text color
+        modifiedHtml = modifiedHtml.replace(/textColor:\s*'[^']*'/g, `textColor: '${currentSettings.textColor}'`);
+        modifiedHtml = modifiedHtml.replace(/textColor:\s*"[^"]*"/g, `textColor: '${currentSettings.textColor}'`);
+
+        // Replace background color
+        modifiedHtml = modifiedHtml.replace(/bgColor:\s*'[^']*'/g, `bgColor: '${currentSettings.bgColor}'`);
+        modifiedHtml = modifiedHtml.replace(/bgColor:\s*"[^"]*"/g, `bgColor: '${currentSettings.bgColor}'`);
+
+        // Replace time format
+        modifiedHtml = modifiedHtml.replace(/timeFormat:\s*'[^']*'/g, `timeFormat: '${currentSettings.timeFormat}'`);
+        modifiedHtml = modifiedHtml.replace(/timeFormat:\s*"[^"]*"/g, `timeFormat: '${currentSettings.timeFormat}'`);
+
+        // Replace boolean values
+        modifiedHtml = modifiedHtml.replace(/showSeconds:\s*(true|false)/g, `showSeconds: ${currentSettings.showSeconds}`);
+        modifiedHtml = modifiedHtml.replace(/pulseAnimation:\s*(true|false)/g, `pulseAnimation: ${currentSettings.pulseAnimation}`);
+        modifiedHtml = modifiedHtml.replace(/showDate:\s*(true|false)/g, `showDate: ${currentSettings.showDate}`);
+
+        console.log('Theme HTML modified with current settings');
+        return modifiedHtml;
+      }
+
+      // Initialize theme controls
+      function initThemeControls() {
+        // Font size controls
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+
+        // Color controls
+        const themeTextColor = document.getElementById('themeTextColor');
+        const textColorHex = document.getElementById('textColorHex');
+        const themeBgColor = document.getElementById('themeBgColor');
+        const bgColorHex = document.getElementById('bgColorHex');
+
+        // Format controls
+        const themeTimeFormat = document.getElementById('themeTimeFormat');
+        const themeShowSeconds = document.getElementById('themeShowSeconds');
+
+        // Effect controls
+        const themePulseAnimation = document.getElementById('themePulseAnimation');
+
+        // Font size event listener
+        if (fontSizeSlider && fontSizeDisplay) {
+          fontSizeSlider.addEventListener('input', (e) => {
+            const value = fontSizeSlider.value;
+            fontSizeDisplay.textContent = value + '%';
+            updateThemeSetting('fontSize', parseInt(value));
+          });
+        }
+
+        // Color controls event listeners
+        if (themeTextColor && textColorHex) {
+          themeTextColor.addEventListener('input', (e) => {
+            const color = e.target.value;
+            textColorHex.textContent = color;
+            updateThemeSetting('textColor', color);
+          });
+
+          // Also update the color picker when hex is manually edited (if we add that later)
+          textColorHex.textContent = themeTextColor.value;
+        }
+
+        if (themeBgColor && bgColorHex) {
+          themeBgColor.addEventListener('input', (e) => {
+            const color = e.target.value;
+            bgColorHex.textContent = color;
+            updateThemeSetting('bgColor', color);
+          });
+
+          // Also update the color picker when hex is manually edited (if we add that later)
+          bgColorHex.textContent = themeBgColor.value;
+        }
+
+        // Format controls event listeners
+        if (themeTimeFormat) {
+          themeTimeFormat.addEventListener('change', (e) => {
+            updateThemeSetting('timeFormat', e.target.value);
+          });
+        }
+
+        if (themeShowSeconds) {
+          themeShowSeconds.addEventListener('change', (e) => {
+            updateThemeSetting('showSeconds', e.target.checked);
+          });
+        }
+
+        // Effect controls event listeners
+        if (themePulseAnimation) {
+          themePulseAnimation.addEventListener('change', (e) => {
+            updateThemeSetting('pulseAnimation', e.target.checked);
+          });
+        }
+      }
+
+      // Update theme settings
+      function updateThemeSetting(setting, value) {
+        if (window.__theme && window.__theme.settings) {
+          window.__theme.settings[setting] = value;
+          console.log(`Theme setting updated: ${setting} = ${value}`);
+
+          // Force immediate re-render if theme preview is running
+          if (window.__themeTimer) {
+            // Clear and restart the timer to trigger immediate update
+            clearInterval(window.__themeTimer);
+            const api = window.__theme;
+            const pv = getPreviewCanvas();
+            const pctx = pv.getContext('2d');
+            const state = api.init ? api.init() : {};
+            const step = () => {
+              pctx.clearRect(0,0,pv.width,pv.height);
+              api.render(pctx, pv.width, pv.height, state, Date.now());
+            };
+            // Use FPS of 5 for smooth real-time updates
+            window.__themeTimer = setInterval(step, 200);
+            step();
+            console.log('Theme preview refreshed with new settings');
+          }
+        }
+      }
+
+      // Update control values to match theme settings
+      function updateControlValuesFromTheme() {
+        if (!window.__theme || !window.__theme.settings) return;
+
+        const settings = window.__theme.settings;
+        console.log('Updating control values from theme settings:', settings);
+
+        // Update font size controls
+        const fontSizeSlider = document.getElementById('fontSizeSlider');
+        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
+        if (fontSizeSlider && fontSizeDisplay && settings.fontSize !== undefined) {
+          fontSizeSlider.value = settings.fontSize;
+          fontSizeDisplay.textContent = Math.floor(settings.fontSize) + '%';
+        }
+
+        // Update color controls
+        const themeTextColor = document.getElementById('themeTextColor');
+        const textColorHex = document.getElementById('textColorHex');
+        if (themeTextColor && textColorHex && settings.textColor) {
+          themeTextColor.value = settings.textColor;
+          textColorHex.textContent = settings.textColor;
+        }
+
+        const themeBgColor = document.getElementById('themeBgColor');
+        const bgColorHex = document.getElementById('bgColorHex');
+        if (themeBgColor && bgColorHex && settings.bgColor) {
+          themeBgColor.value = settings.bgColor;
+          bgColorHex.textContent = settings.bgColor;
+        }
+
+        // Update format controls
+        const themeTimeFormat = document.getElementById('themeTimeFormat');
+        if (themeTimeFormat && settings.timeFormat) {
+          themeTimeFormat.value = settings.timeFormat;
+        }
+
+        const themeShowSeconds = document.getElementById('themeShowSeconds');
+        if (themeShowSeconds && settings.showSeconds !== undefined) {
+          themeShowSeconds.checked = settings.showSeconds;
+        }
+
+        // Update effect controls
+        const themePulseAnimation = document.getElementById('themePulseAnimation');
+        if (themePulseAnimation && settings.pulseAnimation !== undefined) {
+          themePulseAnimation.checked = settings.pulseAnimation;
+        }
+
+        const themeShowDate = document.getElementById('themeShowDate');
+        if (themeShowDate && settings.showDate !== undefined) {
+          themeShowDate.checked = settings.showDate;
+        }
+
+        console.log('Control values updated successfully');
+      }
+
+      // Show/hide theme controls section
+      function showThemeControls(show = true) {
+        const controlsSection = document.getElementById('themeControlsSection');
+        if (controlsSection) {
+          controlsSection.style.display = show ? 'grid' : 'none';
+        }
+      }
+
+      if (btnThemeStart) btnThemeStart.addEventListener('click', async ()=>{
           console.log('Start button clicked');
           console.log('window.__theme:', window.__theme);
 
@@ -1031,6 +1224,21 @@
           }
 
           console.log('Starting theme playback on LED panel...');
+
+          // Stop all existing theme playback before starting new one
+          console.log('Stopping any existing theme playback...');
+
+          // Stop theme timers first
+          if (window.__themeTimer) {
+            clearInterval(window.__themeTimer);
+            window.__themeTimer = null;
+            console.log('Stopped existing theme preview timer');
+          }
+          if (window.__playTimer) {
+            clearInterval(window.__playTimer);
+            window.__playTimer = null;
+            console.log('Stopped existing theme play timer');
+          }
 
           // Stop all other modes when starting theme playback
           // BUT preserve the theme object (don't let stopAllRunningContent clear it)
@@ -1102,7 +1310,81 @@
           step();
           console.log('Theme playback started');
         });
-      }
+
+        // Reapply Settings button functionality
+        const btnThemeReapply = document.getElementById('btnThemeReapply');
+        if (btnThemeReapply) {
+          btnThemeReapply.addEventListener('click', async () => {
+            if (!window.__theme) {
+              alert('Please upload a theme first');
+              return;
+            }
+
+            console.log('Reapplying theme settings...');
+
+            // Get the original theme file content
+            const inp = document.getElementById('themeFile');
+            const f = inp && inp.files && inp.files[0];
+            if (!f) {
+              alert('Please select the theme file again to reapply settings');
+              return;
+            }
+
+            const txt = await f.text();
+
+            // Inject current control values into the theme
+            const modifiedTxt = injectThemeSettings(txt);
+
+            // Re-parse the modified theme
+            try {
+              const mscript = modifiedTxt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+              if (!mscript) throw new Error('No <script> in theme');
+              const code = mscript[1];
+              console.log('Modified script code found, length:', code.length);
+
+              // Execute the modified theme script in global scope
+              try {
+                eval(code);
+                console.log('Modified theme script executed successfully');
+              } catch(evalErr) {
+                console.error('Modified theme script execution failed:', evalErr);
+                throw new Error('Modified theme script execution failed: ' + evalErr.message);
+              }
+
+              // Check if functions are available globally
+              const api = {
+                init: (typeof themeInit !== 'undefined') ? themeInit : null,
+                render: (typeof themeRender !== 'undefined') ? themeRender : null
+              };
+
+              if(!api || !api.render){
+                throw new Error('themeRender() not found in modified theme');
+              }
+
+              console.log('Modified theme API loaded successfully');
+              window.__theme = api;
+
+              // Update control values to match new theme settings
+              updateControlValuesFromTheme();
+
+              // Restart theme preview with new settings
+              const pv = getPreviewCanvas();
+              const pctx = pv.getContext('2d');
+              const state = api.init ? api.init() : {};
+              if(window.__themeTimer) clearInterval(window.__themeTimer);
+              const step=()=>{ pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
+              const period = Math.round(1000/Math.max(1, Math.min(30,15))); // Use 15 FPS for preview
+              window.__themeTimer=setInterval(step, period);
+              step();
+
+              console.log('Theme settings reapplied successfully!');
+
+            } catch(e) {
+              console.error('Error reapplying theme settings:', e);
+              alert('Error reapplying theme settings: ' + e.message);
+            }
+          });
+        }
 
       // Panel configuration
       async function openPanelConfig(){
@@ -1147,39 +1429,70 @@
 
       // Event listeners
       function initEventListeners() {
-        // Main render button
+        // Main render button - tab-aware
         const mainBtn = $('btn');
         if (mainBtn) {
           mainBtn.addEventListener('click', async function(e) {
             e.preventDefault();
-            await renderAndUpload();
+
+            // Check which tab is active and apply accordingly
+            const textMode = (document.getElementById('textConfig') && document.getElementById('textConfig').style.display !== 'none');
+            const clockMode = (document.getElementById('clockConfig') && document.getElementById('clockConfig').style.display !== 'none');
+            const videoMode = (document.getElementById('videoConfig') && document.getElementById('videoConfig').style.display !== 'none');
+            const themeMode = (document.getElementById('themeConfig') && document.getElementById('themeConfig').style.display !== 'none');
+
+            if (textMode) {
+              // Apply text settings
+              await renderAndUpload();
+            } else if (clockMode) {
+              // Apply clock settings (but don't stop existing timer)
+              await renderAndUploadClock();
+              // Start clock timer if not already running
+              if (!clockTimer) {
+                clockTimer = setInterval(async ()=>{
+                  console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
+                  try {
+                    await renderAndUploadClock();
+                  } catch(err) {
+                    console.error('Clock auto-update error:', err);
+                  }
+                }, 1000);
+                console.log('Clock auto-update timer started');
+              }
+            } else if (videoMode) {
+              // Video mode - handled by separate Start/Stop buttons
+              console.log('Video mode: Use Start/Stop buttons to control video playback');
+            } else if (themeMode) {
+              // Theme mode - handled by separate Start button
+              console.log('Theme mode: Use Start button to apply theme');
+            }
           });
         }
 
-        // Center button
-        const centerBtn = $('center');
-        if (centerBtn) {
-          centerBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            $('offx').value=0; $('offy').value=0;
-            $('offxVal').textContent='0'; $('offyVal').textContent='0';
-            drawPreview();
-          });
-        }
-
-        // Text and configuration inputs
-        ['text','fontSize','color','bg','pw','ph','offx','offy','animate','dir','speed','interval','textBgRound','textBgRadius','brightness'].forEach(id=> {
+  
+        // Text and configuration inputs - update display values but NOT preview
+        ['text','fontSize','color','bg','brightness','animate','dir','speed','interval'].forEach(id=> {
           $(id).addEventListener('input', ()=>{
             if(id==='fontSize'){ $('fontSizeVal').textContent = $('fontSize').value + ' px'; }
+            if(id==='brightness'){ $('brightnessVal').textContent = $('brightness').value + '%'; }
             if(id==='speed'){ $('speedVal').textContent = $('speed').value + ' ms'; }
             if(id==='interval'){ $('intervalVal').textContent = $('interval').value + ' px'; }
-            if(id==='brightness'){ $('brightnessVal').textContent = $('brightness').value + '%'; }
-            drawPreview();
+
+            // NOTE: Removed automatic drawPreview() call - changes only apply when Preview/Apply clicked
           });
         });
 
-        // Select inputs for mobile
-        ['pw','ph'].forEach(id=> $(id).addEventListener('change', drawPreview));
+        // Clock configuration inputs - update immediately
+        ['clockFormat','clockSize','clockColor'].forEach(id=> {
+          $(id).addEventListener('input', ()=>{
+            if(id==='clockSize'){ $('clockSizeVal').textContent = $('clockSize').value + ' px'; }
+            // Update clock preview immediately when settings change
+            const clockMode = (document.getElementById('clockConfig') && document.getElementById('clockConfig').style.display !== 'none');
+            if (clockMode) {
+              drawClockPreviewFrame();
+            }
+          });
+        });
 
         // Image file upload
         $('imageFile').addEventListener('change', (e)=>{
@@ -1191,7 +1504,7 @@
           img.src = url;
         });
 
-        // Background mode change
+        // Background mode change - update UI but don't auto-preview
         $('bgMode').addEventListener('change', ()=>{
           const mode = $('bgMode').value;
           const showImg = mode==='image';
@@ -1199,166 +1512,33 @@
           $('imageFile').style.display = showImg? 'inline-block':'none';
           const fitRow = document.getElementById('imageFitRow');
           if (fitRow) fitRow.style.display = showImg? 'grid':'none';
-          drawPreview();
+          // NOTE: Removed drawPreview() - user must click Preview/Apply to see changes
         });
 
-        // Image fit change
-        $('imageFit').addEventListener('change', drawPreview);
-
-        // Text background settings
-        $('textBg').addEventListener('change', drawPreview);
-        $('textBgColor').addEventListener('input', drawPreview);
-        $('textBgPad').addEventListener('change', drawPreview);
-        $('textBgRound').addEventListener('change', drawPreview);
-        $('textBgRadius').addEventListener('change', drawPreview);
-
-        // Offset display updates
-        $('offx').addEventListener('input', ()=> $('offxVal').textContent=$('offx').value);
-        $('offy').addEventListener('input', ()=> $('offyVal').textContent=$('offy').value);
-
-        // Custom font upload
-        document.getElementById('customFont').addEventListener('change', async (e)=>{
-          const f = e.target.files && e.target.files[0];
-          if (!f) return;
-          try {
-            const data = await f.arrayBuffer();
-            const ff = new FontFace('UserFont', data);
-            await ff.load();
-            document.fonts.add(ff);
-            userFontLoaded = true;
-            await document.fonts.ready;
-            // enable the Uploaded radio and select it by default
-            const uploadedRadio = document.getElementById('fontUploaded');
-            if (uploadedRadio) { uploadedRadio.disabled = false; uploadedRadio.checked = true; }
-            drawPreview();
-          } catch (err) {
-            console.error('Custom font failed to load', err);
-            alert('Custom font failed to load');
-          }
+        // Image fit change - don't auto-preview
+        $('imageFit').addEventListener('change', () => {
+          // NOTE: Removed drawPreview() - user must click Preview/Apply to see changes
         });
 
-        // Font source changes
-        const fontDefault = document.getElementById('fontDefault');
-        const fontUploaded = document.getElementById('fontUploaded');
-        if (fontDefault) fontDefault.addEventListener('change', drawPreview);
-        if (fontUploaded) fontUploaded.addEventListener('change', drawPreview);
-
+      
+  
+        
         // Text preview button
         const btnTextPreview = document.getElementById('btnTextPreview');
         if (btnTextPreview) btnTextPreview.addEventListener('click', function(e) {
           e.preventDefault();
           // Stop other content for preview only (keep LED running)
           stopContentForPreview();
+
+          // Reinitialize animation if text or font size changed
+          if($('animate').checked && $('text').value.trim().length > 0) {
+            initPreviewAnim();
+          }
+
           drawPreview();
         });
 
-        // Clock preview button
-        const btnClockPreview = document.getElementById('btnClockPreview');
-        if (btnClockPreview) btnClockPreview.addEventListener('click', function(e) {
-          e.preventDefault();
-          // Stop other content for preview only (keep LED clock running)
-          stopContentForPreview();
-          drawClockPreviewFrame();
-          // Start clock preview animation (update every second)
-          if (clockPreviewTimer) clearInterval(clockPreviewTimer);
-          clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
-        });
-
-        // Update clock status display
-        function updateClockStatus() {
-          const statusEl = document.getElementById('clockStatus');
-          if (statusEl) {
-            if (clockTimer) {
-              const sec = parseInt($('clockInterval').value,10)||5;
-              statusEl.textContent = `✅ Active (${sec}s)`;
-              statusEl.style.color = '#2aa198';
-            } else {
-              statusEl.textContent = '❌ Inactive';
-              statusEl.style.color = '#93a1b1';
-            }
-          }
-        }
-
-        // Clock start button
-        const btnClock = document.getElementById('btnClock');
-        if (btnClock) btnClock.addEventListener('click', async ()=>{
-          await renderAndUploadClock();
-          if ($('clockAuto').checked){
-            if (clockTimer) clearInterval(clockTimer);
-            const sec = parseInt($('clockInterval').value,10)||5;
-            clockTimer = setInterval(async ()=>{
-              console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
-              try {
-                await renderAndUploadClock();
-              } catch(err) {
-                console.error('Clock auto-update error:', err);
-                // Don't clear timer on error, let it continue
-              }
-            }, sec*1000);
-            console.log('Clock auto-update timer started, interval:', sec, 'seconds');
-            updateClockStatus();
-          } else {
-            if (clockTimer) {
-              clearInterval(clockTimer);
-              clockTimer = 0;
-              console.log('Clock auto-update timer stopped');
-              updateClockStatus();
-            }
-          }
-        });
-
-        // Clock auto-update checkbox change handler
-        const clockAuto = document.getElementById('clockAuto');
-        if (clockAuto) {
-          clockAuto.addEventListener('change', async ()=>{
-            if (clockAuto.checked && clockTimer === 0) {
-              // Start timer if checked and no timer running
-              const sec = parseInt($('clockInterval').value,10)||5;
-              clockTimer = setInterval(async ()=>{
-                console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
-                try {
-                  await renderAndUploadClock();
-                } catch(err) {
-                  console.error('Clock auto-update error:', err);
-                }
-              }, sec*1000);
-              console.log('Clock auto-update timer started from checkbox');
-              updateClockStatus();
-            } else if (!clockAuto.checked && clockTimer) {
-              // Stop timer if unchecked
-              clearInterval(clockTimer);
-              clockTimer = 0;
-              console.log('Clock auto-update timer stopped from checkbox');
-              updateClockStatus();
-            }
-          });
-        }
-
-        // Clock interval change handler
-        const clockInterval = document.getElementById('clockInterval');
-        if (clockInterval) {
-          clockInterval.addEventListener('change', async ()=>{
-            if (clockTimer) {
-              // Restart timer with new interval
-              clearInterval(clockTimer);
-              const sec = parseInt(clockInterval.value,10)||5;
-              clockTimer = setInterval(async ()=>{
-                console.log('Clock timer tick - updating clock at:', new Date().toLocaleTimeString());
-                try {
-                  await renderAndUploadClock();
-                } catch(err) {
-                  console.error('Clock auto-update error:', err);
-                }
-              }, sec*1000);
-              console.log('Clock interval updated to:', sec, 'seconds');
-              updateClockStatus();
-            }
-          });
-        }
-
-        // Initialize clock status display
-        updateClockStatus();
-
+        
         // Video events
         const btnVideoStart = document.getElementById('btnVideoStart');
         const btnVideoStop = document.getElementById('btnVideoStop');
@@ -1404,17 +1584,19 @@
         });
       }
 
-      // Render and upload function
+      // Render and upload function for text mode
       async function renderAndUpload(){
-        // Stop all other modes when starting text render
-        stopAllRunningContent();
+        // Stop only content that conflicts with text mode (video, theme, but preserve clock)
+        stopPreviewAnim();
+        stopVideoPreview();
+        stopThemeTimers();
+        // Don't stop clock timer - it should continue running if started
 
         drawPreview();
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
+        const pw = 128; const ph = 64; // Fixed panel size
         const animate=$('animate').checked; const dir=$('dir').value;
         const speed=parseInt($('speed').value,10);
         const interval=parseInt($('interval').value,10);
-        const offx=parseInt($('offx').value,10); const offy=parseInt($('offy').value,10);
 
         let outCanvas = document.createElement('canvas');
         if ($('bgMode').value === 'image' && loadedImg) {
@@ -1454,7 +1636,7 @@
         }
         // Now build text-only transparent canvas (or skip if no text)
         if ($('text').value.trim().length > 0) {
-          // Build transparent text-only canvas
+          // Build text-only canvas
           const fam = getFontFamily(); const size=parseInt($('fontSize').value,10);
           const font = `bold ${size}px ${fam}`;
           let t = document.createElement('canvas'); let tctx = t.getContext('2d');
@@ -1464,28 +1646,6 @@
           let th = Math.max(1, Math.ceil(size*1.2 + 6));
           t.width = tw; t.height = th;
           tctx.font=font; tctx.textBaseline='alphabetic'; tctx.textAlign='left';
-          // optional text background box (opaque)
-          if ($('textBg').checked) {
-            const pad = parseInt($('textBgPad').value,10) || 0;
-            t.width = tw + pad*2; t.height = th + pad*2;
-            // redraw font after resize
-            tctx = t.getContext('2d'); tctx.font=font; tctx.textBaseline='alphabetic'; tctx.textAlign='left';
-            tctx.fillStyle = $('textBgColor').value;
-            if ($('textBgRound').checked) {
-              const r = parseInt($('textBgRadius').value,10) || 0;
-              const rr = Math.max(0, Math.min(r, Math.min(t.width,t.height)/2));
-              tctx.beginPath();
-              tctx.moveTo(rr, 0);
-              tctx.arcTo(t.width, 0,   t.width, t.height, rr);
-              tctx.arcTo(t.width, t.height, 0,   t.height, rr);
-              tctx.arcTo(0,   t.height, 0,   0,   rr);
-              tctx.arcTo(0,   0,   t.width, 0,   rr);
-              tctx.closePath();
-              tctx.fill();
-            } else {
-              tctx.fillRect(0, 0, t.width, t.height);
-            }
-          }
           tctx.fillStyle=$('color').value;
           const baseY = Math.floor(size);
           tctx.fillText($('text').value, 0, baseY);
@@ -1515,8 +1675,8 @@
         fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'img.rgb565');
         fd.append('bg', $('bg').value);
         fd.append('bgMode', $('bgMode').value);
-        fd.append('offx', offx);
-        fd.append('offy', offy);
+        fd.append('offx', 0);
+        fd.append('offy', 0);
         fd.append('animate', ( $('text').value.trim().length>0 && animate)?1:0);
         fd.append('brightness', parseInt($('brightness').value, 10));
         fd.append('dir', dir);
@@ -1533,8 +1693,6 @@
         $('fontSizeVal').textContent = $('fontSize').value + ' px';
         $('speedVal').textContent = $('speed').value + ' ms';
         $('intervalVal').textContent = $('interval').value + ' px';
-        $('offxVal').textContent = $('offx').value;
-        $('offyVal').textContent = $('offy').value;
 
         // Initialize background mode display
         (function(){
@@ -1547,6 +1705,9 @@
         initTabs();
         initEventListeners();
         initPanelConfig();
+
+        // Initialize theme controls (will be shown when theme is loaded)
+        showThemeControls(false);
 
         // Initial preview
         drawPreview();

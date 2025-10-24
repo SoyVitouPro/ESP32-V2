@@ -38,6 +38,107 @@
       #configScroll::-webkit-scrollbar { width: 6px; }
       #configScroll::-webkit-scrollbar-track { background: #0e141b; }
       #configScroll::-webkit-scrollbar-thumb { background: #233040; border-radius: 3px; }
+
+      /* Custom modern slider styles */
+      .custom-slider {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 6px;
+        background: transparent;
+        outline: none;
+        cursor: pointer;
+        position: relative;
+      }
+
+      .custom-slider::-webkit-slider-track {
+        height: 6px;
+        background: #1a2332;
+        border-radius: 3px;
+        position: relative;
+      }
+
+      .custom-slider::-webkit-slider-track::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 6px;
+        background: linear-gradient(90deg, var(--accent) 0%, var(--accent) var(--progress, 50%), #1a2332 var(--progress, 50%), #1a2332 100%);
+        border-radius: 3px;
+        transition: all 0.2s ease;
+      }
+
+      .custom-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        background: var(--accent);
+        border: 2px solid #0a0f1a;
+        border-radius: 50%;
+        cursor: pointer;
+        position: relative;
+        z-index: 2;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        transition: all 0.2s ease;
+      }
+
+      .custom-slider::-webkit-slider-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        background: #3ae374;
+      }
+
+      .custom-slider::-webkit-slider-thumb:active {
+        transform: scale(0.95);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      }
+
+      .custom-slider::-moz-range-track {
+        height: 6px;
+        background: #1a2332;
+        border-radius: 3px;
+      }
+
+      .custom-slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        background: var(--accent);
+        border: 2px solid #0a0f1a;
+        border-radius: 50%;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        transition: all 0.2s ease;
+      }
+
+      .custom-slider::-moz-range-thumb:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        background: #3ae374;
+      }
+
+      .custom-slider::-moz-range-thumb:active {
+        transform: scale(0.95);
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      }
+
+    
+      /* Slider value display */
+      .slider-value {
+        background: var(--accent);
+        color: #093a39;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        min-width: 45px;
+        text-align: center;
+        border: 1px solid #0a0f1a;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      }
+
       #panelRow { grid-template-columns: 90px 1fr; column-gap: 4px; }
       #panelRow .inline { flex-wrap: nowrap; gap: 3px; }
       #panelRow select { width: 110px; min-width: 88px; }
@@ -64,7 +165,6 @@
       <div id="configScroll" style="flex:1 1 auto; overflow:auto;">
       <div class="card">
         <div class="row" id="modeTabs">
-          <label>Mode</label>
           <div class="inline" style="gap:8px; flex-wrap:wrap; align-items:center;">
             <button id="tabText" class="tab active" title="Text">🏠</button>
             <button id="tabClock" class="tab" title="Clock">🕐</button>
@@ -81,10 +181,7 @@
         </div>
             <div class="row group-text" id="fontSizeRow" style="margin-top: 17px;">
           <label for="fontSize">Font Size</label>
-          <div class="inline" id="fontSizeInline">
-            <input id="fontSize" type="range" min="10" max="50" value="30" />
-            <span id="fontSizeVal">30 px</span>
-          </div>
+          <input id="fontSize" type="range" min="0" max="100" value="25" />
         </div>
               <div class="row group-text">
           <label for="color">Text Color</label>
@@ -219,24 +316,19 @@
         </div>
         <div id="clockConfig" style="display:none">
           <div class="row">
-            <label for="clockFormat">Clock Format</label>
-            <div class="inline">
-              <select id="clockFormat">
-                <option value="24" selected>24-hour</option>
-                <option value="12">12-hour</option>
-              </select>
-            </div>
-          </div>
-          <div class="row">
-            <label for="clockSize">Clock Size</label>
+            <label for="clockSize" style="margin-top: 20px;">Clock Size</label>
             <div class="inline">
               <input id="clockSize" type="range" min="10" max="50" value="28" />
               <span id="clockSizeVal">28 px</span>
             </div>
           </div>
           <div class="row">
-            <label for="clockColor">Clock Color</label>
+            <label for="clockColor">Clock Text Color</label>
             <input id="clockColor" type="color" value="#ffffff" />
+          </div>
+          <div class="row">
+            <label for="clockBgColor">Clock Background</label>
+            <input id="clockBgColor" type="color" value="#000000" />
           </div>
                   </div> <!-- end #clockConfig -->
         <div id="videoConfig" style="display:none">
@@ -567,15 +659,15 @@
 
       function drawClockPreviewFrame(){
         const pw = 128; const ph = 64; // Fixed panel size
-        const fmt = $('clockFormat').value;
+        const fmt = '24'; // Always use 24-hour format
         const size = parseInt($('clockSize').value,10);
         const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
         const col = $('clockColor').value;
-        const bg = $('bg').value;
+        const clockBg = $('clockBgColor').value; // Use dedicated clock background
         c.width = pw; c.height = ph;
         ctx.clearRect(0,0,c.width,c.height);
-        // draw background (respect image mode)
-        ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
+        // draw clock background (use dedicated clock background color)
+        ctx.fillStyle = clockBg; ctx.fillRect(0,0,pw,ph);
         if ($('bgMode').value === 'image' && loadedImg) {
           const fit = $('imageFit').value;
           let dw = loadedImg.width, dh = loadedImg.height;
@@ -619,13 +711,13 @@
         // Don't stop clock timer here - it should keep running
 
         const pw = 128; const ph = 64; // Fixed panel size
-        const fmt = $('clockFormat').value;
+        const fmt = '24'; // Always use 24-hour format
         const size = parseInt($('clockSize').value,10);
         const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
         const col = $('clockColor').value;
-        const bg = $('bg').value;
+        const clockBg = $('clockBgColor').value; // Use dedicated clock background
         const t = document.createElement('canvas'); t.width = pw; t.height = ph; const tctx=t.getContext('2d');
-        tctx.fillStyle=bg; tctx.fillRect(0,0,pw,ph);
+        tctx.fillStyle=clockBg; tctx.fillRect(0,0,pw,ph);
         tctx.font=font; tctx.textBaseline='middle'; tctx.textAlign='center'; tctx.fillStyle=col;
         const txt = formatTime(fmt);
         tctx.fillText(txt, Math.floor(pw*0.5), Math.floor(ph*0.5) + 4); // Moved down 4 pixels
@@ -642,7 +734,7 @@
         }
         const fd = new FormData();
         fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'clock.rgb565');
-        fd.append('bg', bg);
+        fd.append('bg', clockBg); // Send dedicated clock background color
         fd.append('bgMode', 'color');
         fd.append('offx', 0);
         fd.append('offy', 0);
@@ -1052,6 +1144,11 @@
             const value = fontSizeSlider.value;
             fontSizeDisplay.textContent = value + '%';
             updateThemeSetting('fontSize', parseInt(value));
+            // Update custom slider progress
+            const min = parseInt(fontSizeSlider.min);
+            const max = parseInt(fontSizeSlider.max);
+            const progress = ((value - min) / (max - min)) * 100;
+            fontSizeSlider.style.setProperty('--progress', progress + '%');
           });
         }
 
@@ -1138,6 +1235,11 @@
         if (fontSizeSlider && fontSizeDisplay && settings.fontSize !== undefined) {
           fontSizeSlider.value = settings.fontSize;
           fontSizeDisplay.textContent = Math.floor(settings.fontSize) + '%';
+          // Initialize custom slider progress
+          const min = parseInt(fontSizeSlider.min);
+          const max = parseInt(fontSizeSlider.max);
+          const progress = ((settings.fontSize - min) / (max - min)) * 100;
+          fontSizeSlider.style.setProperty('--progress', progress + '%');
         }
 
         // Update color controls
@@ -1498,7 +1600,6 @@
         // Text and configuration inputs - update display values but NOT preview
         ['text','fontSize','color','bg','brightness','animate','dir','speed','interval'].forEach(id=> {
           $(id).addEventListener('input', ()=>{
-            if(id==='fontSize'){ $('fontSizeVal').textContent = $('fontSize').value + ' px'; }
             if(id==='brightness'){ $('brightnessVal').textContent = $('brightness').value + '%'; }
             if(id==='speed'){ $('speedVal').textContent = $('speed').value + ' ms'; }
             if(id==='interval'){ $('intervalVal').textContent = $('interval').value + ' px'; }
@@ -1508,7 +1609,7 @@
         });
 
         // Clock configuration inputs - update immediately
-        ['clockFormat','clockSize','clockColor'].forEach(id=> {
+        ['clockSize','clockColor','clockBgColor'].forEach(id=> {
           $(id).addEventListener('input', ()=>{
             if(id==='clockSize'){ $('clockSizeVal').textContent = $('clockSize').value + ' px'; }
             // Update clock preview immediately when settings change
@@ -1715,7 +1816,6 @@
       function initApp() {
         // Initialize display values
         $('brightnessVal').textContent = $('brightness').value + '%';
-        $('fontSizeVal').textContent = $('fontSize').value + ' px';
         $('speedVal').textContent = $('speed').value + ' ms';
         $('intervalVal').textContent = $('interval').value + ' px';
 

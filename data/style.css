@@ -91,6 +91,25 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 }
 .color-box-wrapper .gear, .bg-color-box-wrapper .gear { display: none; }
 
+/* Clock color boxes */
+.clock-color-box, .clock-bg-color-box {
+  width: 32px; height: 32px; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; position: relative; padding: 0; margin: 0; border: 2px solid #333;
+}
+.clock-color-box:hover, .clock-bg-color-box:hover { transform: scale(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.clock-color-box.active, .clock-bg-color-box.active { border-color: #FFFFFF !important; box-shadow: 0 0 0 0.3px rgba(255,255,255,0.15); }
+
+.clock-color-selection-wrapper, .clock-bg-color-selection-wrapper, .clock-size-selection-wrapper {
+  border: 1px solid #1f2a35; border-radius: 6px; padding: 8px; background: rgba(35, 48, 64, 0.3); display: inline-block; width: 100%;
+}
+
+/* Clock size boxes */
+.clock-size-box {
+  width: 35px; height: 30px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; position: relative; padding: 0; margin: 0; border: 2px solid #333; font-weight: 500; background: #233040; color: var(--fg);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.clock-size-box:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.clock-size-box.active { border-color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }
+
 .font-size-box, .brightness-box, .speed-box, .interval-box {
   width: 35px; height: 30px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; position: relative; padding: 0; margin: 0; border: 2px solid #333; font-weight: 500; background: #233040; color: var(--fg);
   display: inline-flex; align-items: center; justify-content: center; font-size: 11px;

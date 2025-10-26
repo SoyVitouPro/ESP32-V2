@@ -259,17 +259,44 @@
       <div id="clockConfig" class="card hidden">
         <div class="row">
           <label for="clockSize">Clock Size</label>
-          <div class="inline">
-            <input id="clockSize" type="range" min="10" max="50" value="28" />
+          <div class="clock-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="clock-size-box" data-size="10">10</button>
+              <button class="clock-size-box" data-size="15">15</button>
+              <button class="clock-size-box" data-size="17">17</button>
+              <button class="clock-size-box" data-size="20">20</button>
+              <button class="clock-size-box" data-size="22">22</button>
+              <button class="clock-size-box" data-size="25">25</button>
+              <button class="clock-size-box active" data-size="30">30</button>
+            </div>
+            <input type="hidden" id="clockSize" value="30" />
           </div>
         </div>
         <div class="row">
           <label for="clockColor">Clock Text Color</label>
-          <input id="clockColor" type="color" value="#ffffff" />
+          <div class="clock-color-selection-wrapper">
+            <div class="inline gap-8">
+              <button class="clock-color-box active" data-color="#FFFFFF" style="background:#FFFFFF"></button>
+              <button class="clock-color-box" data-color="#FF0000" style="background:#FF0000"></button>
+              <button class="clock-color-box" data-color="#00FF00" style="background:#00FF00"></button>
+              <button class="clock-color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
+              <button class="clock-color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
+              <button class="clock-color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
+            </div>
+          </div>
+          <input type="hidden" id="clockColor" value="#FFFFFF" />
         </div>
         <div class="row">
           <label for="clockBgColor">Clock Background</label>
-          <input id="clockBgColor" type="color" value="#000000" />
+          <div class="clock-bg-color-selection-wrapper">
+            <div class="clock-bg-color-boxes inline gap-8 center">
+              <button class="clock-bg-color-box active" data-color="#000000" style="background:#000000"></button>
+              <button class="clock-bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
+              <button class="clock-bg-color-box" data-color="#827C75" style="background:#827C75"></button>
+              <button class="clock-bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
+            </div>
+          </div>
+          <input type="hidden" id="clockBgColor" value="#000000" />
         </div>
 
         <div class="spacer-200"></div>

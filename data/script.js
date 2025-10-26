@@ -218,7 +218,14 @@
 
     ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillStyle = col;
     const txt = formatTime(fmt);
-    ctx.fillText(txt, Math.floor(pw * 0.5), Math.floor(ph * 0.5) + 4);
+      // Adjust vertical position based on font size for better centering
+    let yOffset = Math.floor(ph * 0.5);
+    if (size <= 15) {
+      yOffset -= 2; // Shift up for very small text
+    } else if (size <= 20) {
+      yOffset -= 1; // Shift up slightly for small text
+    }
+    ctx.fillText(txt, Math.floor(pw * 0.5), yOffset);
   };
 
   const startClockPreview = () => {
@@ -243,7 +250,14 @@
     tctx.fillStyle = clockBg; tctx.fillRect(0, 0, pw, ph);
     tctx.font = font; tctx.textBaseline = 'middle'; tctx.textAlign = 'center'; tctx.fillStyle = col;
     const txt = formatTime(fmt);
-    tctx.fillText(txt, Math.floor(pw * 0.5), Math.floor(ph * 0.5) + 4);
+      // Adjust vertical position based on font size for better centering
+    let yOffset = Math.floor(ph * 0.5);
+    if (size <= 15) {
+      yOffset -= 2; // Shift up for very small text
+    } else if (size <= 20) {
+      yOffset -= 1; // Shift up slightly for small text
+    }
+    tctx.fillText(txt, Math.floor(pw * 0.5), yOffset);
 
     const out = tctx.getImageData(0, 0, pw, ph);
     const buf = new Uint8Array(4 + pw * ph * 2);
@@ -829,6 +843,31 @@
         document.querySelectorAll('.bg-color-box, .bg-color-box-wrapper').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('bg').value = this.getAttribute('data-color');
+      });
+    });
+
+    // Clock color, background color, and size selection
+    document.querySelectorAll('.clock-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('.clock-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockColor').value = this.getAttribute('data-color');
+      });
+    });
+
+    document.querySelectorAll('.clock-bg-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('.clock-bg-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockBgColor').value = this.getAttribute('data-color');
+      });
+    });
+
+    document.querySelectorAll('.clock-size-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('.clock-size-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockSize').value = this.getAttribute('data-size');
       });
     });
 

@@ -1579,7 +1579,7 @@
               // Apply text settings
               await renderAndUpload();
             } else if (clockMode) {
-              // Apply clock settings (but don't stop existing timer)
+              // Apply clock settings (clock timer will be managed separately)
               await renderAndUploadClock();
               // Start smooth clock timer if not already running
               if (!clockTimer) {
@@ -1712,11 +1712,18 @@
 
       // Render and upload function for text mode
       async function renderAndUpload(){
-        // Stop only content that conflicts with text mode (video, theme, but preserve clock)
+        // Stop all conflicting content including clock timer when applying text
         stopPreviewAnim();
         stopVideoPreview();
         stopThemeTimers();
-        // Don't stop clock timer - it should continue running if started
+
+        // FIX: Stop clock timer when applying text to prevent interference/glitch
+        if (clockTimer) {
+          console.log('🛑 Stopping clock timer in renderAndUpload - switching to text mode');
+          cancelAnimationFrame(clockTimer);
+          clockTimer = 0;
+          console.log('✅ Clock timer stopped - text mode should work cleanly now');
+        }
 
         drawPreview();
         const pw = 128; const ph = 64; // Fixed panel size

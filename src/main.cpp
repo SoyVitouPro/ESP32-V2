@@ -103,7 +103,7 @@ static int16_t baseY = 0;                   // vertically centered baseline + us
 static uint32_t lastAnim = 0;
 static uint32_t restartAt = 0;              // time to restart next cycle
 static bool waitingRestart = false;
-static int16_t headX0 = 0, headX1 = 0;      // twin heads for seamless marquee
+static std::vector<int16_t> heads;         // multi-head array for continuous text stream
 
 // Panel helpers
 static inline int panelIndexFromXY(int x, int y) {
@@ -269,14 +269,22 @@ void handleUploadData() {
 
 void handleUploadDone() {
   sendCORSHeaders();
-  // Read options - force centering and disable animation
+  // Read options - force centering but USE ANIMATION SETTINGS
   bgColor = hexTo565(server.arg("bg"));
   userOffX = 0; // Force center horizontally
   userOffY = 0; // Force center vertically
-  animate = false; // Disable animation
-  animDir = -1; // default left (not used when animation is disabled)
-  animSpeedMs = 20; // Default speed (not used when animation is disabled)
-  loopOffsetPx = 5; // Default interval (not used when animation is disabled)
+
+  // FIX: Read animation parameters from client instead of hardcoding
+  animate = (server.arg("animate") == "1");
+  animDir = (server.arg("dir") == "right") ? 1 : -1;
+  animSpeedMs = server.hasArg("speed") ? constrain(server.arg("speed").toInt(), 2, 60) : 20;
+  loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 25) : 5;
+
+  // DEBUG: Print animation settings to Serial
+  Serial.printf("Animation settings: animate=%s, dir=%s, speed=%d ms, interval=%d px\n",
+                animate ? "true" : "false",
+                (animDir == -1) ? "left" : "right",
+                animSpeedMs, loopOffsetPx);
   // brightness percent 0..100
   if (server.hasArg("brightness")) {
     int bp = constrain(server.arg("brightness").toInt(), 0, 100);
@@ -294,16 +302,26 @@ void handleUploadDone() {
     Serial.printf("/upload: drawing at center x~%d y=%d on %dx%d\n", (int)VIRT_W()/2, baseY, (int)VIRT_W(), (int)VIRT_H());
     waitingRestart = false;
     if (animate) {
-      // Initialize twin heads for seamless marquee
+      // Initialize multi-head array for continuous text stream
       int gap = (int)loopOffsetPx;
       int spacing = (int)imgW + gap; if (spacing < 1) spacing = 1;
-      if (animDir < 0) {
-        headX0 = (int)VIRT_W();           // start just off right edge
-        headX1 = headX0 + spacing;           // next copy further right
-      } else {
-        headX0 = - (int)imgW;                // start just off left edge
-        headX1 = headX0 - spacing;           // next copy further left
+
+      // Calculate how many copies we need to fill the screen + buffer
+      const int totalCopies = ((VIRT_W() + spacing * 2) / spacing) + 3;
+      heads.clear();
+      heads.reserve(totalCopies);
+
+      if (animDir < 0) { // left scrolling - start from right edge
+        for (int i = 0; i < totalCopies; i++) {
+          heads.push_back(VIRT_W() + (i * spacing));
+        }
+      } else { // right scrolling - start from left edge
+        for (int i = 0; i < totalCopies; i++) {
+          heads.push_back(-imgW - (i * spacing));
+        }
       }
+
+      Serial.printf("Initialized %d heads for continuous scrolling\n", totalCopies);
       // Compose full frame offscreen then push
       if (hasBgImage && bgPixels.size() == frameBuffer.size()) {
         frameBuffer = bgPixels;
@@ -334,8 +352,10 @@ void handleUploadDone() {
           }
         }
       };
-      blitAt(headX0);
-      blitAt(headX1);
+      // Draw all heads for continuous text stream
+      for (int i = 0; i < (int)heads.size(); i++) {
+        blitAt(heads[i]);
+      }
       maskDisabledPanels();
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
       // ensure animation starts moving immediately on next loop
@@ -634,6 +654,8 @@ void loop() {
   if (animate && !textPixels.empty()) {
     uint32_t now = millis();
     if (now - lastAnim >= animSpeedMs) {
+      // DEBUG: Animation loop is running
+      Serial.printf("Animation loop running - managing %d heads\n", (int)heads.size());
       lastAnim = now;
       // compose background
       if (hasBgImage && bgPixels.size() == frameBuffer.size()) {
@@ -660,20 +682,50 @@ void loop() {
           }
         }
       };
-      blitAt(headX0);
-      blitAt(headX1);
+      // Draw all heads for continuous text stream
+      for (int i = 0; i < (int)heads.size(); i++) {
+        blitAt(heads[i]);
+      }
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
-      // advance heads
+
+      // advance all heads
       int gap = (int)loopOffsetPx;
       int spacing = (int)imgW + gap; if (spacing < 1) spacing = 1;
-      if (animDir < 0) { // left
-        headX0 -= 1; headX1 -= 1;
-        if (headX0 + (int)imgW <= 0) headX0 = headX1 + spacing;
-        if (headX1 + (int)imgW <= 0) headX1 = headX0 + spacing;
-      } else { // right
-        headX0 += 1; headX1 += 1;
-        if (headX0 >= (int)VIRT_W()) headX0 = headX1 - spacing;
-        if (headX1 >= (int)VIRT_W()) headX1 = headX0 - spacing;
+
+      if (animDir < 0) { // left scrolling
+        // Move all heads left
+        for (int i = 0; i < (int)heads.size(); i++) {
+          heads[i] -= 1;
+        }
+
+        // Recycle any head that goes completely off screen
+        for (int i = 0; i < (int)heads.size(); i++) {
+          if (heads[i] + imgW <= 0) {
+            // Find the rightmost head to position after it
+            int rightmost = heads[0];
+            for (int j = 1; j < (int)heads.size(); j++) {
+              if (heads[j] > rightmost) rightmost = heads[j];
+            }
+            heads[i] = rightmost + spacing;
+          }
+        }
+      } else { // right scrolling
+        // Move all heads right
+        for (int i = 0; i < (int)heads.size(); i++) {
+          heads[i] += 1;
+        }
+
+        // Recycle any head that goes completely off screen
+        for (int i = 0; i < (int)heads.size(); i++) {
+          if (heads[i] >= VIRT_W()) {
+            // Find the leftmost head to position before it
+            int leftmost = heads[0];
+            for (int j = 1; j < (int)heads.size(); j++) {
+              if (heads[j] < leftmost) leftmost = heads[j];
+            }
+            heads[i] = leftmost - spacing;
+          }
+        }
       }
     }
   } else {

@@ -114,6 +114,9 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 .bg-color-selection-wrapper, .color-selection-wrapper, .font-size-selection-wrapper, .brightness-selection-wrapper, .speed-selection-wrapper, .interval-selection-wrapper, .animation-selection-wrapper {
   border: 1px solid #1f2a35; border-radius: 6px; padding: 8px; background: rgba(35, 48, 64, 0.3); display: inline-block; width: 100%;
 }
+.interval-selection-wrapper {
+  margin-bottom: 80px;
+}
 
 #stickyTabBar { position: sticky; top: 0; z-index: 100; background: #121820; border-bottom: 2px solid #1f2a35; margin-bottom: 0; }
 #modeTabs { padding: 2px 0; margin: 0; }

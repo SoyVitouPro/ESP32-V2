@@ -216,8 +216,127 @@
       }
     }
 
-    // Export control functions for external access
+    // === THEME CONTROL GENERATION ===
+    function generateThemeControls() {
+      // Create font size controls
+      const fontSizeControls = document.createElement('div');
+      fontSizeControls.innerHTML = `
+        <div class="theme-control-section">
+          <div class="theme-control-label">🔠 Font Size</div>
+          <div class="theme-font-size-buttons">
+            <button class="theme-font-btn ${themeSettings.fontSize === 15 ? 'active' : ''}" data-size="15">15</button>
+            <button class="theme-font-btn ${themeSettings.fontSize === 20 ? 'active' : ''}" data-size="20">20</button>
+            <button class="theme-font-btn ${themeSettings.fontSize === 35 ? 'active' : ''}" data-size="35">35</button>
+            <button class="theme-font-btn ${themeSettings.fontSize === 60 ? 'active' : ''}" data-size="60">60</button>
+          </div>
+        </div>
+      `;
+
+      // Create color preset controls
+      const colorPresetControls = document.createElement('div');
+      colorPresetControls.innerHTML = `
+        <div class="theme-control-section">
+          <div class="theme-control-label">🎨 Color Theme</div>
+          <div class="theme-color-buttons">
+            <button class="theme-color-btn ${currentPreset === 'classic' ? 'active' : ''}" data-preset="classic" style="background: #00ff00; color: #000;">Classic</button>
+            <button class="theme-color-btn ${currentPreset === 'neon' ? 'active' : ''}" data-preset="neon" style="background: #ff00ff; color: #fff;">Neon</button>
+            <button class="theme-color-btn ${currentPreset === 'ocean' ? 'active' : ''}" data-preset="ocean" style="background: #00ffff; color: #000;">Ocean</button>
+            <button class="theme-color-btn ${currentPreset === 'sunset' ? 'active' : ''}" data-preset="sunset" style="background: #ff6b35; color: #fff;">Sunset</button>
+            <button class="theme-color-btn ${currentPreset === 'matrix' ? 'active' : ''}" data-preset="matrix" style="background: #00ff41; color: #000;">Matrix</button>
+            <button class="theme-color-btn ${currentPreset === 'fire' ? 'active' : ''}" data-preset="fire" style="background: #ff4500; color: #fff;">Fire</button>
+          </div>
+        </div>
+      `;
+
+      // Create time format controls
+      const timeFormatControls = document.createElement('div');
+      timeFormatControls.innerHTML = `
+        <div class="theme-control-section">
+          <div class="theme-control-label">🕐 Time Format</div>
+          <div class="theme-format-buttons">
+            <button class="theme-format-btn ${themeSettings.timeFormat === '24' ? 'active' : ''}" data-format="24">24 Hour</button>
+            <button class="theme-format-btn ${themeSettings.timeFormat === '12' ? 'active' : ''}" data-format="12">12 Hour</button>
+            <button class="theme-format-btn ${!themeSettings.showSeconds ? 'active' : ''}" data-seconds="false">Hide Seconds</button>
+          </div>
+        </div>
+      `;
+
+      return { fontSizeControls, colorPresetControls, timeFormatControls };
+    }
+
+    // Apply CSS styles for theme controls
+    function injectThemeStyles() {
+      if (document.getElementById('theme-control-styles')) return;
+
+      const styles = document.createElement('style');
+      styles.id = 'theme-control-styles';
+      styles.textContent = `
+        .theme-control-section {
+          margin: 10px 0;
+          padding: 10px;
+          background: rgba(35, 48, 64, 0.3);
+          border-radius: 6px;
+          border: 1px solid #1f2a35;
+        }
+        .theme-control-label {
+          font-size: 12px;
+          font-weight: bold;
+          margin-bottom: 8px;
+          color: #ccc;
+        }
+        .theme-font-buttons, .theme-color-buttons, .theme-format-buttons {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .theme-font-btn, .theme-format-btn {
+          width: 35px;
+          height: 30px;
+          border-radius: 6px;
+          border: 2px solid #333;
+          background: #233040;
+          color: var(--fg);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 11px;
+          font-weight: 500;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .theme-font-btn:hover, .theme-format-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .theme-font-btn.active, .theme-format-btn.active {
+          border-color: #FFFFFF !important;
+          box-shadow: 0 0 0 1px rgba(255,255,255,0.2);
+        }
+        .theme-color-btn {
+          padding: 6px 10px;
+          border-radius: 6px;
+          border: 2px solid #333;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 11px;
+          font-weight: bold;
+        }
+        .theme-color-btn:hover {
+          transform: scale(1.05);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .theme-color-btn.active {
+          border-color: #FFFFFF !important;
+          box-shadow: 0 0 0 1px rgba(255,255,255,0.2);
+        }
+      `;
+      document.head.appendChild(styles);
+    }
+
+    // Export theme control functions
     window.themeControls = {
+      generateControls: generateThemeControls,
+      injectStyles: injectThemeStyles,
       setColorPreset: setColorPreset,
       getPresets: () => Object.keys(colorPresets),
       getCurrentPreset: () => currentPreset

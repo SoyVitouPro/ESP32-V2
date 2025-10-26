@@ -451,6 +451,54 @@
   const showThemeControls = () => { $('themeControlsSection').classList.remove('hidden'); };
   const hideThemeControls = () => { $('themeControlsSection').classList.add('hidden'); };
 
+  // Setup theme control event handlers after theme is loaded
+  const setupThemeControlHandlers = () => {
+    console.log('🎛️ Setting up theme control handlers...');
+
+    // Theme font size buttons (15, 20, 35, 60)
+    const fontSizeButtons = document.querySelectorAll('.theme-font-size-box');
+    console.log('Found theme font size buttons:', fontSizeButtons.length);
+
+    fontSizeButtons.forEach((button, index) => {
+      // Remove existing listeners to avoid duplicates
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+
+      newButton.addEventListener('click', (e) => {
+        console.log('🎯 Font size button clicked:', e.target.dataset.size);
+        const size = parseInt(e.target.dataset.size);
+
+        if (window.__theme) {
+          // Get theme settings from init() if available, otherwise use the main script's settings
+          let themeSettings = null;
+          if (window.__theme.init) {
+            const state = window.__theme.init();
+            themeSettings = state.settings;
+          }
+
+          if (themeSettings) {
+            themeSettings.fontSize = size;
+            console.log('✅ Theme font size updated to:', size, 'Theme settings:', themeSettings);
+
+            // Update active state
+            document.querySelectorAll('.theme-font-size-box').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+
+            // Update preview using main system
+            updateThemeSetting('fontSize', size);
+          } else {
+            console.log('❌ Could not access theme settings, using main system update');
+            updateThemeSetting('fontSize', size);
+          }
+        } else {
+          console.log('❌ Theme not loaded yet:', window.__theme);
+        }
+      });
+    });
+
+    console.log('✅ Theme control handlers setup complete');
+  };
+
   const injectThemeSettings = (themeHtml) => {
     const fontSizeSlider = $('fontSizeSlider');
     const themeTextColor = $('themeTextColor');
@@ -482,18 +530,39 @@
   };
 
   const updateThemeSetting = (setting, value) => {
-    if (window.__theme && window.__theme.settings) {
-      window.__theme.settings[setting] = value;
+    if (window.__theme) {
+      console.log('🔄 updateThemeSetting called:', setting, '=', value);
+
+      // Restart timer with fresh state to apply the setting
       if (window.__themeTimer) {
         clearInterval(window.__themeTimer);
-        const api = window.__theme;
-        const pv = getPreviewCanvas();
-        const pctx = pv.getContext('2d');
-        const state = api.init ? api.init() : {};
-        const step = () => { pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
-        window.__themeTimer = setInterval(step, 200);
-        step();
       }
+
+      const api = window.__theme;
+      const pv = getPreviewCanvas();
+      const pctx = pv.getContext('2d');
+
+      // Get fresh state from theme and apply the setting
+      const state = api.init ? api.init() : {};
+      if (state.settings) {
+        state.settings[setting] = value;
+        console.log('✅ Applied setting to theme state:', state.settings);
+      }
+
+      const step = () => {
+        try {
+          pctx.clearRect(0,0,pv.width,pv.height);
+          api.render(pctx, pv.width, pv.height, state, Date.now());
+        } catch (e) {
+          console.error('Error rendering theme after setting update:', e);
+        }
+      };
+
+      window.__themeTimer = setInterval(step, 200);
+      step(); // Render first frame immediately
+      console.log('✅ Theme preview updated with new setting');
+    } else {
+      console.log('❌ Theme not available for setting update');
     }
   };
 
@@ -561,19 +630,23 @@
     if (themeShowSeconds) themeShowSeconds.addEventListener('change', (e) => updateThemeSetting('showSeconds', e.target.checked));
     if (themePulseAnimation) themePulseAnimation.addEventListener('change', (e) => updateThemeSetting('pulseAnimation', e.target.checked));
 
+    
     console.log('Setting up theme file event listener. themeFile element:', themeFile);
     if (themeFile) {
       console.log('Theme file input found, adding event listener...');
 
       // Setup upload button with direct file selection
-      const btnSelectThemeFile = $('btnSelectThemeFile');
-      const themeFileName = $('themeFileName');
+      const btnSelectThemeFile = $('btnSelectThemeFile') || document.getElementById('btnSelectThemeFile');
+      const themeFileName = $('themeFileName') || document.getElementById('themeFileName');
+
+      console.log('Theme upload elements - btn:', btnSelectThemeFile, 'fileName:', themeFileName);
 
       if (btnSelectThemeFile) {
         console.log('Upload button found, adding click listener...');
 
-        btnSelectThemeFile.addEventListener('click', () => {
-          console.log('Upload button clicked');
+        btnSelectThemeFile.addEventListener('click', (e) => {
+          console.log('Upload button clicked', e);
+          e.preventDefault();
 
           // Create new file input to avoid hidden input issues
           const newFileInput = document.createElement('input');
@@ -581,6 +654,8 @@
           newFileInput.accept = '.html';
           newFileInput.style.display = 'none';
           document.body.appendChild(newFileInput);
+
+          console.log('Created file input:', newFileInput);
 
           newFileInput.addEventListener('change', async () => {
             console.log('New file input change triggered');
@@ -607,9 +682,68 @@
           });
 
           // Trigger file selection
+          console.log('Triggering file selection dialog...');
           newFileInput.click();
         });
       }
+
+    // Handle clicks on theme-generated controls
+    function handleThemeControlClick(button) {
+      console.log('Theme control clicked:', button.textContent, button.dataset);
+
+      // Handle font size buttons
+      if (button.dataset.size) {
+        const newSize = parseInt(button.dataset.size);
+        if (window.__theme && window.__theme.settings) {
+          window.__theme.settings.fontSize = newSize;
+          console.log('Theme font size updated to:', newSize);
+
+          // Update active state
+          const container = button.parentElement;
+          Array.from(container.children).forEach(btn => {
+            btn.classList.remove('active');
+          });
+          button.classList.add('active');
+        }
+      }
+
+      // Handle color preset buttons
+      if (button.dataset.preset && window.themeControls && window.themeControls.setColorPreset) {
+        window.themeControls.setColorPreset(button.dataset.preset);
+        console.log('Color preset updated to:', button.dataset.preset);
+
+        // Update active state
+        const container = button.parentElement;
+        Array.from(container.children).forEach(btn => {
+          btn.classList.remove('active');
+        });
+        button.classList.add('active');
+      }
+
+      // Handle time format buttons
+      if (button.dataset.format && window.__theme && window.__theme.settings) {
+        window.__theme.settings.timeFormat = button.dataset.format;
+        console.log('Time format updated to:', button.dataset.format);
+
+        // Update active state
+        const container = button.parentElement;
+        Array.from(container.children).forEach(btn => {
+          btn.classList.remove('active');
+        });
+        button.classList.add('active');
+      }
+
+      // Handle show/hide seconds button
+      if (button.dataset.seconds !== undefined && window.__theme && window.__theme.settings) {
+        const showSeconds = button.dataset.seconds === 'true';
+        window.__theme.settings.showSeconds = showSeconds;
+        console.log('Show seconds updated to:', showSeconds);
+
+        // Update button text and state
+        button.textContent = showSeconds ? 'Hide Seconds' : 'Show Seconds';
+        button.dataset.seconds = showSeconds ? 'false' : 'true';
+      }
+    }
 
     // Load theme file function
     async function loadThemeFile(f) {
@@ -649,11 +783,37 @@
         console.log('Setting window.__theme to:', api);
         window.__theme = api;
 
-        showThemeControls();
-        if (!window.themeControlsInitialized) {
-          updateControlValuesFromTheme();
-          window.themeControlsInitialized = true;
+        // Inject theme styles and generate controls if the theme provides them
+        if (window.themeControls && window.themeControls.injectStyles) {
+          console.log('Injecting theme styles...');
+          window.themeControls.injectStyles();
         }
+
+        // Show the main system's theme controls for this theme
+        showThemeControls();
+        console.log('🎛️ Theme controls section shown');
+
+        // Setup theme control event handlers now that controls are visible
+        setTimeout(() => {
+          setupThemeControlHandlers();
+
+          // Set initial active state based on theme's default font size
+          const state = api.init ? api.init() : {};
+          if (state.settings && state.settings.fontSize) {
+            const defaultSize = state.settings.fontSize;
+            console.log('🎯 Setting initial font size active state for:', defaultSize);
+
+            // Remove active class from all theme font size buttons
+            document.querySelectorAll('.theme-font-size-box').forEach(btn => btn.classList.remove('active'));
+
+            // Add active class to the button matching the default font size
+            const defaultButton = document.querySelector(`.theme-font-size-box[data-size="${defaultSize}"]`);
+            if (defaultButton) {
+              defaultButton.classList.add('active');
+              console.log('✅ Initial font size button set to active:', defaultSize);
+            }
+          }
+        }, 100);
 
         const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
         const state = api.init ? api.init() : {};
@@ -1070,6 +1230,34 @@
     initPanelConfig();
     hideThemeControls(); // hidden until a theme is loaded
     drawPreview();
+  };
+
+  
+  // Global function that theme controls can call to update preview
+  // This creates a direct bridge between theme controls and main script
+  window.refreshThemePreview = () => {
+    console.log('🎨 Global refreshThemePreview called from theme controls');
+
+    if (window.__theme && window.__themeTimer) {
+      clearInterval(window.__themeTimer);
+
+      const pv = getPreviewCanvas();
+      const pctx = pv.getContext('2d');
+      const state = window.__theme.init ? window.__theme.init() : {};
+
+      const step = () => {
+        try {
+          pctx.clearRect(0,0,pv.width,pv.height);
+          window.__theme.render(pctx, pv.width, pv.height, state, Date.now());
+        } catch (e) {
+          console.error('Error rendering theme after refresh call:', e);
+        }
+      };
+
+      window.__themeTimer = setInterval(step, 1000);
+      step(); // Render immediately
+      console.log('✅ Theme preview refreshed via global function');
+    }
   };
 
   document.addEventListener('DOMContentLoaded', initApp);

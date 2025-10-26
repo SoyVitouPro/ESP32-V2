@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Digital Clock Theme</title>
+</head>
+<body>
+  <!-- FPS hint read by the uploader UI (1-30). -->
+  <fps>1</fps>
+
+  <script>
+    // ========================================
+    // DIGITAL CLOCK THEME - FIXED VERSION
+    // ========================================
+
+    const themeSettings = {
+      textColor: '#00ff00',
+      bgColor: '#000000',
+      fontSize: 20,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      timeFormat: '24',
+      showSeconds: true,
+      shadowBlur: 1
+    };
+
+    // Color Presets
+    const colorPresets = {
+      classic: { text: '#00ff00', bg: '#000000', name: 'Classic' },
+      neon: { text: '#ff00ff', bg: '#0a0014', name: 'Neon' },
+      ocean: { text: '#00ffff', bg: '#001a33', name: 'Ocean' },
+      sunset: { text: '#ff6b35', bg: '#1a0a00', name: 'Sunset' },
+      matrix: { text: '#00ff41', bg: '#000000', name: 'Matrix' }
+    };
+
+    // Helper Functions
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+    function formatTime(fmt, d, showSeconds) {
+      let h = d.getHours();
+      let m = d.getMinutes();
+      let s = d.getSeconds();
+      let suffix = '';
+
+      if (fmt === '12') {
+        suffix = (h < 12) ? ' AM' : ' PM';
+        h = h % 12;
+        if (h === 0) h = 12;
+      }
+
+      let timeStr = pad(h) + ':' + pad(m);
+      if (showSeconds) timeStr += ':' + pad(s);
+      timeStr += suffix;
+
+      return timeStr;
+    }
+
+    function calculateFontSize(w, h, size) {
+      const sizeMap = { 15: 0.25, 20: 0.35, 35: 0.50, 60: 0.75 };
+      const ratio = sizeMap[size] || 0.50;
+      return Math.min(Math.floor(h * ratio), Math.floor(w * 0.6));
+    }
+
+    // === REQUIRED THEME FUNCTIONS ===
+    function themeInit() {
+      console.log('🕐 Digital Clock Theme Initialized');
+      return { settings: themeSettings };
+    }
+
+    function themeRender(ctx, w, h, state, t) {
+      const settings = state.settings;
+      const now = new Date(t || Date.now());
+
+      // Background
+      ctx.fillStyle = settings.bgColor;
+      ctx.fillRect(0, 0, w, h);
+
+      // Setup text
+      const fontSize = calculateFontSize(w, h, settings.fontSize);
+      ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = settings.textColor;
+
+      // Center position with font size adjustment
+      let centerY = h / 2;
+      if (settings.fontSize <= 15) centerY -= 1;
+      else if (settings.fontSize <= 20) centerY -= 0;
+
+      // Shadow effect
+      if (settings.shadowBlur > 0) {
+        ctx.shadowColor = settings.shadowColor || '#000000';
+        ctx.shadowBlur = settings.shadowBlur;
+        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+      }
+    }
+
+    // This theme integrates with the main system's existing controls
+    // No separate controls needed - theme settings will be managed by main system
+
+    console.log('🕐 Digital Clock Theme Loaded - Ready!');
+    console.log('🔧 themeInit exists:', typeof themeInit);
+    console.log('🎭 themeRender exists:', typeof themeRender);
+  </script>
+</body>
+</html>

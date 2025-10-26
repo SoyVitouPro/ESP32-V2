@@ -16,7 +16,7 @@
     const themeSettings = {
       textColor: '#00ff00',
       bgColor: '#000000',
-      fontSize: 20,
+      fontSize: 20, // Default font size - FORCED to 20
       fontFamily: 'Arial, sans-serif',
       fontWeight: 'bold',
       timeFormat: '24',
@@ -64,6 +64,11 @@
     // === REQUIRED THEME FUNCTIONS ===
     function themeInit() {
       console.log('🕐 Digital Clock Theme Initialized');
+
+      // FORCE font size to 20 - prevent any override
+      themeSettings.fontSize = 20;
+      console.log('🔧 Font size FORCED to:', themeSettings.fontSize);
+
       return { settings: themeSettings };
     }
 

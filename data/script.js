@@ -440,9 +440,18 @@
       }
     };
 
-    tabText.addEventListener('click', () => activate('text'));
-    tabClock.addEventListener('click', () => activate('clock'));
-    tabVideo.addEventListener('click', () => activate('video'));
+    tabText.addEventListener('click', () => {
+      stopThemeStreaming(); // Auto-stop when switching away from theme
+      activate('text');
+    });
+    tabClock.addEventListener('click', () => {
+      stopThemeStreaming(); // Auto-stop when switching away from theme
+      activate('clock');
+    });
+    tabVideo.addEventListener('click', () => {
+      stopThemeStreaming(); // Auto-stop when switching away from theme
+      activate('video');
+    });
     tabTheme.addEventListener('click', () => activate('theme'));
 
     // default
@@ -622,34 +631,26 @@
   };
 
   
-  // Stream animated theme frames to ESP32 at 1 FPS for live clock updates
-  const applyThemeDirectly = async () => {
-    if (!window.__theme || !originalThemeContent) {
-      console.error('❌ No theme loaded to apply');
-      return;
-    }
-
-    // Check if already streaming - if so, stop it
+  // Function to stop theme streaming
+  const stopThemeStreaming = () => {
     if (window.__themeStreamingInterval) {
       clearInterval(window.__themeStreamingInterval);
       window.__themeStreamingInterval = null;
-
-      btnMergeTheme.textContent = 'Apply to LED';
-      btnMergeTheme.style.background = '#27ae60';
-
-      const fileName = document.getElementById('themeFileName');
-      if (fileName) {
-        fileName.textContent = 'Streaming stopped';
-        fileName.style.color = '#ff9900';
-      }
-
       console.log('🛑 Theme streaming stopped');
+    }
+  };
+
+  // Start theme streaming automatically (no button needed)
+  const startThemeStreaming = async () => {
+    if (!window.__theme || !originalThemeContent) {
+      console.error('❌ No theme loaded to stream');
       return;
     }
 
-    try {
-      console.log('🚀 Starting animated theme streaming to ESP32...');
+    // Stop any existing streaming first
+    stopThemeStreaming();
 
+    try {
       // Get current theme state with all user modifications
       const api = window.__theme;
       const state = api.init ? api.init() : {};
@@ -657,18 +658,6 @@
       if (!state.settings) {
         console.error('❌ Theme settings not available');
         return;
-      }
-
-      console.log('📋 Theme settings for streaming:', state.settings);
-
-      // Update UI to show streaming is active
-      btnMergeTheme.textContent = 'Stop Streaming';
-      btnMergeTheme.style.background = '#e74c3c';
-
-      const fileName = document.getElementById('themeFileName');
-      if (fileName) {
-        fileName.textContent = 'Streaming live clock...';
-        fileName.style.color = '#e74c3c';
       }
 
       let frameCount = 0;
@@ -735,15 +724,7 @@
           frameCount++;
 
           if (response.ok || response.status === 200) {
-            console.log(`⏰ Clock frame ${frameCount} uploaded (${new Date().toLocaleTimeString()})`);
-
-            // Update frame count every 5 frames
-            if (frameCount % 5 === 0) {
-              if (fileName) {
-                fileName.textContent = `Live clock - ${frameCount} frames sent`;
-                fileName.style.color = '#00ff00';
-              }
-            }
+            // Silent success - no console spam
           } else {
             console.warn(`❌ Frame ${frameCount} upload failed:`, response.status);
           }
@@ -759,11 +740,9 @@
       // Then upload every second (1 FPS for smooth clock updates)
       window.__themeStreamingInterval = setInterval(uploadFrame, 1000);
 
-      console.log('⏰ Live clock streaming started (1 FPS updates)');
-
+  
     } catch (error) {
       console.error('❌ Failed to start theme streaming:', error);
-      throw error;
     }
   };
 
@@ -1008,6 +987,9 @@
           console.log('Upload button clicked', e);
           e.preventDefault();
 
+          // Stop any existing streaming when uploading new theme
+          stopThemeStreaming();
+
           // Create new file input to avoid hidden input issues
           const newFileInput = document.createElement('input');
           newFileInput.type = 'file';
@@ -1165,7 +1147,14 @@
           // Set initial active state based on theme's default font size
           const state = api.init ? api.init() : {};
           if (state.settings && state.settings.fontSize) {
-            const defaultSize = state.settings.fontSize;
+            let defaultSize = state.settings.fontSize;
+
+            // Force default to 20 if theme sends incorrect value
+            if (defaultSize !== 15 && defaultSize !== 20 && defaultSize !== 35 && defaultSize !== 60) {
+              defaultSize = 20;
+              console.log('⚠️ Invalid font size from theme, forcing to 20');
+            }
+
             console.log('🎯 Setting initial font size active state for:', defaultSize);
 
             // Remove active class from all theme font size buttons
@@ -1176,6 +1165,13 @@
             if (defaultButton) {
               defaultButton.classList.add('active');
               console.log('✅ Initial font size button set to active:', defaultSize);
+            } else {
+              // Fallback to size 20 if button not found
+              const fallbackButton = document.querySelector(`.theme-font-size-box[data-size="20"]`);
+              if (fallbackButton) {
+                fallbackButton.classList.add('active');
+                console.log('🔧 Using fallback font size 20');
+              }
             }
           }
         }, 100);
@@ -1207,6 +1203,11 @@
         }
 
         console.log('Theme loading completed successfully!');
+
+        // Auto-start streaming when theme is loaded
+        setTimeout(() => {
+          startThemeStreaming();
+        }, 500);
       } catch (e) {
         console.error('Theme loading error:', e);
         alert('Theme error: ' + e.message);
@@ -1272,8 +1273,8 @@
         // use Start/Stop buttons
         console.log('Video: use Start/Stop buttons');
       } else if (themeMode) {
-        console.log('Theme: applying theme directly to ESP32');
-        await applyThemeDirectly();
+        console.log('Theme: starting streaming to ESP32');
+        await startThemeStreaming();
       }
     });
 

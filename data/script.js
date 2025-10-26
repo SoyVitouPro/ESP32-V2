@@ -26,6 +26,10 @@
   let videoUploadIntervalMs = 100;
   let videoUploadInFlight = false;
 
+  // Theme file storage
+  let originalThemeContent = '';
+  let currentThemeFileName = '';
+
   // ========= Utils =========
   const getPreviewCanvas = () => {
     let pv = $('preview');
@@ -499,6 +503,341 @@
     console.log('✅ Theme control handlers setup complete');
   };
 
+  // Apply current theme with current settings to the LED display
+  const applyCurrentTheme = async () => {
+    if (!window.__theme || !originalThemeContent) {
+      console.error('❌ No theme loaded to apply');
+      return;
+    }
+
+    try {
+      console.log('🔄 Applying current theme to LED display...');
+
+      // Get current theme state with all user modifications
+      const api = window.__theme;
+      const state = api.init ? api.init() : {};
+
+      if (!state.settings) {
+        console.error('❌ Theme settings not available');
+        return;
+      }
+
+      console.log('📋 Current theme settings:', state.settings);
+
+      // Modify the original theme content with current settings
+      let modifiedThemeHtml = originalThemeContent;
+
+      // Update theme settings in the original content
+      console.log('🔍 Before modification - checking fontSize pattern...');
+      const originalFontSize = modifiedThemeHtml.match(/fontSize:\s*\d+/);
+      console.log('Original fontSize found:', originalFontSize);
+
+      // More robust regex patterns for theme settings
+      modifiedThemeHtml = modifiedThemeHtml.replace(/fontSize:\s*\d+/g, `fontSize: ${state.settings.fontSize}`);
+      modifiedThemeHtml = modifiedThemeHtml.replace(/fontSize:\s*'\d+'/g, `fontSize: ${state.settings.fontSize}`);
+      modifiedThemeHtml = modifiedThemeHtml.replace(/fontSize:\s*"\d+"/g, `fontSize: ${state.settings.fontSize}`);
+
+      modifiedThemeHtml = modifiedThemeHtml.replace(/textColor:\s*['"]([^'"]*)['"]/g, (match, p1) => `textColor: '${state.settings.textColor}'`);
+      modifiedThemeHtml = modifiedThemeHtml.replace(/bgColor:\s*['"]([^'"]*)['"]/g, (match, p1) => `bgColor: '${state.settings.bgColor}'`);
+      modifiedThemeHtml = modifiedThemeHtml.replace(/timeFormat:\s*['"]([^'"]*)['"]/g, (match, p1) => `timeFormat: '${state.settings.timeFormat}'`);
+      modifiedThemeHtml = modifiedThemeHtml.replace(/showSeconds:\s*(true|false)/g, `showSeconds: ${state.settings.showSeconds}`);
+
+      console.log('🔍 After modification - checking fontSize pattern...');
+      const modifiedFontSize = modifiedThemeHtml.match(/fontSize:\s*\d+/);
+      console.log('Modified fontSize found:', modifiedFontSize);
+
+      console.log('📝 Modified theme HTML with current settings');
+      console.log('📏 Theme HTML length:', modifiedThemeHtml.length);
+
+      // Log a small sample of the modified HTML for debugging
+      console.log('📄 Sample of modified HTML (first 500 chars):');
+      console.log(modifiedThemeHtml.substring(0, 500));
+
+      // DEBUG: Try uploading the original unmodified theme first to test
+      console.log('🧪 DEBUG: Testing with original unmodified theme first...');
+      const testFormData = new FormData();
+      const testBlob = new Blob([originalThemeContent], { type: 'text/html' });
+      testFormData.append('file', testBlob, 'test_original.html');
+
+      try {
+        const testResponse = await fetch(apiBase + '/upload_theme', {
+          method: 'POST',
+          body: testFormData
+        });
+        if (testResponse.ok) {
+          console.log('✅ Original theme uploaded successfully for testing');
+        } else {
+          console.log('❌ Original theme upload failed:', testResponse.status);
+        }
+      } catch (testError) {
+        console.log('❌ Original theme upload error:', testError.message);
+      }
+
+      // Now upload the modified theme
+      console.log('📤 Now uploading modified theme to device...');
+      const formData = new FormData();
+      const blob = new Blob([modifiedThemeHtml], { type: 'text/html' });
+
+      // Use the original filename - ESP32 devices often expect specific filenames
+      const uploadFileName = currentThemeFileName || 'theme.html';
+      formData.append('file', blob, uploadFileName);
+
+      console.log('📝 Uploading theme with original filename:', uploadFileName);
+
+      console.log('📤 Uploading theme to device...');
+      const response = await fetch(apiBase + '/upload_theme', {
+        method: 'POST',
+        body: formData
+      });
+
+      console.log('📡 Device response status:', response.status);
+      console.log('📡 Device response headers:', response.headers);
+
+      const responseText = await response.text();
+      console.log('📡 Device response body:', responseText);
+
+      if (response.ok) {
+        console.log('✅ Theme successfully applied to LED display!');
+
+        // Show success message
+        const fileName = document.getElementById('themeFileName');
+        if (fileName) {
+          fileName.textContent = 'Applied to LED ✓';
+          fileName.style.color = '#00ff00';
+        }
+      } else {
+        throw new Error(`Upload failed: ${response.status} - ${responseText}`);
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to apply theme to LED display:', error);
+      alert('Failed to apply theme to LED display: ' + error.message);
+
+      const fileName = document.getElementById('themeFileName');
+      if (fileName) {
+        fileName.textContent = 'Apply Failed ✗';
+        fileName.style.color = '#ff0000';
+      }
+    }
+  };
+
+  
+  // Stream animated theme frames to ESP32 at 1 FPS for live clock updates
+  const applyThemeDirectly = async () => {
+    if (!window.__theme || !originalThemeContent) {
+      console.error('❌ No theme loaded to apply');
+      return;
+    }
+
+    // Check if already streaming - if so, stop it
+    if (window.__themeStreamingInterval) {
+      clearInterval(window.__themeStreamingInterval);
+      window.__themeStreamingInterval = null;
+
+      btnMergeTheme.textContent = 'Apply to LED';
+      btnMergeTheme.style.background = '#27ae60';
+
+      const fileName = document.getElementById('themeFileName');
+      if (fileName) {
+        fileName.textContent = 'Streaming stopped';
+        fileName.style.color = '#ff9900';
+      }
+
+      console.log('🛑 Theme streaming stopped');
+      return;
+    }
+
+    try {
+      console.log('🚀 Starting animated theme streaming to ESP32...');
+
+      // Get current theme state with all user modifications
+      const api = window.__theme;
+      const state = api.init ? api.init() : {};
+
+      if (!state.settings) {
+        console.error('❌ Theme settings not available');
+        return;
+      }
+
+      console.log('📋 Theme settings for streaming:', state.settings);
+
+      // Update UI to show streaming is active
+      btnMergeTheme.textContent = 'Stop Streaming';
+      btnMergeTheme.style.background = '#e74c3c';
+
+      const fileName = document.getElementById('themeFileName');
+      if (fileName) {
+        fileName.textContent = 'Streaming live clock...';
+        fileName.style.color = '#e74c3c';
+      }
+
+      let frameCount = 0;
+
+      // Function to render and upload a single frame
+      const uploadFrame = async () => {
+        try {
+          // Create canvas for theme rendering
+          const canvas = document.createElement('canvas');
+          canvas.width = 128;
+          canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+
+          // Render theme frame with current time
+          await api.render(ctx, canvas.width, canvas.height, state, Date.now());
+
+          // Get image data and convert to RGB565 format
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          const width = canvas.width;
+          const height = canvas.height;
+
+          // Convert to RGB565 with alpha channel
+          const buf = new Uint8Array(4 + width * height * 3);
+          buf[0] = width & 255;
+          buf[1] = (width >> 8) & 255;
+          buf[2] = height & 255;
+          buf[3] = (height >> 8) & 255;
+
+          let p = 4;
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const i = (y * width + x) * 4;
+              const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+
+              // Convert RGB to RGB565
+              const v = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+
+              buf[p++] = a;      // Alpha channel
+              buf[p++] = v & 255; // RGB565 low byte
+              buf[p++] = (v >> 8) & 255; // RGB565 high byte
+            }
+          }
+
+          // Create FormData with NO animation (static clock display)
+          const formData = new FormData();
+          formData.append('image', new Blob([buf], { type: 'application/octet-stream' }), 'theme.rgb565');
+          formData.append('bg', state.settings.bgColor || '#000000');
+          formData.append('bgMode', 'color');
+          formData.append('offx', 0);
+          formData.append('offy', 0);
+          formData.append('animate', 0); // NO animation - static display
+          formData.append('brightness', 80);
+          formData.append('dir', 'none'); // NO direction - don't move
+          formData.append('speed', 0); // NO speed
+          formData.append('interval', 0); // NO interval
+
+          // Upload frame
+          const response = await fetch(apiBase + '/upload', {
+            method: 'POST',
+            body: formData
+          });
+
+          frameCount++;
+
+          if (response.ok || response.status === 200) {
+            console.log(`⏰ Clock frame ${frameCount} uploaded (${new Date().toLocaleTimeString()})`);
+
+            // Update frame count every 5 frames
+            if (frameCount % 5 === 0) {
+              if (fileName) {
+                fileName.textContent = `Live clock - ${frameCount} frames sent`;
+                fileName.style.color = '#00ff00';
+              }
+            }
+          } else {
+            console.warn(`❌ Frame ${frameCount} upload failed:`, response.status);
+          }
+
+        } catch (error) {
+          console.warn(`❌ Frame ${frameCount} error:`, error.message);
+        }
+      };
+
+      // Upload first frame immediately
+      await uploadFrame();
+
+      // Then upload every second (1 FPS for smooth clock updates)
+      window.__themeStreamingInterval = setInterval(uploadFrame, 1000);
+
+      console.log('⏰ Live clock streaming started (1 FPS updates)');
+
+    } catch (error) {
+      console.error('❌ Failed to start theme streaming:', error);
+      throw error;
+    }
+  };
+
+  // Create theme HTML with current settings
+  const createThemeWithSettings = (settings) => {
+    // Start with original theme content
+    let themeHtml = originalThemeContent;
+
+    // Update settings in the theme code
+    const updates = [
+      { pattern: /textColor:\s*['"][^'"]*['"]/, replacement: `textColor: '${settings.textColor}'` },
+      { pattern: /bgColor:\s*['"][^'"]*['"]/, replacement: `bgColor: '${settings.bgColor}'` },
+      { pattern: /fontSize:\s*\d+/, replacement: `fontSize: ${settings.fontSize}` },
+      { pattern: /timeFormat:\s*['"][^'"]*['"]/, replacement: `timeFormat: '${settings.timeFormat || '24'}'` },
+      { pattern: /showSeconds:\s*\w+/, replacement: `showSeconds: ${settings.showSeconds !== false}` }
+    ];
+
+    updates.forEach(update => {
+      themeHtml = themeHtml.replace(update.pattern, update.replacement);
+    });
+
+    return themeHtml;
+  };
+
+  // Extract theme code from uploaded HTML
+  const extractThemeCode = (themeHtml, settings) => {
+    // Extract theme settings and functions
+    const scriptMatch = themeHtml.match(/<script>([\s\S]*?)<\/script>/);
+    if (!scriptMatch) {
+      throw new Error('No theme script found in uploaded file');
+    }
+
+    let themeScript = scriptMatch[1];
+
+    // Update theme settings with current values
+    themeScript = themeScript.replace(/fontSize:\s*\d+/g, `fontSize: ${settings.fontSize}`);
+    themeScript = themeScript.replace(/fontSize:\s*'\d+'/g, `fontSize: ${settings.fontSize}`);
+    themeScript = themeScript.replace(/fontSize:\s*"\d+"/g, `fontSize: ${settings.fontSize}`);
+
+    themeScript = themeScript.replace(/textColor:\s*['"]([^'"]*)['"]/g, `textColor: '${settings.textColor}'`);
+    themeScript = themeScript.replace(/bgColor:\s*['"]([^'"]*)['"]/g, `bgColor: '${settings.bgColor}'`);
+    themeScript = themeScript.replace(/timeFormat:\s*['"]([^'"]*)['"]/g, `timeFormat: '${settings.timeFormat}'`);
+    themeScript = themeScript.replace(/showSeconds:\s*(true|false)/g, `showSeconds: ${settings.showSeconds}`);
+
+    return `<script>
+    // ========================================
+    // DIGITAL CLOCK THEME - MERGED
+    // ========================================
+
+    ${themeScript}
+  </script>`;
+  };
+
+  // Merge theme code into index.html
+  const mergeThemeIntoIndex = (indexContent, themeCode) => {
+    // Find the closing </head> tag
+    const headEndMatch = indexContent.match(/<\/head>/);
+    if (!headEndMatch) {
+      throw new Error('Could not find </head> tag in index.html');
+    }
+
+    const headEndIndex = indexContent.indexOf('</head>');
+
+    // Insert theme code before closing </head> tag
+    const mergedContent =
+      indexContent.substring(0, headEndIndex) +
+      '\n  <!-- MERGED CLOCK THEME -->\n' +
+      themeCode + '\n' +
+      indexContent.substring(headEndIndex);
+
+    return mergedContent;
+  };
+
+
   const injectThemeSettings = (themeHtml) => {
     const fontSizeSlider = $('fontSizeSlider');
     const themeTextColor = $('themeTextColor');
@@ -632,6 +971,27 @@
 
     
     console.log('Setting up theme file event listener. themeFile element:', themeFile);
+
+  
+    // Merge theme button
+    const btnMergeTheme = document.getElementById('btnMergeTheme');
+  if (btnMergeTheme) {
+      btnMergeTheme.addEventListener('click', async () => {
+        console.log('🎯 Apply Theme button clicked');
+
+        try {
+          // Direct upload - no merging needed
+          await applyThemeDirectly();
+
+        } catch (error) {
+          console.error('❌ Theme application failed:', error);
+          alert('Theme application failed: ' + error.message);
+          btnMergeTheme.textContent = 'Apply Failed ✗';
+          btnMergeTheme.style.background = '#ff0000';
+        }
+      });
+    }
+
     if (themeFile) {
       console.log('Theme file input found, adding event listener...');
 
@@ -755,6 +1115,11 @@
       console.log('Reading theme file content...');
       let txt = await f.text();
       console.log('Theme file content length:', txt.length);
+
+      // Store original theme content for Apply functionality
+      originalThemeContent = txt;
+      currentThemeFileName = f.name;
+      console.log('📁 Original theme content stored for Apply functionality');
 
       console.log('Injecting theme settings...');
       txt = injectThemeSettings(txt);
@@ -907,7 +1272,8 @@
         // use Start/Stop buttons
         console.log('Video: use Start/Stop buttons');
       } else if (themeMode) {
-        console.log('Theme: use Start to apply');
+        console.log('Theme: applying theme directly to ESP32');
+        await applyThemeDirectly();
       }
     });
 

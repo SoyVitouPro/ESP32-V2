@@ -181,16 +181,15 @@
       <!-- THEME CONFIG -->
       <div id="themeConfig" class="card hidden">
         <div class="row">
-          <label for="themeFile">Upload Theme</label>
-          <input id="themeFile" type="file" accept=".html" />
+          <label>Upload Theme</label>
+          <div class="inline gap-8">
+            <input id="themeFile" type="file" accept=".html" style="display: none;" />
+            <button id="btnSelectThemeFile" class="upload-btn">Select Theme File</button>
+            <span id="themeFileName" class="muted">No file selected</span>
+          </div>
         </div>
 
-        <div class="btns">
-          <button id="btnThemeUpload">Preview</button>
-          <button id="btnThemeStart">Start</button>
-          <button id="btnThemeReapply" class="btn-green">Reapply</button>
-        </div>
-
+        
         <!-- Theme Controls Section -->
         <div class="row hidden" id="themeControlsSection">
           <label>Theme Controls</label>
@@ -246,11 +245,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <label>Themes</label>
-          <div id="themeList" class="muted">No themes yet.</div>
-        </div>
-
+        
         <div class="spacer-400"></div>
       </div>
       <!-- END THEME CONFIG -->
@@ -312,30 +307,24 @@
           </div>
         </div>
         <div class="row" id="videoFitRow">
-          <label for="videoFit">Fit</label>
-          <div class="inline">
-            <select id="videoFit">
-              <option value="fill">Fill Panel</option>
-              <option value="fit" selected>Fit Inside</option>
-              <option value="original">Original Size</option>
-            </select>
-            <span class="muted">FPS</span>
-            <select id="videoFps">
-              <option value="5">5</option>
-              <option value="10" selected>10</option>
-              <option value="15">15</option>
-              <option value="20">20</option>
-            </select>
-            <label class="muted inline gap-6">
-              <input id="videoLoop" type="checkbox" checked /> Loop
-            </label>
-          </div>
+          <label>Fit & Options</label>
+          <div class="video-fit-selection-wrapper">
+              <div class="inline gap-8 justify-between">
+                <div class="inline gap-8">
+                  <button class="video-fit-box active" data-fit="fill">Fill Panel</button>
+                  <button class="video-fit-box" data-fit="fit">Fit Inside</button>
+                </div>
+                <div class="inline gap-6 center" style="margin-left: 80px;">
+                  <label class="muted">Loop</label>
+                  <div id="videoLoopToggle" class="toggle-switch checked" data-checked="true"></div>
+                </div>
+              </div>
+            </div>
+          <input type="hidden" id="videoFit" value="fill" />
+          <input type="hidden" id="videoFps" value="15" />
+          <input type="hidden" id="videoLoop" checked />
         </div>
-        <div class="btns">
-          <button id="btnVideoStart">Start Video Upload</button>
-          <button id="btnVideoStop">Stop Video Upload</button>
-        </div>
-
+  
         <div class="spacer-400"></div>
       </div>
       <!-- END VIDEO CONFIG -->

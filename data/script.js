@@ -520,10 +520,8 @@
   };
 
   const initThemeControls = () => {
-    // Buttons
-    const btnThemeUpload = $('btnThemeUpload');
-    const btnThemeStart  = $('btnThemeStart');
-    const btnThemeReapply = $('btnThemeReapply');
+    // Theme file input
+    const themeFile = $('themeFile');
 
     // Sliders / toggles
     const fontSizeSlider = $('fontSizeSlider');
@@ -563,36 +561,110 @@
     if (themeShowSeconds) themeShowSeconds.addEventListener('change', (e) => updateThemeSetting('showSeconds', e.target.checked));
     if (themePulseAnimation) themePulseAnimation.addEventListener('change', (e) => updateThemeSetting('pulseAnimation', e.target.checked));
 
-    if (btnThemeUpload) btnThemeUpload.addEventListener('click', async () => {
-      const inp = $('themeFile'); const f = inp && inp.files && inp.files[0];
-      if (!f) { alert('Choose a theme HTML file first'); return; }
+    console.log('Setting up theme file event listener. themeFile element:', themeFile);
+    if (themeFile) {
+      console.log('Theme file input found, adding event listener...');
+
+      // Setup upload button with direct file selection
+      const btnSelectThemeFile = $('btnSelectThemeFile');
+      const themeFileName = $('themeFileName');
+
+      if (btnSelectThemeFile) {
+        console.log('Upload button found, adding click listener...');
+
+        btnSelectThemeFile.addEventListener('click', () => {
+          console.log('Upload button clicked');
+
+          // Create new file input to avoid hidden input issues
+          const newFileInput = document.createElement('input');
+          newFileInput.type = 'file';
+          newFileInput.accept = '.html';
+          newFileInput.style.display = 'none';
+          document.body.appendChild(newFileInput);
+
+          newFileInput.addEventListener('change', async () => {
+            console.log('New file input change triggered');
+            const f = newFileInput.files && newFileInput.files[0];
+            if (!f) {
+              console.log('No file selected');
+              document.body.removeChild(newFileInput);
+              return;
+            }
+
+            console.log('Theme file selected:', f.name);
+
+            // Update file name display
+            if (themeFileName) {
+              themeFileName.textContent = f.name;
+              themeFileName.style.color = '#00ff00';
+            }
+
+            // Load the theme
+            await loadThemeFile(f);
+
+            // Clean up
+            document.body.removeChild(newFileInput);
+          });
+
+          // Trigger file selection
+          newFileInput.click();
+        });
+      }
+
+    // Load theme file function
+    async function loadThemeFile(f) {
+      console.log('Starting theme file loading...');
 
       hideThemeControls(); stopThemeTimers();
       window.__theme = null; window.themeInitBackup = null; window.themeRenderBackup = null;
 
+      console.log('Reading theme file content...');
       let txt = await f.text();
+      console.log('Theme file content length:', txt.length);
+
+      console.log('Injecting theme settings...');
       txt = injectThemeSettings(txt);
 
       const m = txt.match(/<fps>\s*(\d{1,2})\s*<\/fps>/i);
       const currentThemeFps = m ? Math.max(1, Math.min(30, parseInt(m[1],10) || 1)) : 1;
+      console.log('Theme FPS:', currentThemeFps);
 
       try {
+        console.log('Looking for script tag...');
         const mscript = txt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
         if (!mscript) throw new Error('No <script> in theme');
+
+        console.log('Found script tag, executing code...');
         const code = mscript[1];
         eval(code);
+
+        console.log('Checking for theme functions...');
+        console.log('themeInit exists:', typeof themeInit);
+        console.log('themeRender exists:', typeof themeRender);
 
         const api = { init: (typeof themeInit !== 'undefined') ? themeInit : null, render: (typeof themeRender !== 'undefined') ? themeRender : null };
         window.themeInitBackup = api.init; window.themeRenderBackup = api.render;
         if (!api || !api.render) throw new Error('themeRender() not found');
+
+        console.log('Setting window.__theme to:', api);
         window.__theme = api;
 
-        showThemeControls(); if (!window.themeControlsInitialized) { updateControlValuesFromTheme(); window.themeControlsInitialized = true; }
+        showThemeControls();
+        if (!window.themeControlsInitialized) {
+          updateControlValuesFromTheme();
+          window.themeControlsInitialized = true;
+        }
 
         const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
         const state = api.init ? api.init() : {};
         if (window.__themeTimer) clearInterval(window.__themeTimer);
-        const step = () => { pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
+        const step = () => {
+          pctx.clearRect(0,0,pv.width,pv.height);
+          console.log('Rendering to canvas size:', pv.width, 'x', pv.height);
+          console.log('Theme state:', state);
+          api.render(pctx, pv.width, pv.height, state, Date.now());
+          console.log('Theme render completed');
+        };
         const period = Math.round(1000 / Math.max(1, Math.min(30, currentThemeFps)));
         window.__themeTimer = setInterval(step, period);
         step();
@@ -604,83 +676,27 @@
           const fd = new FormData();
           fd.append('file', f, f.name);
           await fetch(apiBase + '/upload_theme', { method:'POST', body:fd });
+          console.log('Theme file uploaded to device successfully');
         } catch (uploadErr) {
           alert('Theme uploaded for preview but failed to save to device: ' + uploadErr.message);
         }
+
+        console.log('Theme loading completed successfully!');
       } catch (e) {
+        console.error('Theme loading error:', e);
         alert('Theme error: ' + e.message);
-        hideThemeControls(); stopThemeTimers(); window.__theme = null; window.themeInitBackup = null; window.themeRenderBackup = null;
+        hideThemeControls();
+        stopThemeTimers();
+        window.__theme = null;
+        window.themeInitBackup = null;
+        window.themeRenderBackup = null;
       }
-    });
+    }
 
-    if (btnThemeStart) btnThemeStart.addEventListener('click', async () => {
-      if (!window.__theme) { alert('Upload a theme first'); return; }
-      try {
-        const r = await fetch(apiBase + '/theme_status', { cache:'no-store' });
-        const status = await r.json();
-        if (!status.theme_uploaded) { alert('Theme not yet uploaded to device. Please upload the theme first.'); return; }
-      } catch { alert('Failed to check theme status. Please try uploading again.'); return; }
+    } else {
+      console.log('Theme file input not found!');
+    }
 
-      // stop others and keep theme fn refs
-      const currentTheme = window.__theme, initB = window.themeInitBackup, renderB = window.themeRenderBackup;
-      stopAllRunningContent();
-      window.__theme = currentTheme; window.themeInitBackup = initB; window.themeRenderBackup = renderB;
-
-      const api = window.__theme;
-      let state = {};
-      if (api.init && typeof api.init === 'function') { try { state = api.init(); } catch { state = {}; } }
-
-      if (window.__playTimer) clearInterval(window.__playTimer);
-      const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
-      const step = async () => {
-        try { api.render(pctx, pv.width, pv.height, state, Date.now()); } catch { return; }
-        const img = pctx.getImageData(0, 0, pv.width, pv.height);
-        const w = pv.width, h = pv.height, d = img.data;
-        const buf = new Uint8Array(4 + w * h * 2);
-        buf[0] = w & 255; buf[1] = w >> 8; buf[2] = h & 255; buf[3] = h >> 8;
-        let i = 4;
-        for (let k = 0; k < d.length; k += 4) {
-          const r = d[k], g = d[k + 1], b = d[k + 2];
-          const v = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >>> 3);
-          buf[i++] = v & 255; buf[i++] = v >> 8;
-        }
-        const fd = new FormData(); fd.append('image', new Blob([buf], { type: 'application/octet-stream' }), 'frame.rgb565');
-        try { await fetch(apiBase + '/upload', { method: 'POST', body: fd }); } catch {}
-      };
-      window.__playTimer = setInterval(step, 1000);
-      step();
-    });
-
-    if (btnThemeReapply) btnThemeReapply.addEventListener('click', async () => {
-      if (!window.__theme) { alert('Please upload a theme first'); return; }
-      const inp = $('themeFile');
-      const f = inp && inp.files && inp.files[0];
-      if (!f) { alert('Please select the theme file again to reapply settings'); return; }
-
-      const txt = await f.text();
-      const modifiedTxt = injectThemeSettings(txt);
-      try {
-        const mscript = modifiedTxt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-        if (!mscript) throw new Error('No <script> in theme');
-        const code = mscript[1];
-        eval(code);
-        const api = { init: (typeof themeInit !== 'undefined') ? themeInit : null, render: (typeof themeRender !== 'undefined') ? themeRender : null };
-        if (!api || !api.render) throw new Error('themeRender() not found in modified theme');
-        window.__theme = api;
-
-        updateControlValuesFromTheme();
-
-        const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
-        const state = api.init ? api.init() : {};
-        if (window.__themeTimer) clearInterval(window.__themeTimer);
-        const step = () => { pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
-        const period = Math.round(1000 / Math.max(1, Math.min(30, 15)));
-        window.__themeTimer = setInterval(step, period);
-        step();
-      } catch (e) {
-        alert('Error reapplying theme settings: ' + e.message);
-      }
-    });
   };
 
   // ========= Events / Wiring =========
@@ -735,12 +751,37 @@
       }
     });
 
-    // Text preview button
+    // Preview button (handles text and theme)
     $('btnTextPreview').addEventListener('click', (e) => {
       e.preventDefault();
       stopContentForPreview();
-      if ($('animate').checked && $('text').value.trim().length > 0) initPreviewAnim();
-      drawPreview();
+
+      // Check if theme tab is active and has a loaded theme
+      const isThemeTab = !$('themeConfig').classList.contains('hidden');
+      const hasTheme = window.__theme && window.__theme.render;
+
+      console.log('Preview button clicked - Theme tab:', isThemeTab, 'Has theme:', hasTheme);
+
+      if (isThemeTab && hasTheme) {
+        console.log('Starting theme preview...');
+        // Preview theme
+        const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
+        const state = window.__theme.init ? window.__theme.init() : {};
+
+        if (window.__themeTimer) clearInterval(window.__themeTimer);
+        const step = () => {
+          pctx.clearRect(0,0,pv.width,pv.height);
+          window.__theme.render(pctx, pv.width, pv.height, state, Date.now());
+          console.log('Theme frame rendered');
+        };
+        window.__themeTimer = setInterval(step, 1000); // 1 FPS for theme preview
+        step(); // Render first frame immediately
+      } else {
+        console.log('Previewing text instead of theme');
+        // Preview text
+        if ($('animate').checked && $('text').value.trim().length > 0) initPreviewAnim();
+        drawPreview();
+      }
     });
 
     // Config inputs (no auto preview except clock)
@@ -871,21 +912,29 @@
       });
     });
 
+    // Video fit selection
+    document.querySelectorAll('.video-fit-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('.video-fit-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('videoFit').value = this.getAttribute('data-fit');
+      });
+    });
+
+    // Video loop toggle
+    const videoLoopToggle = $('videoLoopToggle');
+    videoLoopToggle.addEventListener('click', function(){
+      const isChecked = this.getAttribute('data-checked') === 'true';
+      const newState = !isChecked;
+      this.setAttribute('data-checked', newState);
+      this.classList.toggle('checked', newState);
+      $('videoLoop').checked = newState;
+    });
+
     // Image fit
     $('imageFit').addEventListener('change', () => {});
 
-    // Video start/stop
-    $('btnVideoStart').addEventListener('click', () => {
-      stopAllRunningContent();
-      const fpsSel = $('videoFps');
-      const fps = fpsSel ? parseInt(fpsSel.value,10) || 10 : 10;
-      videoUploadIntervalMs = Math.max(50, Math.floor(1000 / fps));
-      videoUploadActive = true; videoUploadLastMs = 0;
-      startVideoPreview();
-    });
-    $('btnVideoStop').addEventListener('click', () => {
-      videoUploadActive = false; videoUploadInFlight = false;
-    });
+    // Video controls now use main Preview and Apply buttons
 
     // Video file
     const vf = $('videoFile');

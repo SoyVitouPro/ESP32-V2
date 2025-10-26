@@ -1,396 +1,232 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Advanced Clock Theme Template</title>
-  </head>
-  <body>
-    <!-- FPS hint read by the uploader UI (1-30). -->
-    <fps>1</fps>
+<head>
+  <meta charset="utf-8" />
+  <title>Advanced Digital Clock Theme</title>
+</head>
+<body>
+  <!-- FPS hint read by the uploader UI (1-30). -->
+  <fps>1</fps>
 
-    <!--
-      ========================================
-      ADVANCED CLOCK THEME TEMPLATE
-      ========================================
+  <script>
+    // ========================================
+    // ADVANCED DIGITAL CLOCK THEME
+    // ========================================
 
-      This template shows how to create themes with:
-      ✅ Live controls (resize, colors, etc.)
-      ✅ Easy customization areas
-      ✅ Clear structure for user modifications
+    const themeSettings = {
+      textColor: '#00ff00',           // Clock text color
+      bgColor: '#000000',             // Background color
+      fontSize: 35,                   // Font size (15, 20, 35, 60)
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      timeFormat: '24',               // '24' or '12' hour format
+      showSeconds: true,              // Show seconds
+      shadowColor: '#004400',         // Text shadow color
+      shadowBlur: 2,                  // Text shadow blur amount
+      glowIntensity: 0                // Text glow intensity (0-5)
+    };
 
-      ================= HOW TO USE =================
+    // === PRESET COLOR PALETTES ===
+    const colorPresets = {
+      classic: { text: '#00ff00', bg: '#000000', shadow: '#004400' },  // Classic green on black
+      neon: { text: '#ff00ff', bg: '#0a0014', shadow: '#ff00ff' },    // Neon purple
+      ocean: { text: '#00ffff', bg: '#001a33', shadow: '#004466' },    // Ocean cyan
+      sunset: { text: '#ff6b35', bg: '#1a0a00', shadow: '#663300' },   // Sunset orange
+      matrix: { text: '#00ff41', bg: '#000000', shadow: '#00ff00' },    // Matrix green
+      fire: { text: '#ff4500', bg: '#330000', shadow: '#ff6600' }      // Fire red
+    };
 
-      1. BASIC CUSTOMIZATION:
-         - Edit "USER SETTINGS" section below
-         - Change colors, sizes, positions
+    // Current color preset
+    let currentPreset = 'classic';
 
-      2. ADD YOUR OWN CONTROLS:
-         - Add new properties to themeSettings
-         - Create HTML controls in the settings section
-         - Use the values in themeRender()
+    // Helper: Pad numbers with leading zero
+    function pad(n) {
+      return (n < 10 ? '0' : '') + n;
+    }
 
-      3. DESIGN YOUR THEME:
-         - Modify the themeRender() function
-         - Access settings via: state.settings.propertyName
-         - Example: ctx.fillStyle = state.settings.textColor
+    // Helper: Format time string
+    function formatTime(fmt, d, showSeconds) {
+      let h = d.getHours();
+      let m = d.getMinutes();
+      let s = d.getSeconds();
+      let suffix = '';
 
-      ================= AVAILABLE CONTROLS =================
-
-      Built-in controls you can use immediately:
-      - textColor: Clock text color
-      - bgColor: Background color
-      - fontSize: Text size (1-100%)
-      - timeFormat: '24' or '12' hour format
-      - fontFamily: Font family
-      - showSeconds: Show/hide seconds
-      - showDate: Show/hide date
-      - positionX: Horizontal position (-50 to +50%)
-      - positionY: Vertical position (-50 to +50%)
-
-    -->
-    <script>
-      // ========================================
-      // ⚙️  USER SETTINGS - CUSTOMIZE YOUR THEME HERE
-      // ========================================
-
-      const themeSettings = {
-        // === VISUAL SETTINGS ===
-        textColor: '#00ff00',        // Clock text color (hex format)
-        bgColor: '#000000',          // Background color
-        shadowColor: '#004400',      // Text shadow color
-        shadowBlur: 2,               // Text shadow blur amount
-
-        // === TEXT SETTINGS ===
-        fontSize: 60,                // Font size percentage (1-100)
-        fontFamily: 'Arial, sans-serif',
-        fontWeight: 'bold',          // 'normal', 'bold', '100'-'900'
-        timeFormat: '24',            // '24' or '12' hour format
-        showSeconds: true,           // Show seconds in time
-        showDate: false,             // Show date below time
-
-        // === LAYOUT SETTINGS ===
-        positionX: 0,                // Horizontal offset (-50 to +50)
-        positionY: 0,                // Vertical offset (-50 to +50)
-        padding: 5,                  // Padding from edges
-
-        // === ANIMATION SETTINGS ===
-        pulseAnimation: false,       // Pulsing text animation
-        fadeTransition: true,        // Smooth second transitions
-
-        // === FONT SIZE CONTROL ===
-        enableFontResize: false,     // Disable on-panel font resize controls
-        minFontSize: 10,             // Minimum font size percentage
-        maxFontSize: 100,            // Maximum font size percentage
-        resizeStep: 5,               // Step size for resize buttons
-
-        // === CUSTOM SETTINGS (ADD YOUR OWN HERE) ===
-        // Example: customGlowColor: '#ffff00',
-        // Example: customBorder: true,
-        customGlowIntensity: 0,      // Custom glow intensity (0-10)
-        customAccentColor: '#0066ff' // Accent color for additional elements
-      };
-
-      // ========================================
-      // 🎨 THEME RENDERING ENGINE - DON'T MODIFY BELOW
-      // ========================================
-
-      // Helper: Pad numbers with leading zero
-      function pad(n) {
-        return (n < 10 ? '0' : '') + n;
+      if (fmt === '12') {
+        suffix = (h < 12) ? ' AM' : ' PM';
+        h = h % 12;
+        if (h === 0) h = 12;
       }
 
-      // Helper: Format time string
-      function formatTime(fmt, d, showSeconds) {
-        let h = d.getHours();
-        let m = d.getMinutes();
-        let s = d.getSeconds();
-        let suffix = '';
-
-        if (fmt === '12') {
-          suffix = (h < 12) ? ' AM' : ' PM';
-          h = h % 12;
-          if (h === 0) h = 12;
-        }
-
-        let timeStr = pad(h) + ':' + pad(m);
-        if (showSeconds) {
-          timeStr += ':' + pad(s);
-        }
-        timeStr += suffix;
-
-        return timeStr;
+      let timeStr = pad(h) + ':' + pad(m);
+      if (showSeconds) {
+        timeStr += ':' + pad(s);
       }
+      timeStr += suffix;
 
-      // Helper: Format date string
-      function formatDate(d) {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        return months[d.getMonth()] + ' ' + d.getDate();
-      }
+      return timeStr;
+    }
 
-      // Helper: Calculate font size based on settings
-      function calculateFontSize(w, h, settings) {
-        const baseSize = Math.min(w, h);
-        const sizePercent = Math.max(1, Math.min(100, settings.fontSize || 60));
-        return Math.max(8, Math.floor((baseSize * sizePercent) / 100));
-      }
+    // Helper: Calculate font size based on settings
+    function calculateFontSize(w, h, settings) {
+      const sizeMap = { 15: 12, 20: 18, 35: 28, 60: 48 };
+      const fontSize = sizeMap[settings.fontSize] || 28;
+      console.log('🎨 Calculated font size:', fontSize, 'for setting:', settings.fontSize);
+      return Math.max(8, Math.min(fontSize, Math.floor(h * 0.6))); // Max 60% of height
+    }
 
-      // Helper: Apply text effects
-      function applyTextEffects(ctx, text, x, y, settings) {
-        // Shadow effect
-        if (settings.shadowBlur > 0) {
-          ctx.shadowColor = settings.shadowColor || '#000000';
-          ctx.shadowBlur = settings.shadowBlur;
-          ctx.fillText(text, x, y);
-          ctx.shadowBlur = 0;
-        }
-
-        // Glow effect
-        if (settings.customGlowIntensity > 0) {
-          ctx.shadowColor = settings.customAccentColor || '#ffffff';
-          ctx.shadowBlur = settings.customGlowIntensity;
-          ctx.fillText(text, x, y);
-          ctx.shadowBlur = 0;
-        }
-
-        // Main text
+    // Helper: Apply text effects
+    function applyTextEffects(ctx, text, x, y, settings) {
+      // Shadow effect
+      if (settings.shadowBlur > 0) {
+        ctx.shadowColor = settings.shadowColor || '#000000';
+        ctx.shadowBlur = settings.shadowBlur;
         ctx.fillText(text, x, y);
+        ctx.shadowBlur = 0;
       }
 
-      // === REQUIRED THEME INITIALIZATION ===
-      function themeInit() {
-        console.log('🎨 Advanced Clock Theme Initialized');
-        return {
-          settings: themeSettings,
-          animationTime: 0,
-          lastSecond: -1,
-          fadeOpacity: 1.0
-        };
+      // Glow effect
+      if (settings.glowIntensity > 0) {
+        ctx.shadowColor = settings.textColor || '#ffffff';
+        ctx.shadowBlur = settings.glowIntensity;
+        ctx.fillText(text, x, y);
+        ctx.shadowBlur = 0;
       }
 
-      // === REQUIRED THEME RENDER FUNCTION ===
-      function themeRender(ctx, w, h, state, t) {
-        const settings = state.settings;
-        const now = new Date(t || Date.now());
+      // Main text
+      ctx.fillText(text, x, y);
+    }
 
-        // Update animation state
-        state.animationTime = t || Date.now();
-        const currentSecond = now.getSeconds();
+    // === REQUIRED THEME INITIALIZATION ===
+    function themeInit() {
+      console.log('🕐 Advanced Digital Clock Theme Initialized');
+      return {
+        settings: themeSettings
+      };
+    }
 
-        // Clear background
-        ctx.fillStyle = settings.bgColor;
-        ctx.fillRect(0, 0, w, h);
+    // === REQUIRED THEME RENDER FUNCTION ===
+    function themeRender(ctx, w, h, state, t) {
+      const settings = state.settings;
+      const now = new Date(t || Date.now());
 
-        // Calculate positions with offsets
-        const centerX = (w / 2) + ((settings.positionX || 0) * w / 100);
-        const centerY = (h / 2) + ((settings.positionY || 0) * h / 100);
+      console.log('🎨 Theme render called - canvas:', w, 'x', h);
+      console.log('🎨 Settings:', settings);
 
-        // Setup text properties
-        const fontSize = calculateFontSize(w, h, settings);
-        ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+      // Create gradient background
+      const gradient = ctx.createLinearGradient(0, 0, w, h);
+      gradient.addColorStop(0, settings.bgColor);
+      gradient.addColorStop(0.5, shadeColor(settings.bgColor, -20));
+      gradient.addColorStop(1, shadeColor(settings.bgColor, -40));
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
 
-        // Apply fade transition for seconds
-        let opacity = 1.0;
-        if (settings.fadeTransition && settings.showSeconds) {
-          if (currentSecond !== state.lastSecond) {
-            state.fadeOpacity = 0.3;
-            state.lastSecond = currentSecond;
-          }
-          state.fadeOpacity = Math.min(1.0, state.fadeOpacity + 0.1);
-          opacity = state.fadeOpacity;
-        }
+      console.log('🎨 Background rendered');
 
-        // Apply pulse animation
-        let scale = 1.0;
-        if (settings.pulseAnimation) {
-          scale = 1.0 + (Math.sin(state.animationTime / 500) * 0.05);
-          ctx.save();
-          ctx.translate(centerX, centerY);
-          ctx.scale(scale, scale);
-          ctx.translate(-centerX, -centerY);
-        }
+      // Add subtle scan lines effect
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+      ctx.lineWidth = 1;
+      for (let y = 0; y < h; y += 2) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
 
-        // Draw time
-        ctx.fillStyle = settings.textColor;
-        ctx.globalAlpha = opacity;
-        const timeString = formatTime(settings.timeFormat, now, settings.showSeconds);
+      // Calculate center position
+      const centerX = w / 2;
+      const centerY = h / 2;
 
-        // Apply text effects and draw
-        applyTextEffects(ctx, timeString, centerX, centerY, settings);
+      // Setup text properties
+      const fontSize = calculateFontSize(w, h, settings);
+      ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
 
-        // Draw date if enabled
-        if (settings.showDate) {
-          ctx.globalAlpha = 1.0;
-          const dateSize = Math.max(8, fontSize / 3);
-          ctx.font = `${settings.fontWeight} ${dateSize}px ${settings.fontFamily}`;
-          const dateString = formatDate(now);
-          const dateY = centerY + fontSize + 10;
-          ctx.fillText(dateString, centerX, dateY);
-        }
+      // Get time string
+      const timeString = formatTime(settings.timeFormat, now, settings.showSeconds);
+      console.log('🎨 Rendering time:', timeString, 'at size:', fontSize, 'position:', centerX, centerY);
 
-        // Restore context if transformed
-        if (settings.pulseAnimation) {
-          ctx.restore();
-        }
+      // Apply text effects and draw
+      ctx.fillStyle = settings.textColor;
+      ctx.fillText(timeString, centerX, centerY);
+
+      console.log('🎨 Text rendered successfully');
+
+      // Add decorative elements
+      if (settings.glowIntensity > 2) {
+        // Add corner accents
+        ctx.strokeStyle = settings.textColor;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.3;
+
+        // Top-left corner
+        ctx.beginPath();
+        ctx.moveTo(5, 15);
+        ctx.lineTo(5, 5);
+        ctx.lineTo(15, 5);
+        ctx.stroke();
+
+        // Top-right corner
+        ctx.beginPath();
+        ctx.moveTo(w - 15, 5);
+        ctx.lineTo(w - 5, 5);
+        ctx.lineTo(w - 5, 15);
+        ctx.stroke();
+
+        // Bottom-left corner
+        ctx.beginPath();
+        ctx.moveTo(5, h - 15);
+        ctx.lineTo(5, h - 5);
+        ctx.lineTo(15, h - 5);
+        ctx.stroke();
+
+        // Bottom-right corner
+        ctx.beginPath();
+        ctx.moveTo(w - 15, h - 5);
+        ctx.lineTo(w - 5, h - 5);
+        ctx.lineTo(w - 5, h - 15);
+        ctx.stroke();
 
         ctx.globalAlpha = 1.0;
       }
 
-      // ========================================
-      // 🎛️ LIVE CONTROLS INTERFACE (Optional - for testing)
-      // ========================================
+      console.log('🎨 Theme render completed - time:', formatTime(settings.timeFormat, now, settings.showSeconds));
+    }
 
-      // This function creates a control panel for testing in browser
-      // It won't affect the LED panel display but helps with theme development
-      if (typeof window !== 'undefined') {
-        window.createThemeControls = function() {
-          const controls = document.createElement('div');
-          controls.style.cssText = `
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            z-index: 1000;
-            max-width: 300px;
-          `;
+    // Helper function to shade color
+    function shadeColor(color, percent) {
+      const num = parseInt(color.replace('#', ''), 16);
+      const amt = Math.round(2.55 * percent);
+      const R = (num >> 16) + amt;
+      const G = (num >> 8 & 0x00FF) + amt;
+      const B = (num & 0x0000FF) + amt;
+      return '#' + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+        (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+        (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+    }
 
-          controls.innerHTML = `
-            <h3 style="margin:0 0 10px 0;">🎛️ Theme Controls</h3>
-
-            <div style="margin:8px 0; border-bottom:1px solid #444; padding-bottom:5px;">
-              <strong>🔠 Font Size Controls</strong>
-            </div>
-            <div style="margin:5px 0;">
-              <label>Font Size: <input type="range" id="ctrl_fontSize" min="10" max="100" value="${themeSettings.fontSize}"></label>
-              <span id="fontSizeValue" style="color:#aaa; margin-left:5px;">${themeSettings.fontSize}%</span>
-            </div>
-            <div style="margin:5px 0;">
-              <button id="btnDecreaseFont" style="background:#666; color:white; border:none; padding:4px 8px; margin-right:5px; border-radius:3px; cursor:pointer;">− Decrease</button>
-              <button id="btnIncreaseFont" style="background:#666; color:white; border:none; padding:4px 8px; margin-right:5px; border-radius:3px; cursor:pointer;">+ Increase</button>
-              <button id="btnResetFont" style="background:#444; color:white; border:none; padding:4px 8px; border-radius:3px; cursor:pointer;">Reset (60%)</button>
-            </div>
-            <div style="margin:5px 0;">
-              <label><input type="checkbox" id="ctrl_enableFontResize" ${themeSettings.enableFontResize ? 'checked' : ''}> Show On-Panel Controls</label>
-            </div>
-
-            <div style="margin:8px 0; border-bottom:1px solid #444; padding-bottom:5px;">
-              <strong>🎨 Visual Settings</strong>
-            </div>
-            <div style="margin:5px 0;">
-              <label>Text Color: <input type="color" id="ctrl_textColor" value="${themeSettings.textColor}"></label>
-            </div>
-            <div style="margin:5px 0;">
-              <label>Background: <input type="color" id="ctrl_bgColor" value="${themeSettings.bgColor}"></label>
-            </div>
-            <div style="margin:5px 0;">
-              <label>Format:
-                <select id="ctrl_timeFormat">
-                  <option value="24" ${themeSettings.timeFormat === '24' ? 'selected' : ''}>24-hour</option>
-                  <option value="12" ${themeSettings.timeFormat === '12' ? 'selected' : ''}>12-hour</option>
-                </select>
-              </label>
-            </div>
-
-            <div style="margin:8px 0; border-bottom:1px solid #444; padding-bottom:5px;">
-              <strong>✨ Effects</strong>
-            </div>
-            <div style="margin:3px 0;">
-              <label><input type="checkbox" id="ctrl_showSeconds" ${themeSettings.showSeconds ? 'checked' : ''}> Show Seconds</label>
-            </div>
-            <div style="margin:3px 0;">
-              <label><input type="checkbox" id="ctrl_pulseAnimation" ${themeSettings.pulseAnimation ? 'checked' : ''}> Pulse Animation</label>
-            </div>
-          `;
-
-          // Add event listeners
-          ['textColor', 'bgColor', 'timeFormat', 'showSeconds', 'pulseAnimation'].forEach(prop => {
-            const element = controls.querySelector(`#ctrl_${prop}`);
-            if (element) {
-              element.addEventListener('change', (e) => {
-                const value = element.type === 'checkbox' ? element.checked :
-                             element.type === 'color' ? element.value : element.value;
-                themeSettings[prop] = value;
-              });
-            }
-          });
-
-          // Font size specific controls
-          const fontSizeSlider = controls.querySelector('#ctrl_fontSize');
-          const fontSizeValue = controls.querySelector('#fontSizeValue');
-          if (fontSizeSlider) {
-            fontSizeSlider.addEventListener('input', (e) => {
-              const value = parseInt(fontSizeSlider.value);
-              themeSettings.fontSize = value;
-              if (fontSizeValue) fontSizeValue.textContent = value + '%';
-            });
-          }
-
-          // Font resize buttons
-          const btnDecrease = controls.querySelector('#btnDecreaseFont');
-          const btnIncrease = controls.querySelector('#btnIncreaseFont');
-          const btnReset = controls.querySelector('#btnResetFont');
-
-          if (btnDecrease) {
-            btnDecrease.addEventListener('click', () => {
-              themeSettings.fontSize = Math.max(themeSettings.minFontSize, themeSettings.fontSize - themeSettings.resizeStep);
-              if (fontSizeSlider) fontSizeSlider.value = themeSettings.fontSize;
-              if (fontSizeValue) fontSizeValue.textContent = Math.floor(themeSettings.fontSize) + '%';
-              console.log('Font size decreased to:', themeSettings.fontSize);
-            });
-          }
-
-          if (btnIncrease) {
-            btnIncrease.addEventListener('click', () => {
-              themeSettings.fontSize = Math.min(themeSettings.maxFontSize, themeSettings.fontSize + themeSettings.resizeStep);
-              if (fontSizeSlider) fontSizeSlider.value = themeSettings.fontSize;
-              if (fontSizeValue) fontSizeValue.textContent = Math.floor(themeSettings.fontSize) + '%';
-              console.log('Font size increased to:', themeSettings.fontSize);
-            });
-          }
-
-          if (btnReset) {
-            btnReset.addEventListener('click', () => {
-              themeSettings.fontSize = 60;
-              if (fontSizeSlider) fontSizeSlider.value = 60;
-              if (fontSizeValue) fontSizeValue.textContent = '60%';
-              console.log('Font size reset to 60%');
-            });
-          }
-
-          // Enable/disable on-panel controls
-          const enableResize = controls.querySelector('#ctrl_enableFontResize');
-          if (enableResize) {
-            enableResize.addEventListener('change', (e) => {
-              themeSettings.enableFontResize = enableResize.checked;
-              console.log('On-panel font resize controls:', enableResize.checked ? 'enabled' : 'disabled');
-            });
-          }
-
-          document.body.appendChild(controls);
-          console.log('🎛️ Theme controls added to page');
-        };
+    // === THEME CONTROL FUNCTIONS ===
+    function setColorPreset(presetName) {
+      if (colorPresets[presetName]) {
+        const preset = colorPresets[presetName];
+        themeSettings.textColor = preset.text;
+        themeSettings.bgColor = preset.bg;
+        themeSettings.shadowColor = preset.shadow;
+        currentPreset = presetName;
       }
+    }
 
-      // ========================================
-      // ✅ THEME VALIDATION
-      // ========================================
+    // Export control functions for external access
+    window.themeControls = {
+      setColorPreset: setColorPreset,
+      getPresets: () => Object.keys(colorPresets),
+      getCurrentPreset: () => currentPreset
+    };
 
-      console.log('🎨 Advanced Clock Theme Loaded');
-      console.log('📋 Available settings:', Object.keys(themeSettings));
-      console.log('🔧 themeInit exists:', typeof themeInit);
-      console.log('🎭 themeRender exists:', typeof themeRender);
-
-      // Browser controls disabled - using main UI controls instead
-      // if (typeof window !== 'undefined') {
-      //   setTimeout(() => createThemeControls(), 1000);
-      // }
-    </script>
-  </body>
+    console.log('🕐 Advanced Digital Clock Theme Loaded - Ready!');
+    console.log('🔧 themeInit exists:', typeof themeInit);
+    console.log('🎭 themeRender exists:', typeof themeRender);
+    console.log('🎨 Available color presets:', Object.keys(colorPresets));
+  </script>
+</body>
 </html>

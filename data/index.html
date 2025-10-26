@@ -1,236 +1,172 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" href="data:," />
-    <title>LED Configuration</title>
-    <style>
-      :root {
-        --bg: #0b0f14; --fg: #e7eef7; --muted: #93a1b1; --accent: #2aa198;
-        --header-h: 56px;
-      }
-      * { box-sizing: border-box; }
-      html, body { height: 100%; }
-      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; overflow: hidden; }
-      header { height: var(--header-h); display:flex; align-items:center; justify-content:center; padding: 0 16px; text-align: center; background: #0f141a; position: sticky; top: 0; z-index: 20; }
-      header h1 { margin: 0; font-size: 18px; }
-      main { padding: 16px; max-width: 720px; margin: 0 auto; }
-      .card { background: #121820; border: 1px solid #1f2a35; border-radius: 0; padding: 16px; }
-      .row { display: grid; grid-template-columns: 140px 1fr; gap: 12px; align-items: center; margin: 10px 0; }
-      .row label { color: var(--muted); }
-      .muted { color: var(--muted); }
-      .row input[type="text"], .row select, .row input[type="color"], .row input[type="range"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #233040; background: #0e141b; color: var(--fg); }
-      .row input[type="color"] { padding: 6px; height: 42px; }
-      .inline { display:flex; gap:10px; align-items:center; }
-      .btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; margin-bottom: 30px; }
-      button { background: var(--accent); color: #093a39; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
-      .icon-btn { background:#233040; color:var(--fg); border:0; border-radius:8px; padding:6px 10px; cursor:pointer; }
-      .icon-btn:hover { background:#2d3b4d; }
-      .tab { background:#233040; color: var(--fg); border:0; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:14px; }
-      .tab.active { background: var(--accent); color:#093a39; }
-      #previewBar { position: sticky; top: calc(var(--header-h) - 14px); z-index: 10; background: #0b0f14; padding: 4px 0; border-bottom: 1px solid #1f2a35; }
-      #previewInner { display:flex; justify-content:center; }
-      #panelRow label, #panelRow input, #panelRow span { white-space: nowrap; display: inline-block; vertical-align: middle; }
-      #sepBar { height: 16px; background: #000000; border-radius: 8px; margin: 10px 0 12px; }
-      canvas { width: 100%; max-width: 520px; border: 1px solid #243241; border-radius: 8px; background: #000; image-rendering: pixelated; }
-      #configScroll { scrollbar-width: thin; scrollbar-color: #233040 #0e141b; }
-      #configScroll::-webkit-scrollbar { width: 6px; }
-      #configScroll::-webkit-scrollbar-track { background: #0e141b; }
-      #configScroll::-webkit-scrollbar-thumb { background: #233040; border-radius: 3px; }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>LED Configuration</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1 class="rainbow">⚙️ Gen Z Vibe Configuration</h1>
+  </header>
 
-      /* Custom modern slider styles */
-      .custom-slider {
-        width: 100%;
-        -webkit-appearance: none;
-        appearance: none;
-        height: 6px;
-        background: transparent;
-        outline: none;
-        cursor: pointer;
-        position: relative;
-      }
+  <main class="main">
+    <!-- Preview Bar -->
+    <div id="previewBar">
+      <div id="previewInner">
+        <canvas id="preview" width="128" height="64"></canvas>
+      </div>
+    </div>
 
-      .custom-slider::-webkit-slider-track {
-        height: 6px;
-        background: #1a2332;
-        border-radius: 3px;
-        position: relative;
-      }
+    <!-- Sticky Tab Bar -->
+    <div class="card" id="stickyTabBar">
+      <div id="modeTabs">
+        <div class="inline space-between">
+          <!-- Left side - Tab buttons -->
+          <div class="tab-group">
+            <button id="tabText" class="tab active" title="Text">🏡</button>
+            <button id="tabClock" class="tab" title="Clock">⏰</button>
+            <button id="tabVideo" class="tab" title="Video">📸</button>
+            <button id="tabTheme" class="tab" title="Theme">🎨</button>
+          </div>
 
-      .custom-slider::-webkit-slider-track::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        height: 6px;
-        background: linear-gradient(90deg, var(--accent) 0%, var(--accent) var(--progress, 50%), #1a2332 var(--progress, 50%), #1a2332 100%);
-        border-radius: 3px;
-        transition: all 0.2s ease;
-      }
-
-      .custom-slider::-webkit-slider-thumb {
-        -webkit-appearance: none;
-        appearance: none;
-        width: 18px;
-        height: 18px;
-        background: var(--accent);
-        border: 2px solid #0a0f1a;
-        border-radius: 50%;
-        cursor: pointer;
-        position: relative;
-        z-index: 2;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        transition: all 0.2s ease;
-      }
-
-      .custom-slider::-webkit-slider-thumb:hover {
-        transform: scale(1.1);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-        background: #3ae374;
-      }
-
-      .custom-slider::-webkit-slider-thumb:active {
-        transform: scale(0.95);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.4);
-      }
-
-      .custom-slider::-moz-range-track {
-        height: 6px;
-        background: #1a2332;
-        border-radius: 3px;
-      }
-
-      .custom-slider::-moz-range-thumb {
-        width: 18px;
-        height: 18px;
-        background: var(--accent);
-        border: 2px solid #0a0f1a;
-        border-radius: 50%;
-        cursor: pointer;
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        transition: all 0.2s ease;
-      }
-
-      .custom-slider::-moz-range-thumb:hover {
-        transform: scale(1.1);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-        background: #3ae374;
-      }
-
-      .custom-slider::-moz-range-thumb:active {
-        transform: scale(0.95);
-        box-shadow: 0 1px 2px rgba(0,0,0,0.4);
-      }
-
-    
-      /* Slider value display */
-      .slider-value {
-        background: var(--accent);
-        color: #093a39;
-        padding: 4px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        min-width: 45px;
-        text-align: center;
-        border: 1px solid #0a0f1a;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      }
-
-      #panelRow { grid-template-columns: 90px 1fr; column-gap: 4px; }
-      #panelRow .inline { flex-wrap: nowrap; gap: 3px; }
-      #panelRow select { width: 110px; min-width: 88px; }
-      #panelRow select#pw { width: 90px; min-width: 72px; }
-      footer { color: var(--muted); text-align: center; padding: 24px 0 40px; }
-      @media (max-width: 640px) {
-        .row { grid-template-columns: 1fr; }
-        #panelRow { grid-template-columns: 90px 1fr; column-gap: 4px; }
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <h1>LED Configuration</h1>
-    </header>
-    <main style="display:flex; flex-direction:column; height: calc(100vh - var(--header-h));">
-      <div id="previewBar">
-        <div id="previewInner">
-          <canvas id="preview" width="128" height="64"></canvas>
+          <!-- Right side - Action buttons -->
+          <div class="action-group">
+            <button id="btnTextPreview" class="preview-btn" title="Preview">👁</button>
+            <button id="btn" class="apply-btn">Apply</button>
+          </div>
         </div>
       </div>
-      <div id="sepBar"></div>
+    </div>
 
-      <div id="configScroll" style="flex:1 1 auto; overflow:auto;">
-      <div class="card">
-        <div class="row" id="modeTabs">
-          <div class="inline" style="gap:8px; flex-wrap:wrap; align-items:center;">
-            <button id="tabText" class="tab active" title="Text">🏠</button>
-            <button id="tabClock" class="tab" title="Clock">🕐</button>
-            <button id="tabVideo" class="tab" title="Video">🎬</button>
-            <button id="tabTheme" class="tab" title="Theme">🎨</button>
-            <button id="btnTextPreview" style="margin-left:24px; padding:5px 8px; font-size:13px; background:#2d3b4d; color:var(--fg); border:0; border-radius:5px; cursor:pointer;" title="Preview">👁️</button>
-            <button id="btn" style="padding:5px 8px; font-size:13px; background:var(--accent); color:#093a39; border:0; border-radius:5px; cursor:pointer;">Apply</button>
-          </div>
-        </div>
-        <div id="textConfig">
+    <!-- Scroll Area -->
+    <div id="configScroll">
+      <!-- NOTE: each config is its own .card; nothing leaks outside now -->
+      <!-- TEXT CONFIG -->
+      <div id="textConfig" class="card">
         <div class="row">
-          <label for="text">Text</label>
+          <label for="text" class="sr-only">Text</label>
           <input id="text" type="text" value="សួរស្ដីបង" />
         </div>
-            <div class="row group-text" id="fontSizeRow" style="margin-top: 17px;">
-          <label for="fontSize">Font Size</label>
-          <input id="fontSize" type="range" min="0" max="100" value="25" />
-        </div>
-              <div class="row group-text">
+
+        <div class="row group-text">
           <label for="color">Text Color</label>
-          <input id="color" type="color" value="#ffffff" />
-        </div>
-        <div class="row">
-          <label for="brightness">Brightness</label>
-          <div class="inline">
-            <input id="brightness" type="range" min="0" max="100" value="80" />
-            <span id="brightnessVal">80%</span>
+          <div class="color-selection-wrapper">
+            <div class="inline gap-8">
+              <button class="color-box active" data-color="#FFFFFF" style="background:#FFFFFF"></button>
+              <button class="color-box" data-color="#FF0000" style="background:#FF0000"></button>
+              <button class="color-box" data-color="#00FF00" style="background:#00FF00"></button>
+              <button class="color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
+              <button class="color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
+              <button class="color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
+
+              </div>
           </div>
+          <input type="hidden" id="color" value="#FFFFFF" />
         </div>
+
         <div class="row">
-          <label for="animate">Translate Animation</label>
-          <div class="inline">
-            <input id="animate" type="checkbox" />
-            <select id="dir">
-              <option value="left">Shift Left</option>
-              <option value="right">Shift Right</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <label for="speed">Speed</label>
-          <div class="inline">
-            <input id="speed" type="range" min="2" max="50" value="20" />
-            <span id="speedVal">20 ms</span>
-          </div>
-        </div>
-        <div class="row">
-          <label for="interval">Loop Offset (px)</label>
-          <div class="inline">
-            <input id="interval" type="range" min="1" max="25" value="5" />
-            <span id="intervalVal">5 px</span>
-          </div>
-        </div>
-          <div class="row">
           <label for="bgMode">Background</label>
           <div class="inline">
-            <select id="bgMode">
+            <select id="bgMode" class="w-80">
               <option value="color">Color</option>
               <option value="image">Image</option>
             </select>
-            <input id="bg" type="color" value="#000000" />
-            <input id="imageFile" type="file" accept="image/*" style="display:none" />
+
+            <div class="bg-color-selection-wrapper" id="bgColorWrapper">
+              <div class="bg-color-boxes inline gap-8 center">
+                <button class="bg-color-box active" data-color="#000000" style="background:#000000"></button>
+                <button class="bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
+                <button class="bg-color-box" data-color="#827C75" style="background:#827C75"></button>
+                <button class="bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
+                  </div>
+            </div>
+
+            <input id="bg" type="hidden" value="#000000" />
+            <input id="imageFile" type="file" accept="image/*" class="hidden" />
           </div>
         </div>
-        <div class="row" id="imageFitRow" style="display:none;">
-          <label></label>
+
+        <div class="row" id="fontSizeRow">
+          <label for="fontSize">Font Size</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box" data-size="15">15</button>
+              <button class="font-size-box" data-size="17">17</button>
+              <button class="font-size-box" data-size="20">20</button>
+              <button class="font-size-box" data-size="23">23</button>
+              <button class="font-size-box active" data-size="25">25</button>
+              <button class="font-size-box" data-size="30">30</button>
+              <button class="font-size-box" data-size="35">35</button>
+            </div>
+            <input type="hidden" id="fontSize" value="25" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="brightness">Brightness</label>
+          <div class="brightness-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="brightness-box" data-brightness="10">10</button>
+              <button class="brightness-box" data-brightness="20">20</button>
+              <button class="brightness-box" data-brightness="40">40</button>
+              <button class="brightness-box" data-brightness="60">60</button>
+              <button class="brightness-box active" data-brightness="80">80</button>
+              <button class="brightness-box" data-brightness="100">100</button>
+            </div>
+            <input type="hidden" id="brightness" value="80" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="animate">Translate Animation</label>
+          <div class="animation-selection-wrapper">
+            <div class="inline gap-12">
+              <select id="dir">
+                <option value="left">Shift Left</option>
+                <option value="right">Shift Right</option>
+              </select>
+              <div id="animate" class="toggle-switch" data-checked="false"></div>
+              <input type="hidden" id="animateCheckbox" />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="speed">Speed</label>
+          <div class="speed-selection-wrapper disabled" id="speedWrapper">
+            <div class="inline gap-8">
+              <button class="speed-box" data-speed="10">10</button>
+              <button class="speed-box" data-speed="15">15</button>
+              <button class="speed-box active" data-speed="20">20</button>
+              <button class="speed-box" data-speed="25">25</button>
+              <button class="speed-box" data-speed="30">30</button>
+              <button class="speed-box" data-speed="35">35</button>
+              <button class="speed-box" data-speed="40">40</button>
+            </div>
+            <input type="hidden" id="speed" value="20" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="interval">Loop Offset (px)</label>
+          <div class="interval-selection-wrapper disabled" id="intervalWrapper">
+            <div class="inline gap-8">
+              <button class="interval-box active" data-interval="10">10</button>
+              <button class="interval-box" data-interval="30">30</button>
+              <button class="interval-box" data-interval="75">75</button>
+              <button class="interval-box" data-interval="100">100</button>
+              <button class="interval-box" data-interval="200">200</button>
+              <button class="interval-box" data-interval="300">300</button>
+            </div>
+            <input type="hidden" id="interval" value="10" />
+          </div>
+        </div>
+
+        <div class="row hidden" id="imageFitRow">
+          <label for="imageFit"></label>
           <div class="inline">
             <select id="imageFit">
               <option value="fill">Fill Panel</option>
@@ -239,1614 +175,170 @@
             </select>
           </div>
         </div>
-            </div> <!-- end #textConfig -->
-        <div id="themeConfig" style="display:none;">
-          <div class="row">
-            <label for="themeFile">Upload Theme</label>
-            <input id="themeFile" type="file" accept=".html" />
-          </div>
-          <div class="btns">
-            <button id="btnThemeUpload">Preview</button>
-            <button id="btnThemeStart">Start</button>
-            <button id="btnThemeReapply" style="background: #28a745;">Reapply</button>
-          </div>
+      </div>
+      <!-- END TEXT CONFIG -->
 
-          <!-- Theme Controls Section -->
-          <div class="row" id="themeControlsSection" style="display:none;">
-            <label>Theme Controls</label>
-            <div style="background: #1a2332; padding: 12px; border-radius: 8px; border: 1px solid #2a3a4a;">
-              <!-- Font Size Control -->
-              <div style="margin-bottom: 12px;">
-                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🔠 Font Size</div>
-                <div class="inline" style="gap: 8px; align-items: center;">
-                  <input id="fontSizeSlider" type="range" min="10" max="100" value="60" style="width: 120px; flex: 1;">
-                  <span id="fontSizeDisplay" style="color: var(--muted); min-width: 35px; text-align: right;">60%</span>
-                </div>
-              </div>
-
-              <!-- Text Color Control -->
-              <div style="margin-bottom: 12px;">
-                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🎨 Text Color</div>
-                <div class="inline" style="gap: 8px;">
-                  <input id="themeTextColor" type="color" value="#00ff00" style="width: 50px; height: 32px;">
-                  <span id="textColorHex" style="color: var(--muted); font-family: monospace;">#00ff00</span>
-                </div>
-              </div>
-
-              <!-- Background Color Control -->
-              <div style="margin-bottom: 12px;">
-                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🖼️ Background</div>
-                <div class="inline" style="gap: 8px;">
-                  <input id="themeBgColor" type="color" value="#000000" style="width: 50px; height: 32px;">
-                  <span id="bgColorHex" style="color: var(--muted); font-family: monospace;">#000000</span>
-                </div>
-              </div>
-
-              <!-- Time Format -->
-              <div style="margin-bottom: 12px;">
-                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">🕐 Time Format</div>
-                <div class="inline">
-                  <select id="themeTimeFormat" style="width: 120px;">
-                    <option value="24">24-hour</option>
-                    <option value="12">12-hour</option>
-                  </select>
-                  <label style="margin-left: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px;">
-                    <input type="checkbox" id="themeShowSeconds" checked> Show Seconds
-                  </label>
-                </div>
-              </div>
-
-              <!-- Effects -->
-              <div>
-                <div style="color: var(--muted); font-size: 12px; margin-bottom: 6px;">✨ Effects</div>
-                <div class="inline" style="gap: 12px;">
-                  <label style="color: var(--muted); display: flex; align-items: center; gap: 6px;">
-                    <input type="checkbox" id="themePulseAnimation"> Pulse
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Preview uses the main preview canvas above -->
-          <div class="row">
-            <label>Themes</label>
-            <div id="themeList" class="muted">No themes yet.</div>
-          </div>
+      <!-- THEME CONFIG -->
+      <div id="themeConfig" class="card hidden">
+        <div class="row">
+          <label for="themeFile">Upload Theme</label>
+          <input id="themeFile" type="file" accept=".html" />
         </div>
-        <div id="clockConfig" style="display:none">
-          <div class="row">
-            <label for="clockSize" style="margin-top: 20px;">Clock Size</label>
-            <div class="inline">
-              <input id="clockSize" type="range" min="10" max="50" value="28" />
-              <span id="clockSizeVal">28 px</span>
+
+        <div class="btns">
+          <button id="btnThemeUpload">Preview</button>
+          <button id="btnThemeStart">Start</button>
+          <button id="btnThemeReapply" class="btn-green">Reapply</button>
+        </div>
+
+        <!-- Theme Controls Section -->
+        <div class="row hidden" id="themeControlsSection">
+          <label>Theme Controls</label>
+          <div class="theme-controls">
+            <!-- Font Size Control -->
+            <div class="control">
+              <div class="control-label">🔠 Font Size</div>
+              <div class="inline gap-8 center">
+                <input id="fontSizeSlider" class="custom-slider" type="range" min="10" max="100" value="60" />
+                <span id="fontSizeDisplay" class="muted min-35 text-right">60%</span>
+              </div>
             </div>
-          </div>
-          <div class="row">
-            <label for="clockColor">Clock Text Color</label>
-            <input id="clockColor" type="color" value="#ffffff" />
-          </div>
-          <div class="row">
-            <label for="clockBgColor">Clock Background</label>
-            <input id="clockBgColor" type="color" value="#000000" />
-          </div>
-                  </div> <!-- end #clockConfig -->
-        <div id="videoConfig" style="display:none">
-          <div class="row">
-            <label for="videoFile">Video</label>
-            <div class="inline">
-              <input id="videoFile" type="file" accept="video/*" />
+
+            <!-- Text Color Control -->
+            <div class="control">
+              <div class="control-label">🎨 Text Color</div>
+              <div class="inline gap-8 center">
+                <input id="themeTextColor" type="color" value="#00ff00" class="color-input" />
+                <span id="textColorHex" class="muted mono">#00ff00</span>
+              </div>
             </div>
-          </div>
-          <div class="row" id="videoFitRow">
-            <label for="videoFit">Fit</label>
-            <div class="inline">
-              <select id="videoFit">
-                <option value="fill">Fill Panel</option>
-                <option value="fit" selected>Fit Inside</option>
-                <option value="original">Original Size</option>
-              </select>
-              <span class="muted">FPS</span>
-              <select id="videoFps">
-                <option value="5">5</option>
-                <option value="10" selected>10</option>
-                <option value="15">15</option>
-                <option value="20">20</option>
-              </select>
-              <label class="muted" for="videoLoop" style="display:inline-flex; align-items:center; gap:6px;">
-                <input id="videoLoop" type="checkbox" checked /> Loop
+
+            <!-- Background Color Control -->
+            <div class="control">
+              <div class="control-label">🖼️ Background</div>
+              <div class="inline gap-8 center">
+                <input id="themeBgColor" type="color" value="#000000" class="color-input" />
+                <span id="bgColorHex" class="muted mono">#000000</span>
+              </div>
+            </div>
+
+            <!-- Time Format -->
+            <div class="control">
+              <div class="control-label">🕐 Time Format</div>
+              <div class="inline gap-8 center">
+                <select id="themeTimeFormat" class="w-120">
+                  <option value="24">24-hour</option>
+                  <option value="12">12-hour</option>
+                </select>
+                <label class="muted inline gap-6">
+                  <input type="checkbox" id="themeShowSeconds" checked /> Show Seconds
+                </label>
+              </div>
+            </div>
+
+            <!-- Effects -->
+            <div class="control">
+              <div class="control-label">✨ Effects</div>
+              <label class="muted inline gap-6">
+                <input type="checkbox" id="themePulseAnimation" /> Pulse
               </label>
             </div>
           </div>
-          <div class="btns">
-            <button id="btnVideoStart">Start Video Upload</button>
-            <button id="btnVideoStop">Stop Video Upload</button>
-          </div>
-        </div> <!-- end #videoConfig -->
+        </div>
+
+        <div class="row">
+          <label>Themes</label>
+          <div id="themeList" class="muted">No themes yet.</div>
+        </div>
+
+        <div class="spacer-400"></div>
       </div>
-      <footer></footer>
-      </div>
-      <!-- Panel Configuration Overlay -->
-      <div id="panelConfigPage" style="display:none; position:fixed; left:0; right:0; top:var(--header-h); bottom:0; background: rgba(11,15,20,0.96); z-index:30;">
-        <div style="max-width:820px; margin:16px auto; padding:16px; border:1px solid #1f2a35; background:#121820;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h2 style="margin:0; font-size:16px; color:var(--fg);">Panel Configuration</h2>
-            <button id="btnPanelClose" class="icon-btn">✖️</button>
-          </div>
-          <div class="row">
-            <label>Layout</label>
-            <div class="inline" style="gap:16px; flex-wrap:wrap;">
-              <label class="muted" style="display:inline-flex; align-items:center; gap:6px;">
-                <input type="radio" name="panelLayout" id="layout1x1" value="1x1" checked /> 1 row × 1 column
-              </label>
-            </div>
-          </div>
-          <div class="btns">
-            <button id="btnPanelApply">Apply</button>
-            <button id="btnPanelCancel" class="icon-btn">Cancel</button>
+      <!-- END THEME CONFIG -->
+
+      <!-- CLOCK CONFIG -->
+      <div id="clockConfig" class="card hidden">
+        <div class="row">
+          <label for="clockSize">Clock Size</label>
+          <div class="inline">
+            <input id="clockSize" type="range" min="10" max="50" value="28" />
           </div>
         </div>
+        <div class="row">
+          <label for="clockColor">Clock Text Color</label>
+          <input id="clockColor" type="color" value="#ffffff" />
+        </div>
+        <div class="row">
+          <label for="clockBgColor">Clock Background</label>
+          <input id="clockBgColor" type="color" value="#000000" />
+        </div>
+
+        <div class="spacer-200"></div>
       </div>
-    </main>
-
-    <script>
-      // API base: when running locally via localhost, point to ESP32 AP.
-      const apiBase = (location.hostname === '127.0.0.1' || location.hostname === 'localhost') ? 'http://192.168.4.1' : '';
-
-      // Global variables
-      const $ = id => document.getElementById(id);
-      const c = document.getElementById('preview');
-      const ctx = c.getContext('2d');
-      let loadedImg = null;
-      let userFontLoaded = false;
-
-      // Animation state variables
-      let rafId = 0; let lastTs = 0; let accMs = 0; let head0 = 0; let head1 = 0; let spacing = 0; let textW = 0; let textH = 0;
-      let clockPreviewTimer = 0;
-      let clockTimer = 0;
-      let videoEl = null;
-      let videoPreviewRaf = 0;
-      let videoUploadActive = false;
-      let videoUploadLastMs = 0;
-      let videoUploadIntervalMs = 100;
-      let videoUploadInFlight = false;
-
-      // Stop all running content (comprehensive cleanup)
-      function stopAllRunningContent() {
-        console.log('stopAllRunningContent called - stopping everything including clock timer');
-        // Stop text animation
-        stopPreviewAnim();
-
-        // Stop clock preview but keep LED timer running
-        stopClockPreview();
-
-        // Stop clock LED timer (only when explicitly stopping all content)
-        if (clockTimer) {
-          console.log('Clearing clock timer in stopAllRunningContent');
-          cancelAnimationFrame(clockTimer);
-          clockTimer = 0;
-          // updateClockStatus(); // Function doesn't exist - removed
-        }
-
-        // Stop video
-        stopVideoPreview();
-        videoUploadActive = false;
-        videoUploadInFlight = false;
-
-        // Stop theme
-        stopThemeTimers();
-      }
-
-      // Stop content for preview only (keep LED running)
-      function stopContentForPreview() {
-        // Stop text animation
-        stopPreviewAnim();
-
-        // Stop clock preview only (keep LED timer running)
-        stopClockPreview();
-        // IMPORTANT: Don't clear clockTimer here - it should continue running on LED
-
-        // Stop video preview and upload
-        stopVideoPreview();
-        videoUploadActive = false;
-        videoUploadInFlight = false;
-
-        // Stop theme preview (keep LED running)
-        if (window.__themeTimer) {
-          clearInterval(window.__themeTimer);
-          window.__themeTimer = null;
-        }
-        // Don't clear __theme or stop __playTimer for preview mode
-      }
-
-      // Stop theme timers when switching away from theme tab
-      function stopThemeTimers() {
-        console.log('stopThemeTimers called - stopping all theme timers');
-
-        if (window.__themeTimer) {
-          clearInterval(window.__themeTimer);
-          window.__themeTimer = null;
-          console.log('Stopped theme preview timer');
-        }
-        if (window.__playTimer) {
-          clearInterval(window.__playTimer);
-          window.__playTimer = null;
-          console.log('Stopped theme play timer');
-        }
-
-        // Don't clear the theme object here - keep it for reuse
-        // Only clear when uploading a new theme
-        console.log('Theme timers stopped');
-      }
-
-      // Stop preview animation
-      function stopPreviewAnim() {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = 0;
-        }
-        // Don't stop clock timer here - clock should continue running on LED panel
-      }
-
-      function getPreviewCanvas(){
-        var pv = document.getElementById('preview');
-        if(!pv){
-          var holder = document.getElementById('previewInner') || document.body;
-          pv = document.createElement('canvas');
-          pv.id='preview'; pv.width=128; pv.height=64; pv.style.background='#000';
-          pv.style.border='1px solid #243241'; holder.appendChild(pv);
-        }
-        return pv;
-      }
-
-      function rgb565(r,g,b){return ((r&0xF8)<<8)|((g&0xFC)<<3)|((b)>>3);} // 16-bit
-
-      function cropImageData(img,w,h){
-        let minX=w, minY=h, maxX=-1, maxY=-1;
-        for(let y=0;y<h;y++){
-          for(let x=0;x<w;x++){
-            const a=img[(y*w+x)*4+3];
-            if(a){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
-          }
-        }
-        if(maxX<minX||maxY<minY){return {x:0,y:0,w:0,h:0}};
-        return {x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1};
-      }
-
-      function getFontFamily() {
-        return `'Noto Sans Khmer', 'Khmer OS Content', system-ui, Arial, sans-serif`;
-      }
-
-      // Initialize preview animation
-      function initPreviewAnim() {
-        const pw = 128; const ph = 64; // Fixed panel size
-        const size=parseInt($('fontSize').value,10);
-        const text=$('text').value;
-        const fam = getFontFamily();
-        const font = `bold ${size}px ${fam}`;
-
-        // measure text width
-        ctx.font=font; ctx.textBaseline='middle'; ctx.textAlign='left';
-        const m = ctx.measureText(text);
-        textW = Math.ceil(m.width);
-        textH = Math.ceil(size*1.2);
-        const gap = parseInt($('interval').value,10) || 1;
-        spacing = Math.max(1, textW + gap);
-
-        // Calculate how many copies we need to fill the screen + buffer
-        const totalCopies = Math.ceil((pw + spacing * 2) / spacing) + 2;
-
-        // Initialize all heads
-        heads = [];
-        for (let i = 0; i < totalCopies; i++) {
-          if ($('dir').value === 'left') {
-            heads.push(pw + (i * spacing)); // Start copies from right edge with spacing
-          } else {
-            heads.push(-textW - (i * spacing)); // Start copies from left edge with spacing
-          }
-        }
-
-        lastTs = 0; accMs = 0;
-      }
-
-      // Draw preview frame
-      function drawPreviewFrame(animated){
-        const text=$('text').value;
-        const fam = getFontFamily();
-        const size=parseInt($('fontSize').value,10);
-        const font = `bold ${size}px ${fam}`;
-        const color=$('color').value;
-        const bg=$('bg').value;
-        const pw = 128; const ph = 64; // Fixed panel size
-
-        c.width = pw; c.height = ph;
-        ctx.clearRect(0,0,c.width,c.height);
-        ctx.fillStyle=bg; ctx.fillRect(0,0,c.width,c.height);
-
-        if ($('bgMode').value === 'image' && loadedImg) {
-          const fit = $('imageFit').value;
-          let dw = loadedImg.width, dh = loadedImg.height;
-          if (fit === 'fill') { dw = pw; dh = ph; }
-          else if (fit === 'fit') {
-            const s = Math.min(pw/loadedImg.width, ph/loadedImg.height);
-            dw = Math.max(1, Math.floor(loadedImg.width * s));
-            dh = Math.max(1, Math.floor(loadedImg.height * s));
-          } else if (fit === 'original') {
-            dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height);
-          }
-          const dx = Math.floor(pw*0.5 - dw/2);
-          const dy = Math.floor(ph*0.5 - dh/2);
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(loadedImg, dx, dy, dw, dh);
-        }
-
-        // Text overlay - automatically centered with slight adjustment
-        const cy = Math.floor(ph*0.5) + 2; // Moved down 2 pixels for better centering
-        ctx.font=font; ctx.textBaseline='middle'; ctx.fillStyle=color;
-
-        if (animated && text.length > 0) {
-          // draw all heads for continuous stream
-          ctx.textAlign='left';
-          heads.forEach(headX => {
-            const xLeft = Math.floor(headX);
-            if (xLeft >= -textW && xLeft <= pw) { // Only draw if visible or about to be visible
-              ctx.fillText(text, xLeft, cy);
-            }
-          });
-        } else {
-          // static centered
-          ctx.textAlign='center';
-          ctx.fillText(text, Math.floor(pw*0.5), cy);
-        }
-      }
-
-      // Animate preview
-      function animatePreview(ts){
-        if (!$('animate').checked || $('text').value.trim().length === 0) {
-          stopPreviewAnim();
-          drawPreviewFrame(false);
-          return;
-        }
-
-        if (!lastTs) lastTs = ts;
-        const speed = parseInt($('speed').value,10) || 30;
-        accMs += (ts - lastTs); lastTs = ts;
-
-        const pw = 128; // Fixed panel width
-        while (accMs >= speed) {
-          accMs -= speed;
-
-          // Move all heads
-          if ($('dir').value === 'left') {
-            heads.forEach((head, index) => {
-              heads[index] = head - 1;
-            });
-
-            // Recycle any head that goes completely off screen
-            heads.forEach((head, index) => {
-              if (head + textW <= 0) {
-                // Find the rightmost head to position after it
-                let rightmost = Math.max(...heads);
-                heads[index] = rightmost + spacing;
-              }
-            });
-          } else {
-            heads.forEach((head, index) => {
-              heads[index] = head + 1;
-            });
-
-            // Recycle any head that goes completely off screen
-            heads.forEach((head, index) => {
-              if (head >= pw) {
-                // Find the leftmost head to position before it
-                let leftmost = Math.min(...heads);
-                heads[index] = leftmost - spacing;
-              }
-            });
-          }
-        }
-        drawPreviewFrame(true);
-        rafId = requestAnimationFrame(animatePreview);
-      }
-
-      // Clock functions
-      function formatTime(fmt){
-        const d = new Date();
-        let h = d.getHours(); let m = d.getMinutes(); let s = d.getSeconds();
-        if (fmt==='12') { const ampm = h>=12?'PM':'AM'; h = h%12 || 12; return `${(''+h).padStart(2,'0')}:${(''+m).padStart(2,'0')}:${(''+s).padStart(2,'0')} ${ampm}`; }
-        return `${(''+h).padStart(2,'0')}:${(''+m).padStart(2,'0')}:${(''+s).padStart(2,'0')}`;
-      }
-
-      function drawClockPreviewFrame(){
-        const pw = 128; const ph = 64; // Fixed panel size
-        const fmt = '24'; // Always use 24-hour format
-        const size = parseInt($('clockSize').value,10);
-        const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
-        const col = $('clockColor').value;
-        const clockBg = $('clockBgColor').value; // Use dedicated clock background
-        c.width = pw; c.height = ph;
-        ctx.clearRect(0,0,c.width,c.height);
-        // draw clock background (use dedicated clock background color)
-        ctx.fillStyle = clockBg; ctx.fillRect(0,0,pw,ph);
-        if ($('bgMode').value === 'image' && loadedImg) {
-          const fit = $('imageFit').value;
-          let dw = loadedImg.width, dh = loadedImg.height;
-          if (fit === 'fill') { dw = pw; dh = ph; }
-          else if (fit === 'fit') {
-            const s = Math.min(pw/loadedImg.width, ph/loadedImg.height);
-            dw = Math.max(1, Math.floor(loadedImg.width * s));
-            dh = Math.max(1, Math.floor(loadedImg.height * s));
-          } else if (fit === 'original') {
-            dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height);
-          }
-          const dx = Math.floor(pw*0.5 - dw/2);
-          const dy = Math.floor(ph*0.5 - dh/2);
-          ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(loadedImg, dx, dy, dw, dh);
-        }
-        // draw time centered with slight adjustment
-        ctx.font = font; ctx.textBaseline='middle'; ctx.textAlign='center'; ctx.fillStyle=col;
-        const txt = formatTime(fmt);
-        ctx.fillText(txt, Math.floor(pw*0.5), Math.floor(ph*0.5) + 4); // Moved down 4 pixels
-      }
-
-      function startClockPreview(){
-        if (clockPreviewTimer) clearInterval(clockPreviewTimer);
-        drawClockPreviewFrame();
-        clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
-      }
-
-      function stopClockPreview(){
-        if (clockPreviewTimer) {
-          clearInterval(clockPreviewTimer);
-          clockPreviewTimer=0;
-        }
-      }
-
-      async function renderAndUploadClock(){
-        // Stop other modes but preserve clock timer
-        stopPreviewAnim();
-        stopVideoPreview();
-        stopThemeTimers();
-        // Don't stop clock timer here - it should keep running
-
-        const pw = 128; const ph = 64; // Fixed panel size
-        const fmt = '24'; // Always use 24-hour format
-        const size = parseInt($('clockSize').value,10);
-        const fam = getFontFamily(); const font = `bold ${size}px ${fam}`;
-        const col = $('clockColor').value;
-        const clockBg = $('clockBgColor').value; // Use dedicated clock background
-        const t = document.createElement('canvas'); t.width = pw; t.height = ph; const tctx=t.getContext('2d');
-        tctx.fillStyle=clockBg; tctx.fillRect(0,0,pw,ph);
-        tctx.font=font; tctx.textBaseline='middle'; tctx.textAlign='center'; tctx.fillStyle=col;
-        const txt = formatTime(fmt);
-        tctx.fillText(txt, Math.floor(pw*0.5), Math.floor(ph*0.5) + 4); // Moved down 4 pixels
-        const out = tctx.getImageData(0,0,pw,ph);
-        const buf = new Uint8Array(4 + pw*ph*2);
-        buf[0]=pw&255; buf[1]=(pw>>8)&255; buf[2]=ph&255; buf[3]=(ph>>8)&255;
-        let p=4; const d=out.data;
-        for(let y=0;y<ph;y++){
-          for(let x=0;x<pw;x++){
-            const i=(y*pw+x)*4; const r=d[i], g=d[i+1], b=d[i+2];
-            const v=((r&0xF8)<<8)|((g&0xFC)<<3)|((b)>>3);
-            buf[p++]=v&255; buf[p++]=(v>>8)&255;
-          }
-        }
-        const fd = new FormData();
-        fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'clock.rgb565');
-        fd.append('bg', clockBg); // Send dedicated clock background color
-        fd.append('bgMode', 'color');
-        fd.append('offx', 0);
-        fd.append('offy', 0);
-        fd.append('animate', 0);
-        fd.append('dir', 'left');
-        fd.append('speed', 20);
-        fd.append('interval', 5);
-        await fetch(apiBase + '/upload', { method:'POST', body: fd });
-      }
-
-      // Video functions
-      function drawVideoPreviewFrame(){
-        if (!videoEl) return;
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
-        const bg = $('bg').value;
-        c.width = pw; c.height = ph;
-        ctx.clearRect(0,0,c.width,c.height);
-        ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
-        // draw video frame with fit
-        const fit = document.getElementById('videoFit') ? document.getElementById('videoFit').value : 'fit';
-        let dw = videoEl.videoWidth || pw, dh = videoEl.videoHeight || ph;
-        if (fit === 'fill') { dw = pw; dh = ph; }
-        else if (fit === 'fit') {
-          const s = Math.min(pw/(dw||1), ph/(dh||1)); dw = Math.max(1, Math.floor(dw*s)); dh = Math.max(1, Math.floor(dh*s));
-        } else { // original
-          dw = Math.min(pw, dw); dh = Math.min(ph, dh);
-        }
-        const dx = Math.floor(pw*0.5 - dw/2);
-        const dy = Math.floor(ph*0.5 - dh/2);
-        try { ctx.drawImage(videoEl, dx, dy, dw, dh); } catch(_){}
-      }
-
-      function videoPreviewLoop(ts){
-        drawVideoPreviewFrame();
-        // streaming upload synced with preview FPS
-        if (videoUploadActive && !videoUploadInFlight) {
-          if (!videoUploadLastMs) videoUploadLastMs = ts || performance.now();
-          const now = ts || performance.now();
-          if (now - videoUploadLastMs >= videoUploadIntervalMs) {
-            videoUploadLastMs = now;
-            // fire and forget upload of current frame
-            uploadVideoFrame(true);
-          }
-        }
-        videoPreviewRaf = requestAnimationFrame(videoPreviewLoop);
-      }
-
-      function startVideoPreview(){
-        if (!videoEl || videoEl.readyState < 2) return; // not enough data
-        if (videoPreviewRaf) cancelAnimationFrame(videoPreviewRaf);
-        videoPreviewRaf = requestAnimationFrame(videoPreviewLoop);
-      }
-
-      function stopVideoPreview(){
-        if (videoPreviewRaf) {
-          cancelAnimationFrame(videoPreviewRaf);
-          videoPreviewRaf=0;
-        }
-      }
-
-      async function uploadVideoFrame(nonBlocking){
-        if (!videoEl) return;
-        const pw=parseInt($('pw').value,10); const ph=parseInt($('ph').value,10);
-        const t = document.createElement('canvas'); t.width = pw; t.height = ph; const tctx=t.getContext('2d');
-        // background
-        const bg = $('bg').value; tctx.fillStyle=bg; tctx.fillRect(0,0,pw,ph);
-        // draw current video frame same as preview
-        const fit = document.getElementById('videoFit') ? document.getElementById('videoFit').value : 'fit';
-        let dw = videoEl.videoWidth || pw, dh = videoEl.videoHeight || ph;
-        if (fit === 'fill') { dw = pw; dh = ph; }
-        else if (fit === 'fit') {
-          const s = Math.min(pw/(dw||1), ph/(dh||1)); dw = Math.max(1, Math.floor(dw*s)); dh = Math.max(1, Math.floor(dh*s));
-        } else { dw = Math.min(pw, dw); dh = Math.min(ph, dh); }
-        const dx = Math.floor(pw*0.5 - dw/2);
-        const dy = Math.floor(ph*0.5 - dh/2);
-        try { tctx.drawImage(videoEl, dx, dy, dw, dh); } catch(_){ return; }
-        const out = tctx.getImageData(0,0,pw,ph);
-        const buf = new Uint8Array(4 + pw*ph*2);
-        buf[0]=pw&255; buf[1]=(pw>>8)&255; buf[2]=ph&255; buf[3]=(ph>>8)&255;
-        let p=4; const d=out.data;
-        for(let y=0;y<ph;y++){
-          for(let x=0;x<pw;x++){
-            const i=(y*pw+x)*4; const r=d[i], g=d[i+1], b=d[i+2];
-            const v=((r&0xF8)<<8)|((g&0xFC)<<3)|((b)>>3);
-            buf[p++]=v&255; buf[p++]=(v>>8)&255;
-          }
-        }
-        const fd = new FormData();
-        fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'video.rgb565');
-        fd.append('bg', bg);
-        fd.append('bgMode', 'color');
-        fd.append('offx', 0);
-        fd.append('offy', 0);
-        fd.append('animate', 0);
-        fd.append('dir', 'left');
-        fd.append('speed', 20);
-        fd.append('interval', 5);
-        try {
-          if (nonBlocking) {
-            videoUploadInFlight = true;
-            fetch(apiBase + '/upload', { method:'POST', body: fd }).finally(()=>{ videoUploadInFlight = false; });
-          } else {
-            await fetch(apiBase + '/upload', { method:'POST', body: fd });
-          }
-        } catch(_){ videoUploadInFlight = false; }
-      }
-
-      // Main draw function
-      function drawPreview(){
-        const clockMode = (document.getElementById('clockConfig') && document.getElementById('clockConfig').style.display !== 'none');
-        const videoMode = (document.getElementById('videoConfig') && document.getElementById('videoConfig').style.display !== 'none');
-        const textMode = (document.getElementById('textConfig') && document.getElementById('textConfig').style.display !== 'none');
-
-        if (videoMode) {
-          stopPreviewAnim(); drawVideoPreviewFrame();
-        } else if (clockMode) {
-          stopPreviewAnim(); drawClockPreviewFrame();
-          // Start clock preview animation (update every second)
-          if (clockPreviewTimer) clearInterval(clockPreviewTimer);
-          clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
-        } else if (textMode && $('animate').checked && $('text').value.trim().length > 0) {
-          stopPreviewAnim(); initPreviewAnim(); drawPreviewFrame(true); rafId = requestAnimationFrame(animatePreview);
-        } else {
-          stopPreviewAnim(); drawPreviewFrame(false);
-        }
-      }
-
-      // Tab switching - keep running until new action is started
-      function initTabs(){
-        const tabText = document.getElementById('tabText');
-        const tabClock = document.getElementById('tabClock');
-        const tabVideo = document.getElementById('tabVideo');
-        const tabTheme = document.getElementById('tabTheme');
-        const textCfg = document.getElementById('textConfig');
-        const clockCfg = document.getElementById('clockConfig');
-        const videoCfg = document.getElementById('videoConfig');
-        const themeCfg = document.getElementById('themeConfig');
-
-        function activate(which){
-          if (which==='text'){
-            tabText.classList.add('active'); tabClock.classList.remove('active'); if (tabVideo) tabVideo.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
-            textCfg.style.display='block'; clockCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            showThemeControls(false); // Hide theme controls when not on theme tab
-          } else if (which==='clock') {
-            tabClock.classList.add('active'); tabText.classList.remove('active'); if (tabVideo) tabVideo.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
-            clockCfg.style.display='block'; textCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            showThemeControls(false); // Hide theme controls when not on theme tab
-
-            // NOTE: Removed automatic clock start - clock will only start when Apply is clicked
-            console.log('Switched to Clock tab - clock will start when Apply is clicked');
-          } else if (which==='video') {
-            if (tabVideo) tabVideo.classList.add('active'); tabText.classList.remove('active'); tabClock.classList.remove('active'); if (tabTheme) tabTheme.classList.remove('active');
-            if (videoCfg) videoCfg.style.display='block'; textCfg.style.display='none'; clockCfg.style.display='none'; if (themeCfg) themeCfg.style.display='none';
-            showThemeControls(false); // Hide theme controls when not on theme tab
-          } else if (which==='theme') {
-            if (tabTheme) tabTheme.classList.add('active'); if (tabVideo) tabVideo.classList.remove('active'); tabText.classList.remove('active'); tabClock.classList.remove('active');
-            if (themeCfg) themeCfg.style.display='block';
-            textCfg.style.display='none'; if (videoCfg) videoCfg.style.display='none'; clockCfg.style.display='none';
-            // Show theme controls if a theme is loaded
-            if (window.__theme) {
-              showThemeControls(true);
-            }
-          }
-          // Don't drawPreview() on tab switch - keep current state
-        }
-
-        if (tabText) tabText.addEventListener('click', ()=>activate('text'));
-        if (tabClock) tabClock.addEventListener('click', ()=>activate('clock'));
-        if (tabVideo) tabVideo.addEventListener('click', ()=>activate('video'));
-        if (tabTheme) tabTheme.addEventListener('click', ()=>activate('theme'));
-
-        // Theme functionality
-        const btnThemeUpload = document.getElementById('btnThemeUpload');
-        const btnThemeStart  = document.getElementById('btnThemeStart');
-        if (btnThemeUpload) btnThemeUpload.addEventListener('click', async ()=>{
-          const inp = document.getElementById('themeFile');
-          const f = inp && inp.files && inp.files[0];
-          if(!f){ alert('Choose a theme HTML file first'); return; }
-
-          // Clear any existing theme before uploading new one
-          console.log('Clearing existing theme before upload...');
-
-          // Hide theme controls during upload
-          showThemeControls(false);
-
-          // Stop all theme timers and clear theme objects
-          if (window.__themeTimer) {
-            clearInterval(window.__themeTimer);
-            window.__themeTimer = null;
-            console.log('Stopped theme preview timer');
-          }
-          if (window.__playTimer) {
-            clearInterval(window.__playTimer);
-            window.__playTimer = null;
-            console.log('Stopped theme play timer');
-          }
-
-          window.__theme = null;
-          window.themeInitBackup = null;
-          window.themeRenderBackup = null;
-
-          let txt = await f.text();
-          console.log('Theme file loaded, size:', txt.length);
-
-          // Inject current control values into the theme
-          txt = injectThemeSettings(txt);
-
-          const m = txt.match(/<fps>\s*(\d{1,2})\s*<\/fps>/i);
-          const currentThemeFps = m ? Math.max(1, Math.min(30, parseInt(m[1],10)||1)) : 1;
-          console.log('Theme FPS:', currentThemeFps);
-
-          try{
-            const mscript = txt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-            if(!mscript) throw new Error('No <script> in theme');
-            const code = mscript[1];
-            console.log('Script code found, length:', code.length);
-
-            // Execute the theme script in global scope to make functions available
-            try {
-              eval(code);
-              console.log('Theme script executed successfully');
-            } catch(evalErr) {
-              console.error('Theme script execution failed:', evalErr);
-              throw new Error('Theme script execution failed: ' + evalErr.message);
-            }
-
-            // Check if functions are available globally
-            const api = {
-              init: (typeof themeInit !== 'undefined') ? themeInit : null,
-              render: (typeof themeRender !== 'undefined') ? themeRender : null
-            };
-
-            // Store functions also in global scope for backup
-            window.themeInitBackup = (typeof themeInit !== 'undefined') ? themeInit : null;
-            window.themeRenderBackup = (typeof themeRender !== 'undefined') ? themeRender : null;
-
-            console.log('Theme functions check - init:', typeof themeInit, 'render:', typeof themeRender);
-            console.log('API object:', api);
-            console.log('API.init type:', typeof api.init);
-            console.log('API.render type:', typeof api.render);
-
-            if(!api || !api.render){
-              console.error('API object or render function missing');
-              console.error('API exists:', !!api);
-              console.error('API.render exists:', !!(api && api.render));
-              throw new Error('themeRender() not found');
-            }
-
-            console.log('Theme API loaded successfully');
-            window.__theme = api;
-
-            // Show theme controls and initialize them
-            showThemeControls(true);
-            if (!window.themeControlsInitialized) {
-              initThemeControls();
-              window.themeControlsInitialized = true;
-            }
-
-            // Update control values to match theme defaults
-            updateControlValuesFromTheme();
-
-            const pv = getPreviewCanvas();
-            const pctx = pv.getContext('2d');
-            const state = api.init ? api.init() : {};
-            if(window.__themeTimer) clearInterval(window.__themeTimer);
-            const step=()=>{ pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
-            const period = Math.round(1000/Math.max(1, Math.min(30,currentThemeFps)));
-            window.__themeTimer=setInterval(step, period);
-            step();
-            // Stop other content for preview only (keep LED running)
-            stopContentForPreview();
-
-            // Upload theme to ESP32
-            try{
-              console.log('Uploading theme to ESP32...');
-              console.log('File name:', f.name);
-              console.log('File size:', f.size);
-
-              const fd = new FormData();
-              fd.append('file', f, f.name);
-
-              const response = await fetch(apiBase + '/upload_theme',{
-                method:'POST',
-                body:fd
-              });
-
-              console.log('Response status:', response.status);
-              console.log('Response ok:', response.ok);
-
-              if (response.ok) {
-                const responseText = await response.text();
-                console.log('Response text:', responseText);
-                console.log('Theme uploaded successfully to ESP32');
-              } else {
-                console.error('Theme upload failed:', response.status);
-                const errorText = await response.text();
-                console.error('Error response:', errorText);
-                alert('Theme upload failed: ' + errorText);
-              }
-            }catch(uploadErr){
-              console.error('Theme upload error:', uploadErr);
-              alert('Theme uploaded for preview but failed to save to device: ' + uploadErr.message);
-            }
-
-          }catch(e){
-            console.error('Theme parsing error:', e);
-            alert('Theme error: '+e.message);
-
-            // Hide theme controls on error
-            showThemeControls(false);
-
-            // Clear all theme timers and objects on error
-            if (window.__themeTimer) {
-              clearInterval(window.__themeTimer);
-              window.__themeTimer = null;
-            }
-            if (window.__playTimer) {
-              clearInterval(window.__playTimer);
-              window.__playTimer = null;
-            }
-            window.__theme = null;
-            window.themeInitBackup = null;
-            window.themeRenderBackup = null;
-          }
-        });
-      }
-
-      // ========================================
-      // 🎛️ THEME CONTROLS FUNCTIONS (Global Scope)
-      // ========================================
-
-      // Inject current control values into theme HTML
-      function injectThemeSettings(themeHtml) {
-        console.log('Injecting current control values into theme...');
-
-        // Get current control values
-        const fontSizeSlider = document.getElementById('fontSizeSlider');
-        const themeTextColor = document.getElementById('themeTextColor');
-        const themeBgColor = document.getElementById('themeBgColor');
-        const themeTimeFormat = document.getElementById('themeTimeFormat');
-        const themeShowSeconds = document.getElementById('themeShowSeconds');
-        const themePulseAnimation = document.getElementById('themePulseAnimation');
-
-        // Collect current settings
-        const currentSettings = {
-          fontSize: fontSizeSlider ? parseInt(fontSizeSlider.value) : 60,
-          textColor: themeTextColor ? themeTextColor.value : '#00ff00',
-          bgColor: themeBgColor ? themeBgColor.value : '#000000',
-          timeFormat: themeTimeFormat ? themeTimeFormat.value : '24',
-          showSeconds: themeShowSeconds ? themeShowSeconds.checked : true,
-          pulseAnimation: themePulseAnimation ? themePulseAnimation.checked : false,
-          showDate: false // Always false since we removed the control
-        };
-
-        console.log('Current settings to inject:', currentSettings);
-
-        // Find and replace theme settings in the HTML
-        let modifiedHtml = themeHtml;
-
-        // Replace font size
-        modifiedHtml = modifiedHtml.replace(/fontSize:\s*\d+/g, `fontSize: ${currentSettings.fontSize}`);
-        modifiedHtml = modifiedHtml.replace(/fontSize:\s*'[^']*'/g, `fontSize: ${currentSettings.fontSize}`);
-
-        // Replace text color
-        modifiedHtml = modifiedHtml.replace(/textColor:\s*'[^']*'/g, `textColor: '${currentSettings.textColor}'`);
-        modifiedHtml = modifiedHtml.replace(/textColor:\s*"[^"]*"/g, `textColor: '${currentSettings.textColor}'`);
-
-        // Replace background color
-        modifiedHtml = modifiedHtml.replace(/bgColor:\s*'[^']*'/g, `bgColor: '${currentSettings.bgColor}'`);
-        modifiedHtml = modifiedHtml.replace(/bgColor:\s*"[^"]*"/g, `bgColor: '${currentSettings.bgColor}'`);
-
-        // Replace time format
-        modifiedHtml = modifiedHtml.replace(/timeFormat:\s*'[^']*'/g, `timeFormat: '${currentSettings.timeFormat}'`);
-        modifiedHtml = modifiedHtml.replace(/timeFormat:\s*"[^"]*"/g, `timeFormat: '${currentSettings.timeFormat}'`);
-
-        // Replace boolean values
-        modifiedHtml = modifiedHtml.replace(/showSeconds:\s*(true|false)/g, `showSeconds: ${currentSettings.showSeconds}`);
-        modifiedHtml = modifiedHtml.replace(/pulseAnimation:\s*(true|false)/g, `pulseAnimation: ${currentSettings.pulseAnimation}`);
-        modifiedHtml = modifiedHtml.replace(/showDate:\s*(true|false)/g, `showDate: ${currentSettings.showDate}`);
-
-        console.log('Theme HTML modified with current settings');
-        return modifiedHtml;
-      }
-
-      // Initialize theme controls
-      function initThemeControls() {
-        // Font size controls
-        const fontSizeSlider = document.getElementById('fontSizeSlider');
-        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
-
-        // Color controls
-        const themeTextColor = document.getElementById('themeTextColor');
-        const textColorHex = document.getElementById('textColorHex');
-        const themeBgColor = document.getElementById('themeBgColor');
-        const bgColorHex = document.getElementById('bgColorHex');
-
-        // Format controls
-        const themeTimeFormat = document.getElementById('themeTimeFormat');
-        const themeShowSeconds = document.getElementById('themeShowSeconds');
-
-        // Effect controls
-        const themePulseAnimation = document.getElementById('themePulseAnimation');
-
-        // Font size event listener
-        if (fontSizeSlider && fontSizeDisplay) {
-          fontSizeSlider.addEventListener('input', (e) => {
-            const value = fontSizeSlider.value;
-            fontSizeDisplay.textContent = value + '%';
-            updateThemeSetting('fontSize', parseInt(value));
-            // Update custom slider progress
-            const min = parseInt(fontSizeSlider.min);
-            const max = parseInt(fontSizeSlider.max);
-            const progress = ((value - min) / (max - min)) * 100;
-            fontSizeSlider.style.setProperty('--progress', progress + '%');
-          });
-        }
-
-        // Color controls event listeners
-        if (themeTextColor && textColorHex) {
-          themeTextColor.addEventListener('input', (e) => {
-            const color = e.target.value;
-            textColorHex.textContent = color;
-            updateThemeSetting('textColor', color);
-          });
-
-          // Also update the color picker when hex is manually edited (if we add that later)
-          textColorHex.textContent = themeTextColor.value;
-        }
-
-        if (themeBgColor && bgColorHex) {
-          themeBgColor.addEventListener('input', (e) => {
-            const color = e.target.value;
-            bgColorHex.textContent = color;
-            updateThemeSetting('bgColor', color);
-          });
-
-          // Also update the color picker when hex is manually edited (if we add that later)
-          bgColorHex.textContent = themeBgColor.value;
-        }
-
-        // Format controls event listeners
-        if (themeTimeFormat) {
-          themeTimeFormat.addEventListener('change', (e) => {
-            updateThemeSetting('timeFormat', e.target.value);
-          });
-        }
-
-        if (themeShowSeconds) {
-          themeShowSeconds.addEventListener('change', (e) => {
-            updateThemeSetting('showSeconds', e.target.checked);
-          });
-        }
-
-        // Effect controls event listeners
-        if (themePulseAnimation) {
-          themePulseAnimation.addEventListener('change', (e) => {
-            updateThemeSetting('pulseAnimation', e.target.checked);
-          });
-        }
-      }
-
-      // Update theme settings
-      function updateThemeSetting(setting, value) {
-        if (window.__theme && window.__theme.settings) {
-          window.__theme.settings[setting] = value;
-          console.log(`Theme setting updated: ${setting} = ${value}`);
-
-          // Force immediate re-render if theme preview is running
-          if (window.__themeTimer) {
-            // Clear and restart the timer to trigger immediate update
-            clearInterval(window.__themeTimer);
-            const api = window.__theme;
-            const pv = getPreviewCanvas();
-            const pctx = pv.getContext('2d');
-            const state = api.init ? api.init() : {};
-            const step = () => {
-              pctx.clearRect(0,0,pv.width,pv.height);
-              api.render(pctx, pv.width, pv.height, state, Date.now());
-            };
-            // Use FPS of 5 for smooth real-time updates
-            window.__themeTimer = setInterval(step, 200);
-            step();
-            console.log('Theme preview refreshed with new settings');
-          }
-        }
-      }
-
-      // Update control values to match theme settings
-      function updateControlValuesFromTheme() {
-        if (!window.__theme || !window.__theme.settings) return;
-
-        const settings = window.__theme.settings;
-        console.log('Updating control values from theme settings:', settings);
-
-        // Update font size controls
-        const fontSizeSlider = document.getElementById('fontSizeSlider');
-        const fontSizeDisplay = document.getElementById('fontSizeDisplay');
-        if (fontSizeSlider && fontSizeDisplay && settings.fontSize !== undefined) {
-          fontSizeSlider.value = settings.fontSize;
-          fontSizeDisplay.textContent = Math.floor(settings.fontSize) + '%';
-          // Initialize custom slider progress
-          const min = parseInt(fontSizeSlider.min);
-          const max = parseInt(fontSizeSlider.max);
-          const progress = ((settings.fontSize - min) / (max - min)) * 100;
-          fontSizeSlider.style.setProperty('--progress', progress + '%');
-        }
-
-        // Update color controls
-        const themeTextColor = document.getElementById('themeTextColor');
-        const textColorHex = document.getElementById('textColorHex');
-        if (themeTextColor && textColorHex && settings.textColor) {
-          themeTextColor.value = settings.textColor;
-          textColorHex.textContent = settings.textColor;
-        }
-
-        const themeBgColor = document.getElementById('themeBgColor');
-        const bgColorHex = document.getElementById('bgColorHex');
-        if (themeBgColor && bgColorHex && settings.bgColor) {
-          themeBgColor.value = settings.bgColor;
-          bgColorHex.textContent = settings.bgColor;
-        }
-
-        // Update format controls
-        const themeTimeFormat = document.getElementById('themeTimeFormat');
-        if (themeTimeFormat && settings.timeFormat) {
-          themeTimeFormat.value = settings.timeFormat;
-        }
-
-        const themeShowSeconds = document.getElementById('themeShowSeconds');
-        if (themeShowSeconds && settings.showSeconds !== undefined) {
-          themeShowSeconds.checked = settings.showSeconds;
-        }
-
-        // Update effect controls
-        const themePulseAnimation = document.getElementById('themePulseAnimation');
-        if (themePulseAnimation && settings.pulseAnimation !== undefined) {
-          themePulseAnimation.checked = settings.pulseAnimation;
-        }
-
-        const themeShowDate = document.getElementById('themeShowDate');
-        if (themeShowDate && settings.showDate !== undefined) {
-          themeShowDate.checked = settings.showDate;
-        }
-
-        console.log('Control values updated successfully');
-      }
-
-      // Show/hide theme controls section
-      function showThemeControls(show = true) {
-        const controlsSection = document.getElementById('themeControlsSection');
-        if (controlsSection) {
-          controlsSection.style.display = show ? 'grid' : 'none';
-        }
-      }
-
-      if (btnThemeStart) btnThemeStart.addEventListener('click', async ()=>{
-          console.log('Start button clicked');
-          console.log('window.__theme:', window.__theme);
-
-          const pv = getPreviewCanvas();
-          const pctx = pv.getContext('2d');
-
-          if(!window.__theme){
-            console.log('No window.__theme object found');
-            alert('Upload a theme first (no theme object)');
-            return;
-          }
-          if(!window.__theme.render){
-            console.log('window.__theme.render function missing');
-            alert('Upload a theme first (no render function)');
-            return;
-          }
-
-          console.log('Theme object found, checking device status...');
-
-          // Check if theme is actually uploaded on ESP32
-          try {
-            const r = await fetch(apiBase + '/theme_status', { cache:'no-store' });
-            const status = await r.json();
-            console.log('Theme status:', status);
-            if (!status.theme_uploaded) {
-              alert('Theme not yet uploaded to device. Please upload the theme first.');
-              return;
-            }
-          } catch(err) {
-            console.error('Theme status check failed:', err);
-            alert('Failed to check theme status. Please try uploading again.');
-            return;
-          }
-
-          console.log('Starting theme playback on LED panel...');
-
-          // Stop all existing theme playback before starting new one
-          console.log('Stopping any existing theme playback...');
-
-          // Stop theme timers first
-          if (window.__themeTimer) {
-            clearInterval(window.__themeTimer);
-            window.__themeTimer = null;
-            console.log('Stopped existing theme preview timer');
-          }
-          if (window.__playTimer) {
-            clearInterval(window.__playTimer);
-            window.__playTimer = null;
-            console.log('Stopped existing theme play timer');
-          }
-
-          // Stop all other modes when starting theme playback
-          // BUT preserve the theme object (don't let stopAllRunningContent clear it)
-          const currentTheme = window.__theme;
-          const currentInitBackup = window.themeInitBackup;
-          const currentRenderBackup = window.themeRenderBackup;
-
-          stopAllRunningContent();
-
-          // Restore theme object after cleanup
-          window.__theme = currentTheme;
-          window.themeInitBackup = currentInitBackup;
-          window.themeRenderBackup = currentRenderBackup;
-          console.log('Theme object restored after cleanup');
-
-          const api = window.__theme;
-          console.log('Theme API:', api);
-          console.log('API.init type:', typeof api.init);
-          console.log('API.render type:', typeof api.render);
-
-          // Fallback to backup functions if main ones are lost
-          if (!api.init && window.themeInitBackup) {
-            api.init = window.themeInitBackup;
-            console.log('Using backup init function');
-          }
-          if (!api.render && window.themeRenderBackup) {
-            api.render = window.themeRenderBackup;
-            console.log('Using backup render function');
-          }
-
-          let state = {};
-          if (api.init && typeof api.init === 'function') {
-            try {
-              state = api.init();
-              console.log('Theme init state:', state);
-            } catch(initErr) {
-              console.error('Theme init error:', initErr);
-              state = {};
-            }
-          } else {
-            console.log('No init function, using empty state');
-          }
-          if(window.__playTimer) clearInterval(window.__playTimer);
-          const step=async()=>{
-            try {
-              if (api.render && typeof api.render === 'function') {
-                api.render(pctx, pv.width, pv.height, state, Date.now());
-              } else {
-                console.error('API.render is not a function!');
-                return;
-              }
-            } catch(renderErr) {
-              console.error('Theme render error:', renderErr);
-              return;
-            }
-            // Pack RGB565 and POST to device
-            const img=pctx.getImageData(0,0,pv.width,pv.height);
-            const w=pv.width,h=pv.height; const d=img.data; const buf=new Uint8Array(4+w*h*2);
-            buf[0]=w&255; buf[1]=w>>8; buf[2]=h&255; buf[3]=h>>8; let i=4;
-            for(let k=0;k<d.length;k+=4){ const r=d[k],g=d[k+1],b=d[k+2]; const v=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>>3); buf[i++]=v&255; buf[i++]=v>>8; }
-            const fd=new FormData(); fd.append('image', new Blob([buf],{type:'application/octet-stream'}),'frame.rgb565');
-            try{
-              await fetch(apiBase + '/upload',{method:'POST', body:fd});
-            }catch(err){
-              console.error('Frame upload failed:', err);
-            }
-          };
-          window.__playTimer=setInterval(step, 1000);
-          step();
-          console.log('Theme playback started');
-        });
-
-        // Reapply Settings button functionality
-        const btnThemeReapply = document.getElementById('btnThemeReapply');
-        if (btnThemeReapply) {
-          btnThemeReapply.addEventListener('click', async () => {
-            if (!window.__theme) {
-              alert('Please upload a theme first');
-              return;
-            }
-
-            console.log('Reapplying theme settings...');
-
-            // Get the original theme file content
-            const inp = document.getElementById('themeFile');
-            const f = inp && inp.files && inp.files[0];
-            if (!f) {
-              alert('Please select the theme file again to reapply settings');
-              return;
-            }
-
-            const txt = await f.text();
-
-            // Inject current control values into the theme
-            const modifiedTxt = injectThemeSettings(txt);
-
-            // Re-parse the modified theme
-            try {
-              const mscript = modifiedTxt.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-              if (!mscript) throw new Error('No <script> in theme');
-              const code = mscript[1];
-              console.log('Modified script code found, length:', code.length);
-
-              // Execute the modified theme script in global scope
-              try {
-                eval(code);
-                console.log('Modified theme script executed successfully');
-              } catch(evalErr) {
-                console.error('Modified theme script execution failed:', evalErr);
-                throw new Error('Modified theme script execution failed: ' + evalErr.message);
-              }
-
-              // Check if functions are available globally
-              const api = {
-                init: (typeof themeInit !== 'undefined') ? themeInit : null,
-                render: (typeof themeRender !== 'undefined') ? themeRender : null
-              };
-
-              if(!api || !api.render){
-                throw new Error('themeRender() not found in modified theme');
-              }
-
-              console.log('Modified theme API loaded successfully');
-              window.__theme = api;
-
-              // Update control values to match new theme settings
-              updateControlValuesFromTheme();
-
-              // Restart theme preview with new settings
-              const pv = getPreviewCanvas();
-              const pctx = pv.getContext('2d');
-              const state = api.init ? api.init() : {};
-              if(window.__themeTimer) clearInterval(window.__themeTimer);
-              const step=()=>{ pctx.clearRect(0,0,pv.width,pv.height); api.render(pctx, pv.width, pv.height, state, Date.now()); };
-              const period = Math.round(1000/Math.max(1, Math.min(30,15))); // Use 15 FPS for preview
-              window.__themeTimer=setInterval(step, period);
-              step();
-
-              console.log('Theme settings reapplied successfully!');
-
-            } catch(e) {
-              console.error('Error reapplying theme settings:', e);
-              alert('Error reapplying theme settings: ' + e.message);
-            }
-          });
-        }
-
-      // Panel configuration
-      async function openPanelConfig(){
-        const page = document.getElementById('panelConfigPage');
-        if (!page) return;
-        // Fetch current layout and set radios
-        try {
-          const r = await fetch(apiBase + '/panel_info', { cache:'no-store' });
-          if (r.ok) {
-            const j = await r.json();
-            const rows = (j.layout && j.layout.rows) ? j.layout.rows : j.rows;
-            const cols = (j.layout && j.layout.cols) ? j.layout.cols : j.cols;
-            const a = document.getElementById('layout1x1');
-            if (a) a.checked = true;
-          }
-        } catch(_){
-          const a = document.getElementById('layout1x1');
-          if (a) a.checked = true;
-        }
-        page.style.display='block';
-      }
-
-      function closePanelConfig(){
-        const page = document.getElementById('panelConfigPage');
-        if (page) page.style.display='none';
-      }
-
-      function initPanelConfig() {
-        const btnPC = document.getElementById('btnPanelConfig');
-        const btnPCClose = document.getElementById('btnPanelClose');
-        const btnPCApply = document.getElementById('btnPanelApply');
-        const btnPCCancel = document.getElementById('btnPanelCancel');
-        if (btnPC) btnPC.addEventListener('click', openPanelConfig);
-        if (btnPCClose) btnPCClose.addEventListener('click', closePanelConfig);
-        if (btnPCCancel) btnPCCancel.addEventListener('click', closePanelConfig);
-        if (btnPCApply) btnPCApply.addEventListener('click', async ()=>{
-          const body = new URLSearchParams(); body.set('layout', '1x1');
-          try { await fetch(apiBase + '/panel_layout', { method:'POST', body }); } catch(_){ }
-          closePanelConfig();
-        });
-      }
-
-      // Smooth clock timer function
-      function startSmoothClockTimer() {
-        let lastUploadTime = 0;
-        const UPLOAD_INTERVAL = 1000; // 1 second
-
-        const updateClock = async (timestamp) => {
-          // Update preview immediately for smooth visual feedback
-          if (document.getElementById('clockConfig').style.display !== 'none') {
-            drawClockPreviewFrame();
-          }
-
-          // Upload to ESP32 at precise intervals
-          if (timestamp - lastUploadTime >= UPLOAD_INTERVAL) {
-            lastUploadTime = timestamp;
-            try {
-              console.log('Clock upload at:', new Date().toLocaleTimeString());
-              await renderAndUploadClock();
-            } catch(err) {
-              console.error('Clock upload error:', err);
-            }
-          }
-
-          // Continue the animation loop if clock timer is still active
-          if (clockTimer) {
-            clockTimer = requestAnimationFrame(updateClock);
-          }
-        };
-
-        // Start the animation loop
-        clockTimer = requestAnimationFrame(updateClock);
-      }
-
-      // Event listeners
-      function initEventListeners() {
-        // Main render button - tab-aware
-        const mainBtn = $('btn');
-        if (mainBtn) {
-          mainBtn.addEventListener('click', async function(e) {
-            e.preventDefault();
-
-            // Check which tab is active and apply accordingly
-            const textMode = (document.getElementById('textConfig') && document.getElementById('textConfig').style.display !== 'none');
-            const clockMode = (document.getElementById('clockConfig') && document.getElementById('clockConfig').style.display !== 'none');
-            const videoMode = (document.getElementById('videoConfig') && document.getElementById('videoConfig').style.display !== 'none');
-            const themeMode = (document.getElementById('themeConfig') && document.getElementById('themeConfig').style.display !== 'none');
-
-            if (textMode) {
-              // Apply text settings
-              await renderAndUpload();
-            } else if (clockMode) {
-              // Apply clock settings (clock timer will be managed separately)
-              await renderAndUploadClock();
-              // Start smooth clock timer if not already running
-              if (!clockTimer) {
-                startSmoothClockTimer();
-                console.log('Smooth clock timer started');
-              }
-            } else if (videoMode) {
-              // Video mode - handled by separate Start/Stop buttons
-              console.log('Video mode: Use Start/Stop buttons to control video playback');
-            } else if (themeMode) {
-              // Theme mode - handled by separate Start button
-              console.log('Theme mode: Use Start button to apply theme');
-            }
-          });
-        }
-
-  
-        // Text and configuration inputs - update display values but NOT preview
-        ['text','fontSize','color','bg','brightness','animate','dir','speed','interval'].forEach(id=> {
-          $(id).addEventListener('input', ()=>{
-            if(id==='brightness'){ $('brightnessVal').textContent = $('brightness').value + '%'; }
-            if(id==='speed'){ $('speedVal').textContent = $('speed').value + ' ms'; }
-            if(id==='interval'){ $('intervalVal').textContent = $('interval').value + ' px'; }
-
-            // NOTE: Removed automatic drawPreview() call - changes only apply when Preview/Apply clicked
-          });
-        });
-
-        // Clock configuration inputs - update immediately
-        ['clockSize','clockColor','clockBgColor'].forEach(id=> {
-          $(id).addEventListener('input', ()=>{
-            if(id==='clockSize'){ $('clockSizeVal').textContent = $('clockSize').value + ' px'; }
-            // Update clock preview immediately when settings change
-            const clockMode = (document.getElementById('clockConfig') && document.getElementById('clockConfig').style.display !== 'none');
-            if (clockMode) {
-              drawClockPreviewFrame();
-            }
-          });
-        });
-
-        // Image file upload
-        $('imageFile').addEventListener('change', (e)=>{
-          const f = e.target.files && e.target.files[0];
-          if(!f) return;
-          const img = new Image();
-          img.onload = ()=>{ loadedImg = img; drawPreview(); };
-          const url = URL.createObjectURL(f);
-          img.src = url;
-        });
-
-        // Background mode change - update UI but don't auto-preview
-        $('bgMode').addEventListener('change', ()=>{
-          const mode = $('bgMode').value;
-          const showImg = mode==='image';
-          $('bg').style.display = showImg? 'none':'inline-block';
-          $('imageFile').style.display = showImg? 'inline-block':'none';
-          const fitRow = document.getElementById('imageFitRow');
-          if (fitRow) fitRow.style.display = showImg? 'grid':'none';
-          // NOTE: Removed drawPreview() - user must click Preview/Apply to see changes
-        });
-
-        // Image fit change - don't auto-preview
-        $('imageFit').addEventListener('change', () => {
-          // NOTE: Removed drawPreview() - user must click Preview/Apply to see changes
-        });
-
-      
-  
-        
-        // Text preview button
-        const btnTextPreview = document.getElementById('btnTextPreview');
-        if (btnTextPreview) btnTextPreview.addEventListener('click', function(e) {
-          e.preventDefault();
-          // Stop other content for preview only (keep LED running)
-          stopContentForPreview();
-
-          // Reinitialize animation if text or font size changed
-          if($('animate').checked && $('text').value.trim().length > 0) {
-            initPreviewAnim();
-          }
-
-          drawPreview();
-        });
-
-        
-        // Video events
-        const btnVideoStart = document.getElementById('btnVideoStart');
-        const btnVideoStop = document.getElementById('btnVideoStop');
-        if (btnVideoStart) btnVideoStart.addEventListener('click', ()=>{
-          // Stop all other modes when starting video
-          stopAllRunningContent();
-
-          const fpsSel = document.getElementById('videoFps');
-          const fps = fpsSel ? parseInt(fpsSel.value,10) || 10 : 10;
-          videoUploadIntervalMs = Math.max(50, Math.floor(1000/fps));
-          videoUploadActive = true; videoUploadLastMs = 0;
-          // ensure preview is running
-          startVideoPreview();
-        });
-        if (btnVideoStop) btnVideoStop.addEventListener('click', ()=>{
-          videoUploadActive = false;
-          videoUploadInFlight=false;
-        });
-
-        // Video file load
-        const vf = document.getElementById('videoFile');
-        if (vf) {
-          videoEl = document.createElement('video');
-          videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.crossOrigin='anonymous';
-          vf.addEventListener('change', async (e)=>{
-            const f = e.target.files && e.target.files[0];
-            if(!f) return;
-            try {
-              const url = URL.createObjectURL(f);
-              videoEl.src = url;
-              await videoEl.play();
-              // if video tab active start preview
-              const inVideo = (document.getElementById('videoConfig') && document.getElementById('videoConfig').style.display !== 'none');
-              if (inVideo) startVideoPreview();
-            } catch(err){ console.error('Video play failed', err); }
-          });
-        }
-
-        // Video loop checkbox
-        const loopCb = document.getElementById('videoLoop');
-        if (loopCb) loopCb.addEventListener('change', ()=>{
-          if (videoEl) videoEl.loop = loopCb.checked;
-        });
-      }
-
-      // Render and upload function for text mode
-      async function renderAndUpload(){
-        // Stop all conflicting content including clock timer when applying text
-        stopPreviewAnim();
-        stopVideoPreview();
-        stopThemeTimers();
-
-        // FIX: Stop clock timer when applying text to prevent interference/glitch
-        if (clockTimer) {
-          console.log('🛑 Stopping clock timer in renderAndUpload - switching to text mode');
-          cancelAnimationFrame(clockTimer);
-          clockTimer = 0;
-          console.log('✅ Clock timer stopped - text mode should work cleanly now');
-        }
-
-        drawPreview();
-        const pw = 128; const ph = 64; // Fixed panel size
-        const animate=$('animate').checked; const dir=$('dir').value;
-        const speed=parseInt($('speed').value,10);
-        const interval=parseInt($('interval').value,10);
-
-        let outCanvas = document.createElement('canvas');
-        if ($('bgMode').value === 'image' && loadedImg) {
-          // Build panel-sized background image
-          outCanvas.width = pw; outCanvas.height = ph;
-          let octx = outCanvas.getContext('2d'); octx.imageSmoothingEnabled=false;
-          const fit = $('imageFit').value;
-          let dw = loadedImg.width, dh = loadedImg.height;
-          if (fit === 'fill') { dw = pw; dh = ph; }
-          else if (fit === 'fit') {
-            const s = Math.min(pw/loadedImg.width, ph/loadedImg.height);
-            dw = Math.max(1, Math.floor(loadedImg.width * s));
-            dh = Math.max(1, Math.floor(loadedImg.height * s));
-          } else { // original
-            dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height);
-          }
-          const dx = Math.floor(pw*0.5 - dw/2);
-          const dy = Math.floor(ph*0.5 - dh/2);
-          // fill with bg color first (areas outside image)
-          octx.fillStyle = $('bg').value; octx.fillRect(0,0,pw,ph);
-          octx.drawImage(loadedImg, dx, dy, dw, dh);
-          // Upload background first
-          const outBg = octx.getImageData(0,0,pw,ph);
-          const bufBg = new Uint8Array(4 + pw*ph*2);
-          bufBg[0]=pw&255; bufBg[1]=(pw>>8)&255; bufBg[2]=ph&255; bufBg[3]=(ph>>8)&255;
-          let pb=4; const db=outBg.data;
-          for(let y=0;y<ph;y++){
-            for(let x=0;x<pw;x++){
-              const i=(y*pw+x)*4; const r=db[i], g=db[i+1], b=db[i+2];
-              const v=rgb565(r,g,b);
-              bufBg[pb++]=v&255; bufBg[pb++]=(v>>8)&255;
-            }
-          }
-          const fdBg = new FormData();
-          fdBg.append('image', new Blob([bufBg], {type:'application/octet-stream'}), 'bg.rgb565');
-          await fetch(apiBase + '/upload_bg', { method:'POST', body: fdBg });
-        }
-        // Now build text-only transparent canvas (or skip if no text)
-        if ($('text').value.trim().length > 0) {
-          // Build text-only canvas
-          const fam = getFontFamily(); const size=parseInt($('fontSize').value,10);
-          const font = `bold ${size}px ${fam}`;
-          let t = document.createElement('canvas'); let tctx = t.getContext('2d');
-          tctx.font=font; tctx.textBaseline='alphabetic'; tctx.textAlign='left';
-          const metrics = tctx.measureText($('text').value);
-          let tw = Math.max(1, Math.ceil(metrics.width)+4);
-          let th = Math.max(1, Math.ceil(size*1.2 + 6));
-          t.width = tw; t.height = th;
-          tctx.font=font; tctx.textBaseline='alphabetic'; tctx.textAlign='left';
-          tctx.fillStyle=$('color').value;
-          const baseY = Math.floor(size);
-          tctx.fillText($('text').value, 0, baseY);
-          const img = tctx.getImageData(0,0,t.width,t.height);
-          const bb = cropImageData(img.data, t.width, t.height);
-          let outW = Math.max(1, bb.w), outH = Math.max(1, bb.h);
-          outCanvas.width = outW; outCanvas.height = outH;
-          outCanvas.getContext('2d').putImageData(new ImageData(img.data, t.width, t.height), -bb.x, -bb.y);
-        } else {
-          outCanvas.width = 1; outCanvas.height = 1; // minimal placeholder
-        }
-
-        // pack A8 + RGB565 (LE) per pixel with header [w,h]
-        const out = outCanvas.getContext('2d').getImageData(0,0,outCanvas.width,outCanvas.height);
-        const outW = outCanvas.width, outH = outCanvas.height;
-        const buf = new Uint8Array(4 + outW*outH*3);
-        buf[0]=outW&255; buf[1]=(outW>>8)&255; buf[2]=outH&255; buf[3]=(outH>>8)&255;
-        let p=4; const d=out.data;
-        for(let y=0;y<outH;y++){
-          for(let x=0;x<outW;x++){
-            const i=(y*outW+x)*4; const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
-            const v=rgb565(r,g,b);
-            buf[p++]=a; buf[p++]=v&255; buf[p++]=(v>>8)&255;
-          }
-        }
-        const fd = new FormData();
-        fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'img.rgb565');
-        fd.append('bg', $('bg').value);
-        fd.append('bgMode', $('bgMode').value);
-        fd.append('offx', 0);
-        fd.append('offy', 0);
-        fd.append('animate', ( $('text').value.trim().length>0 && animate)?1:0);
-        fd.append('brightness', parseInt($('brightness').value, 10));
-        fd.append('dir', dir);
-        fd.append('speed', speed);
-        fd.append('interval', interval);
-        const res = await fetch(apiBase + '/upload', { method:'POST', body: fd });
-        if(!res.ok){ alert('Upload failed: '+res.status); return; }
-      }
-
-      // Initialize everything
-      function initApp() {
-        // Initialize display values
-        $('brightnessVal').textContent = $('brightness').value + '%';
-        $('speedVal').textContent = $('speed').value + ' ms';
-        $('intervalVal').textContent = $('interval').value + ' px';
-
-        // Initialize background mode display
-        (function(){
-          const showImg = $('bgMode').value==='image';
-          const fitRow = document.getElementById('imageFitRow');
-          if (fitRow) fitRow.style.display = showImg? 'grid':'none';
-        })();
-
-        // Initialize all components
-        initTabs();
-        initEventListeners();
-        initPanelConfig();
-
-        // Initialize theme controls (will be shown when theme is loaded)
-        showThemeControls(false);
-
-        // Initial preview
-        drawPreview();
-      }
-
-      // Start the application
-      document.addEventListener('DOMContentLoaded', initApp);
-    </script>
-  </body>
+      <!-- END CLOCK CONFIG -->
+
+      <!-- VIDEO CONFIG -->
+      <div id="videoConfig" class="card hidden">
+        <div class="row">
+          <label for="videoFile">Video</label>
+          <div class="inline">
+            <input id="videoFile" type="file" accept="video/*" />
+          </div>
+        </div>
+        <div class="row" id="videoFitRow">
+          <label for="videoFit">Fit</label>
+          <div class="inline">
+            <select id="videoFit">
+              <option value="fill">Fill Panel</option>
+              <option value="fit" selected>Fit Inside</option>
+              <option value="original">Original Size</option>
+            </select>
+            <span class="muted">FPS</span>
+            <select id="videoFps">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+            </select>
+            <label class="muted inline gap-6">
+              <input id="videoLoop" type="checkbox" checked /> Loop
+            </label>
+          </div>
+        </div>
+        <div class="btns">
+          <button id="btnVideoStart">Start Video Upload</button>
+          <button id="btnVideoStop">Stop Video Upload</button>
+        </div>
+
+        <div class="spacer-400"></div>
+      </div>
+      <!-- END VIDEO CONFIG -->
+    </div>
+
+    <footer></footer>
+
+    <!-- Panel Configuration Overlay -->
+    <div id="panelConfigPage" class="panel-overlay hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Panel Configuration</h2>
+          <button id="btnPanelClose" class="icon-btn">✖️</button>
+        </div>
+        <div class="row">
+          <label>Layout</label>
+          <div class="inline wrap gap-16">
+            <label class="muted inline gap-6">
+              <input type="radio" name="panelLayout" id="layout1x1" value="1x1" checked /> 1 row × 1 column
+            </label>
+          </div>
+        </div>
+        <div class="btns">
+          <button id="btnPanelApply">Apply</button>
+          <button id="btnPanelCancel" class="icon-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
 </html>

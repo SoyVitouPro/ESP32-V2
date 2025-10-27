@@ -522,6 +522,13 @@
     try {
       console.log('🔄 Applying current theme to LED display...');
 
+      // Stop clock timer when applying theme
+      if (clockTimer) {
+        cancelAnimationFrame(clockTimer);
+        clockTimer = 0;
+        console.log('🛑 Clock timer stopped when applying theme');
+      }
+
       // Get current theme state with all user modifications
       const api = window.__theme;
       const state = api.init ? api.init() : {};
@@ -651,6 +658,13 @@
     stopThemeStreaming();
 
     try {
+      // Stop clock timer when starting theme streaming
+      if (clockTimer) {
+        cancelAnimationFrame(clockTimer);
+        clockTimer = 0;
+        console.log('🛑 Clock timer stopped when starting theme streaming');
+      }
+
       // Get current theme state with all user modifications
       const api = window.__theme;
       const state = api.init ? api.init() : {};
@@ -1400,19 +1414,82 @@
 
           document.querySelectorAll('.color-box').forEach(box=>{
       box.addEventListener('click', function(){
-        document.querySelectorAll('.color-box, .color-box-wrapper').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        $('color').value = this.getAttribute('data-color');
+        if (this.classList.contains('custom-color-btn')) {
+          // Handle custom color button - directly open color picker
+          const customColorInput = $('customTextColor');
+          if (customColorInput) {
+            customColorInput.click();
+          }
+        } else {
+          // Handle regular color box
+          document.querySelectorAll('.color-box, .color-box-wrapper').forEach(b=>b.classList.remove('active'));
+          this.classList.add('active');
+          $('color').value = this.getAttribute('data-color');
+        }
       });
     });
 
+    // Handle custom color input change
+    const customColorInput = $('customTextColor');
+    if (customColorInput) {
+      customColorInput.addEventListener('input', function() {
+        const selectedColor = this.value;
+        $('color').value = selectedColor;
+
+        // Update custom color button background
+        const customBtn = document.querySelector('.custom-color-btn');
+        if (customBtn) {
+          customBtn.style.background = selectedColor;
+          customBtn.setAttribute('data-color', selectedColor);
+        }
+
+        // Remove active class from all color boxes and add to custom button
+        document.querySelectorAll('.color-box, .color-box-wrapper').forEach(b=>b.classList.remove('active'));
+        if (customBtn) {
+          customBtn.classList.add('active');
+        }
+      });
+
+      }
+
   document.querySelectorAll('.bg-color-box').forEach(box=>{
       box.addEventListener('click', function(){
-        document.querySelectorAll('.bg-color-box, .bg-color-box-wrapper').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        $('bg').value = this.getAttribute('data-color');
+        if (this.classList.contains('custom-bg-color-btn')) {
+          // Handle custom background color button - directly open color picker
+          const customBgColorInput = $('customBgColor');
+          if (customBgColorInput) {
+            customBgColorInput.click();
+          }
+        } else {
+          // Handle regular background color box
+          document.querySelectorAll('.bg-color-box, .bg-color-box-wrapper').forEach(b=>b.classList.remove('active'));
+          this.classList.add('active');
+          $('bg').value = this.getAttribute('data-color');
+        }
       });
     });
+
+    // Handle custom background color input change
+    const customBgColorInput = $('customBgColor');
+    if (customBgColorInput) {
+      customBgColorInput.addEventListener('input', function() {
+        const selectedColor = this.value;
+        $('bg').value = selectedColor;
+
+        // Update custom background color button background
+        const customBtn = document.querySelector('.custom-bg-color-btn');
+        if (customBtn) {
+          customBtn.style.background = selectedColor;
+          customBtn.setAttribute('data-color', selectedColor);
+        }
+
+        // Remove active class from all bg color boxes and add to custom button
+        document.querySelectorAll('.bg-color-box, .bg-color-box-wrapper').forEach(b=>b.classList.remove('active'));
+        if (customBtn) {
+          customBtn.classList.add('active');
+        }
+      });
+    }
 
     // Clock color, background color, and size selection
     document.querySelectorAll('.clock-color-box').forEach(box=>{

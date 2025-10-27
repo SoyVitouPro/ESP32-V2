@@ -48,7 +48,7 @@
       <div id="textConfig" class="card">
         <div class="row">
           <label for="text" class="sr-only">Text</label>
-          <input id="text" type="text" value="សួរស្ដីបង" />
+          <input id="text" type="text" value="GENZ-LED-25" />
         </div>
 
         <div class="row group-text">
@@ -61,6 +61,7 @@
               <button class="color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
               <button class="color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
               <button class="color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
+              <button class="color-box custom-color-btn" data-color="#808080" style="background:#808080" title="Custom Color">⚙️</button>
 
               </div>
           </div>
@@ -81,6 +82,7 @@
                 <button class="bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
                 <button class="bg-color-box" data-color="#827C75" style="background:#827C75"></button>
                 <button class="bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
+                <button class="bg-color-box custom-bg-color-btn" data-color="#808080" style="background:#808080" title="Custom Background Color">⚙️</button>
                   </div>
             </div>
 
@@ -94,14 +96,14 @@
           <div class="font-size-selection-wrapper">
             <div class="inline gap-12">
               <button class="font-size-box" data-size="15">15</button>
-              <button class="font-size-box" data-size="17">17</button>
+              <button class="font-size-box active" data-size="17">17</button>
               <button class="font-size-box" data-size="20">20</button>
               <button class="font-size-box" data-size="23">23</button>
-              <button class="font-size-box active" data-size="25">25</button>
+              <button class="font-size-box" data-size="25">25</button>
               <button class="font-size-box" data-size="30">30</button>
               <button class="font-size-box" data-size="35">35</button>
             </div>
-            <input type="hidden" id="fontSize" value="25" />
+            <input type="hidden" id="fontSize" value="17" />
           </div>
         </div>
 
@@ -181,11 +183,9 @@
       <!-- THEME CONFIG -->
       <div id="themeConfig" class="card hidden">
         <div class="row">
-          <label>Upload Theme</label>
           <div class="inline gap-8">
             <input id="themeFile" type="file" accept=".html" style="display: none;" />
-            <button id="btnSelectThemeFile" class="upload-btn">Select Theme File</button>
-            <span id="themeFileName" class="muted">No file selected</span>
+            <button id="btnSelectThemeFile" class="upload-btn">📁 Choose Theme</button>
           </div>
         </div>
 
@@ -264,12 +264,12 @@
               <button class="clock-size-box" data-size="10">10</button>
               <button class="clock-size-box" data-size="15">15</button>
               <button class="clock-size-box" data-size="17">17</button>
-              <button class="clock-size-box" data-size="20">20</button>
+              <button class="clock-size-box active" data-size="20">20</button>
               <button class="clock-size-box" data-size="22">22</button>
               <button class="clock-size-box" data-size="25">25</button>
-              <button class="clock-size-box active" data-size="30">30</button>
+              <button class="clock-size-box" data-size="30">30</button>
             </div>
-            <input type="hidden" id="clockSize" value="30" />
+            <input type="hidden" id="clockSize" value="20" />
           </div>
         </div>
         <div class="row">
@@ -336,6 +336,10 @@
     </div>
 
     <footer></footer>
+
+    <!-- Hidden color input for custom color picker - positioned at center -->
+    <input type="color" id="customTextColor" style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
+    <input type="color" id="customBgColor" style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
 
     <!-- Panel Configuration Overlay -->
     <div id="panelConfigPage" class="panel-overlay hidden">

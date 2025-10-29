@@ -566,33 +566,43 @@
       console.log('✅ Theme control handlers setup complete');
     }
 
+    // === IMMEDIATE FUNCTION OVERRIDE (for main system integration) ===
+    // This runs immediately when script is evaluated, before themeInit()
+    if (typeof window !== 'undefined') {
+      console.log('🔧 Setting up immediate function override for main system integration');
+
+      // Save any existing main system updateThemeSetting function
+      const originalUpdateThemeSetting = window.updateThemeSetting;
+      console.log('📋 Saved original updateThemeSetting:', typeof originalUpdateThemeSetting);
+
+      // Create enhanced updateThemeSetting that calls both functions
+      window.updateThemeSetting = function(setting, value) {
+        console.log('🔄 Enhanced updateThemeSetting called:', setting, '=', value);
+        console.log('🔍 Original function exists:', typeof originalUpdateThemeSetting);
+
+        // Call our theme's internal updateThemeSettingFunction first to persist globally
+        if (typeof updateThemeSettingFunction === 'function') {
+          updateThemeSettingFunction(setting, value);
+          console.log('✅ Theme function called, updated settings:', themeSettings);
+        } else {
+          console.log('❌ Theme updateThemeSettingFunction not found!');
+        }
+
+        // Then call the original main system function for preview updates
+        if (typeof originalUpdateThemeSetting === 'function') {
+          originalUpdateThemeSetting(setting, value);
+          console.log('✅ Original main system function called');
+        } else {
+          console.log('❌ Original main system function not found!');
+        }
+      };
+
+      console.log('🔧 Enhanced updateThemeSetting with theme persistence enabled immediately');
+    }
+
     // === REQUIRED THEME FUNCTIONS (for main system) ===
     function themeInit() {
       console.log('🕐 Digital Clock Theme Initialized (Standalone)');
-
-      // Override main system's updateThemeSetting immediately
-      // (this happens before main system sets up its event handlers)
-      if (typeof window !== 'undefined') {
-        // Save any existing main system updateThemeSetting function
-        const originalUpdateThemeSetting = window.updateThemeSetting;
-
-        // Create enhanced updateThemeSetting that calls both functions
-        window.updateThemeSetting = function(setting, value) {
-          console.log('🔄 Enhanced updateThemeSetting called:', setting, '=', value);
-
-          // Call our theme's internal updateThemeSettingFunction first to persist globally
-          if (typeof updateThemeSettingFunction === 'function') {
-            updateThemeSettingFunction(setting, value);
-          }
-
-          // Then call the original main system function for preview updates
-          if (typeof originalUpdateThemeSetting === 'function') {
-            originalUpdateThemeSetting(setting, value);
-          }
-        };
-
-        console.log('🔧 Enhanced updateThemeSetting with theme persistence enabled');
-      }
 
       // Load persisted settings if available
       if (typeof window !== 'undefined' && window._digitalClockThemeSettings) {
@@ -702,6 +712,34 @@
       if (typeof window !== 'undefined') {
         window._themeInternalUpdateSetting = updateThemeSettingFunction;
         console.log('🌐 Theme internal updateSetting exposed as _themeInternalUpdateSetting');
+
+        // Add debug function to test control clicks
+        window.debugThemeControl = function(setting, value) {
+          console.log('🧪 DEBUG: Testing theme control directly');
+          console.log('Setting:', setting, 'Value:', value);
+          console.log('Current themeSettings before:', themeSettings);
+
+          if (typeof updateThemeSettingFunction === 'function') {
+            updateThemeSettingFunction(setting, value);
+            console.log('✅ DEBUG: Theme settings after:', themeSettings);
+          } else {
+            console.log('❌ DEBUG: updateThemeSettingFunction not available');
+          }
+        };
+
+        // Add function to check what main system controls are doing
+        window.debugMainSystemControls = function() {
+          const buttons = document.querySelectorAll('.theme-font-size-box');
+          console.log('🔍 DEBUG: Found theme font size buttons:', buttons.length);
+          buttons.forEach((btn, i) => {
+            console.log(`Button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size, 'active:', btn.classList.contains('active'));
+            // Check if it has click listeners
+            const events = getEventListeners ? getEventListeners(btn) : 'N/A';
+            console.log(`Button ${i} events:`, events);
+          });
+        };
+
+        console.log('🧪 Debug functions added: debugThemeControl(), debugMainSystemControls()');
       }
     }
 

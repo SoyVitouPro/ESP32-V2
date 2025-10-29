@@ -1316,7 +1316,7 @@
     });
 
     // Preview button (handles text and theme)
-    $('btnTextPreview').addEventListener('click', (e) => {
+    $('btnTextPreview').addEventListener('click', async (e) => {
       e.preventDefault();
       stopContentForPreview();
 
@@ -1328,7 +1328,7 @@
 
       if (isThemeTab && hasTheme) {
         console.log('Starting theme preview...');
-        // Preview theme
+        // Preview theme in browser canvas AND stream to LED panel (same as Apply)
         const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
         const state = window.__theme.init ? window.__theme.init() : {};
 
@@ -1340,6 +1340,10 @@
         };
         window.__themeTimer = setInterval(step, 1000); // 1 FPS for theme preview
         step(); // Render first frame immediately
+
+        // Also start streaming to LED panel (same behavior as Apply)
+        console.log('Theme: starting streaming to ESP32 from Preview button');
+        await startThemeStreaming();
       } else {
         console.log('Previewing text instead of theme');
         // Preview text

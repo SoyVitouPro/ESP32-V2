@@ -2,29 +2,327 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Digital Clock Theme</title>
+  <title>Digital Clock Theme - Standalone</title>
+  <style>
+    /* === STANDALONE THEME STYLES === */
+
+    /* Reset and base styles */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0b0f14;
+      color: #e7eef7;
+      line-height: 1.5;
+    }
+
+    /* Theme preview container */
+    .theme-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #121820;
+      border-radius: 12px;
+      border: 1px solid #1f2a35;
+      overflow: hidden;
+    }
+
+    .theme-header {
+      padding: 20px;
+      background: #1a2332;
+      border-bottom: 1px solid #2a3a4a;
+      text-align: center;
+    }
+
+    .theme-title {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      font-weight: 600;
+      background: linear-gradient(45deg, #FF932E, #FF2E63, #2E9AFF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .theme-subtitle {
+      margin: 0;
+      color: #8b92a3;
+      font-size: 14px;
+    }
+
+    /* LED Preview Section */
+    .preview-section {
+      padding: 20px;
+      text-align: center;
+      background: #0d1117;
+      border-bottom: 1px solid #1f2a35;
+    }
+
+    .preview-title {
+      margin: 0 0 15px 0;
+      font-size: 16px;
+      color: #8b92a3;
+    }
+
+    .led-preview {
+      display: inline-block;
+      background: #000;
+      border: 2px solid #333;
+      border-radius: 8px;
+      padding: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    #themeCanvas {
+      display: block;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+
+    /* Theme Controls Section */
+    .controls-section {
+      padding: 20px;
+      background: #1a2332;
+    }
+
+    .controls-title {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      color: #e7eef7;
+      text-align: center;
+    }
+
+    /* Theme Controls Grid */
+    .theme-controls {
+      background: #1a2332;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid #2a3a4a;
+      display: grid;
+      gap: 16px;
+    }
+
+    .control {
+      display: grid;
+      gap: 8px;
+    }
+
+    .control-label {
+      color: #8b92a3;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    /* Utility classes */
+    .inline { display: flex; }
+    .gap-8 { gap: 8px; }
+    .gap-6 { gap: 6px; }
+    .center { align-items: center; }
+    .muted { color: #8b92a3; font-size: 12px; }
+    .mono { font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace; }
+    .w-120 { min-width: 120px; }
+
+    /* Theme Font Size Boxes */
+    .theme-font-size-selection-wrapper {
+      display: flex;
+    }
+
+    .theme-font-size-box {
+      width: 40px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+      padding: 0;
+      margin: 0;
+      border: 2px solid #333;
+      font-weight: 500;
+      background: #233040;
+      color: #e7eef7;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .theme-font-size-box:hover {
+      transform: scale(1.05);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      border-color: #555;
+    }
+
+    .theme-font-size-box.active {
+      border-color: #FF932E !important;
+      background: #FF932E !important;
+      color: #000000 !important;
+      box-shadow: 0 0 0 2px rgba(255,147,46,0.3), 0 2px 8px rgba(0,0,0,0.3);
+      transform: scale(1.05);
+    }
+
+    /* Color Inputs */
+    .color-input {
+      width: 50px;
+      height: 32px;
+      border: 2px solid #333;
+      border-radius: 6px;
+      background: #233040;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .color-input:hover {
+      border-color: #555;
+      transform: scale(1.05);
+    }
+
+    /* Select and Checkbox styling */
+    select {
+      padding: 6px 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #233040;
+      color: #e7eef7;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    select:hover {
+      border-color: #555;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #FF932E;
+      box-shadow: 0 0 0 2px rgba(255,147,46,0.2);
+    }
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      cursor: pointer;
+    }
+
+    label {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* FPS hint (hidden from UI, for main system) */
+    .fps-hint {
+      display: none;
+    }
+  </style>
 </head>
 <body>
   <!-- FPS hint read by the uploader UI (1-30). -->
-  <fps>1</fps>
+  <div class="fps-hint">1</div>
+
+  <div class="theme-container">
+    <!-- Theme Header -->
+    <div class="theme-header">
+      <h1 class="theme-title">🕐 Digital Clock Theme</h1>
+      <p class="theme-subtitle">Standalone Clock Theme with Built-in Controls</p>
+    </div>
+
+    <!-- LED Preview Section -->
+    <div class="preview-section">
+      <h2 class="preview-title">LED Panel Preview (128x64)</h2>
+      <div class="led-preview">
+        <canvas id="themeCanvas" width="128" height="64"></canvas>
+      </div>
+    </div>
+
+    <!-- Theme Controls Section -->
+    <div class="controls-section">
+      <h2 class="controls-title">Theme Controls</h2>
+
+      <div class="theme-controls">
+        <!-- Font Size Control -->
+        <div class="control">
+          <div class="control-label">🔠 Font Size</div>
+          <div class="theme-font-size-selection-wrapper">
+            <div class="inline gap-8">
+              <button class="theme-font-size-box" data-size="15">15</button>
+              <button class="theme-font-size-box active" data-size="20">20</button>
+              <button class="theme-font-size-box" data-size="35">35</button>
+              <button class="theme-font-size-box" data-size="60">60</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Text Color Control -->
+        <div class="control">
+          <div class="control-label">🎨 Text Color</div>
+          <div class="inline gap-8 center">
+            <input id="themeTextColor" type="color" value="#00ff00" class="color-input">
+            <span id="textColorHex" class="muted mono">#00ff00</span>
+          </div>
+        </div>
+
+        <!-- Background Color Control -->
+        <div class="control">
+          <div class="control-label">🖼️ Background</div>
+          <div class="inline gap-8 center">
+            <input id="themeBgColor" type="color" value="#000000" class="color-input">
+            <span id="bgColorHex" class="muted mono">#000000</span>
+          </div>
+        </div>
+
+        <!-- Time Format -->
+        <div class="control">
+          <div class="control-label">🕐 Time Format</div>
+          <div class="inline gap-8 center">
+            <select id="themeTimeFormat" class="w-120">
+              <option value="24">24-hour</option>
+              <option value="12">12-hour</option>
+            </select>
+            <label class="muted inline gap-6">
+              <input type="checkbox" id="themeShowSeconds" checked> Show Seconds
+            </label>
+          </div>
+        </div>
+
+        <!-- Effects -->
+        <div class="control">
+          <div class="control-label">✨ Effects</div>
+          <label class="muted inline gap-6">
+            <input type="checkbox" id="themePulseAnimation"> Pulse
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     // ========================================
-    // DIGITAL CLOCK THEME - FIXED VERSION
+    // DIGITAL CLOCK THEME - STANDALONE VERSION
     // ========================================
 
-    const themeSettings = {
+    // Theme Settings (will be updated by controls)
+    let themeSettings = {
       textColor: '#00ff00',
       bgColor: '#000000',
-      fontSize: 20, // Default font size - FORCED to 20
+      fontSize: 20,
       fontFamily: 'Arial, sans-serif',
       fontWeight: 'bold',
       timeFormat: '24',
       showSeconds: true,
-      shadowBlur: 1
+      shadowBlur: 1,
+      pulseAnimation: false
     };
 
-    // Color Presets
+    // Canvas context for preview
+    const canvas = document.getElementById('themeCanvas');
+    const ctx = canvas.getContext('2d');
+    let animationFrame = null;
+    let pulseScale = 1.0;
+    let pulseDirection = 1;
+
+    // Color Presets (for reference)
     const colorPresets = {
       classic: { text: '#00ff00', bg: '#000000', name: 'Classic' },
       neon: { text: '#ff00ff', bg: '#0a0014', name: 'Neon' },
@@ -61,54 +359,214 @@
       return Math.min(Math.floor(h * ratio), Math.floor(w * 0.6));
     }
 
-    // === REQUIRED THEME FUNCTIONS ===
-    function themeInit() {
-      console.log('🕐 Digital Clock Theme Initialized');
-
-      // FORCE font size to 20 - prevent any override
-      themeSettings.fontSize = 20;
-      console.log('🔧 Font size FORCED to:', themeSettings.fontSize);
-
-      return { settings: themeSettings };
-    }
-
-    function themeRender(ctx, w, h, state, t) {
-      const settings = state.settings;
+    // === THEME RENDERING FUNCTION ===
+    function renderTheme(ctx, w, h, t) {
       const now = new Date(t || Date.now());
 
       // Background
-      ctx.fillStyle = settings.bgColor;
+      ctx.fillStyle = themeSettings.bgColor;
       ctx.fillRect(0, 0, w, h);
 
       // Setup text
-      const fontSize = calculateFontSize(w, h, settings.fontSize);
-      ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
+      let fontSize = calculateFontSize(w, h, themeSettings.fontSize);
+
+      // Apply pulse animation if enabled
+      if (themeSettings.pulseAnimation) {
+        fontSize = Math.floor(fontSize * pulseScale);
+      }
+
+      ctx.font = `${themeSettings.fontWeight} ${fontSize}px ${themeSettings.fontFamily}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = settings.textColor;
+      ctx.fillStyle = themeSettings.textColor;
 
       // Center position with font size adjustment
       let centerY = h / 2;
-      if (settings.fontSize <= 15) centerY -= 1;
-      else if (settings.fontSize <= 20) centerY -= 0;
+      if (themeSettings.fontSize <= 15) centerY -= 1;
+      else if (themeSettings.fontSize <= 20) centerY -= 0;
 
       // Shadow effect
-      if (settings.shadowBlur > 0) {
-        ctx.shadowColor = settings.shadowColor || '#000000';
-        ctx.shadowBlur = settings.shadowBlur;
-        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+      if (themeSettings.shadowBlur > 0) {
+        ctx.shadowColor = themeSettings.shadowColor || '#000000';
+        ctx.shadowBlur = themeSettings.shadowBlur;
+        ctx.fillText(formatTime(themeSettings.timeFormat, now, themeSettings.showSeconds), w / 2, centerY);
         ctx.shadowBlur = 0;
       } else {
-        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+        ctx.fillText(formatTime(themeSettings.timeFormat, now, themeSettings.showSeconds), w / 2, centerY);
       }
     }
 
-    // This theme integrates with the main system's existing controls
-    // No separate controls needed - theme settings will be managed by main system
+    // === PREVIEW ANIMATION ===
+    function animate() {
+      // Update pulse animation
+      if (themeSettings.pulseAnimation) {
+        pulseScale += 0.005 * pulseDirection;
+        if (pulseScale >= 1.1 || pulseScale <= 0.9) {
+          pulseDirection *= -1;
+        }
+      } else {
+        pulseScale = 1.0;
+      }
 
-    console.log('🕐 Digital Clock Theme Loaded - Ready!');
-    console.log('🔧 themeInit exists:', typeof themeInit);
-    console.log('🎭 themeRender exists:', typeof themeRender);
+      // Render frame
+      renderTheme(ctx, canvas.width, canvas.height);
+
+      // Continue animation
+      animationFrame = requestAnimationFrame(animate);
+    }
+
+    // === THEME SETTINGS UPDATE ===
+    function updateThemeSetting(setting, value) {
+      themeSettings[setting] = value;
+      console.log(`Theme setting updated: ${setting} = ${value}`);
+
+      // Update displays
+      if (setting === 'textColor') {
+        document.getElementById('textColorHex').textContent = value;
+      } else if (setting === 'bgColor') {
+        document.getElementById('bgColorHex').textContent = value;
+      }
+    }
+
+    // === CONTROL EVENT HANDLERS ===
+    function setupThemeControlHandlers() {
+      console.log('🎛️ Setting up theme control handlers...');
+
+      // Font size buttons
+      const fontSizeButtons = document.querySelectorAll('.theme-font-size-box');
+      fontSizeButtons.forEach((button) => {
+        button.addEventListener('click', function() {
+          // Remove active class from all buttons
+          fontSizeButtons.forEach(btn => btn.classList.remove('active'));
+          // Add active class to clicked button
+          this.classList.add('active');
+          // Update theme setting
+          const size = parseInt(this.getAttribute('data-size'));
+          updateThemeSetting('fontSize', size);
+        });
+      });
+
+      // Text color
+      const themeTextColor = document.getElementById('themeTextColor');
+      const textColorHex = document.getElementById('textColorHex');
+      if (themeTextColor && textColorHex) {
+        themeTextColor.addEventListener('input', (e) => {
+          updateThemeSetting('textColor', e.target.value);
+        });
+      }
+
+      // Background color
+      const themeBgColor = document.getElementById('themeBgColor');
+      const bgColorHex = document.getElementById('bgColorHex');
+      if (themeBgColor && bgColorHex) {
+        themeBgColor.addEventListener('input', (e) => {
+          updateThemeSetting('bgColor', e.target.value);
+        });
+      }
+
+      // Time format
+      const themeTimeFormat = document.getElementById('themeTimeFormat');
+      if (themeTimeFormat) {
+        themeTimeFormat.addEventListener('change', (e) => {
+          updateThemeSetting('timeFormat', e.target.value);
+        });
+      }
+
+      // Show seconds
+      const themeShowSeconds = document.getElementById('themeShowSeconds');
+      if (themeShowSeconds) {
+        themeShowSeconds.addEventListener('change', (e) => {
+          updateThemeSetting('showSeconds', e.target.checked);
+        });
+      }
+
+      // Pulse animation
+      const themePulseAnimation = document.getElementById('themePulseAnimation');
+      if (themePulseAnimation) {
+        themePulseAnimation.addEventListener('change', (e) => {
+          updateThemeSetting('pulseAnimation', e.target.checked);
+        });
+      }
+
+      console.log('✅ Theme control handlers setup complete');
+    }
+
+    // === REQUIRED THEME FUNCTIONS (for main system) ===
+    function themeInit() {
+      console.log('🕐 Digital Clock Theme Initialized (Standalone)');
+      return { settings: { ...themeSettings } };
+    }
+
+    function themeRender(ctx, w, h, state, t) {
+      // Use settings from state if provided, otherwise use current theme settings
+      const settings = state.settings || themeSettings;
+
+      // Merge current theme settings with provided state
+      const mergedSettings = { ...themeSettings, ...settings };
+
+      const now = new Date(t || Date.now());
+
+      // Background
+      ctx.fillStyle = mergedSettings.bgColor;
+      ctx.fillRect(0, 0, w, h);
+
+      // Setup text
+      let fontSize = calculateFontSize(w, h, mergedSettings.fontSize);
+
+      // Apply pulse animation if enabled
+      if (mergedSettings.pulseAnimation) {
+        fontSize = Math.floor(fontSize * pulseScale);
+      }
+
+      ctx.font = `${mergedSettings.fontWeight} ${fontSize}px ${mergedSettings.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = mergedSettings.textColor;
+
+      // Center position with font size adjustment
+      let centerY = h / 2;
+      if (mergedSettings.fontSize <= 15) centerY -= 1;
+      else if (mergedSettings.fontSize <= 20) centerY -= 0;
+
+      // Shadow effect
+      if (mergedSettings.shadowBlur > 0) {
+        ctx.shadowColor = mergedSettings.shadowColor || '#000000';
+        ctx.shadowBlur = mergedSettings.shadowBlur;
+        ctx.fillText(formatTime(mergedSettings.timeFormat, now, mergedSettings.showSeconds), w / 2, centerY);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillText(formatTime(mergedSettings.timeFormat, now, mergedSettings.showSeconds), w / 2, centerY);
+      }
+    }
+
+    // === INITIALIZATION ===
+    function initializeTheme() {
+      console.log('🚀 Initializing Standalone Digital Clock Theme...');
+
+      // Setup control handlers
+      setupThemeControlHandlers();
+
+      // Set initial values from controls
+      updateThemeSetting('textColor', document.getElementById('themeTextColor').value);
+      updateThemeSetting('bgColor', document.getElementById('themeBgColor').value);
+      updateThemeSetting('timeFormat', document.getElementById('themeTimeFormat').value);
+      updateThemeSetting('showSeconds', document.getElementById('themeShowSeconds').checked);
+      updateThemeSetting('pulseAnimation', document.getElementById('themePulseAnimation').checked);
+
+      // Start animation
+      animate();
+
+      console.log('✅ Standalone Digital Clock Theme loaded and ready!');
+      console.log('🔧 themeInit exists:', typeof themeInit);
+      console.log('🎭 themeRender exists:', typeof themeRender);
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeTheme);
+    } else {
+      initializeTheme();
+    }
   </script>
 </body>
 </html>

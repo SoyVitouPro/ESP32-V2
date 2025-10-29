@@ -1,93 +1,114 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Advanced Digital Clock Theme</title>
+  <meta charset="utf-8" />
+  <title>Digital Clock Theme</title>
 </head>
 <body>
-    <fps>1</fps>
+  <!-- FPS hint read by the uploader UI (1-30). -->
+  <fps>1</fps>
 
-    <script>
-        // ========================================
-        // ADVANCED CLOCK THEME FOR ESP32
-        // ========================================
+  <script>
+    // ========================================
+    // DIGITAL CLOCK THEME - FIXED VERSION
+    // ========================================
 
-        const themeSettings = {
-            textColor: '#00ff00',
-            bgColor: '#000000',
-            fontSize: 20,
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-            timeFormat: '24',
-            showSeconds: true,
-            pulseEffect: false,
-            glowEffect: false
-        };
+    const themeSettings = {
+      textColor: '#00ff00',
+      bgColor: '#000000',
+      fontSize: 20, // Default font size - FORCED to 20
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      timeFormat: '24',
+      showSeconds: true,
+      shadowBlur: 1
+    };
 
-        function pad(n) { return (n < 10 ? '0' : '') + n; }
+    // Color Presets
+    const colorPresets = {
+      classic: { text: '#00ff00', bg: '#000000', name: 'Classic' },
+      neon: { text: '#ff00ff', bg: '#0a0014', name: 'Neon' },
+      ocean: { text: '#00ffff', bg: '#001a33', name: 'Ocean' },
+      sunset: { text: '#ff6b35', bg: '#1a0a00', name: 'Sunset' },
+      matrix: { text: '#00ff41', bg: '#000000', name: 'Matrix' }
+    };
 
-        function formatTime(fmt, d, showSeconds) {
-            let h = d.getHours();
-            let m = d.getMinutes();
-            let s = d.getSeconds();
-            let suffix = '';
+    // Helper Functions
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
 
-            if (fmt === '12') {
-                suffix = (h < 12) ? ' AM' : ' PM';
-                h = h % 12;
-                if (h === 0) h = 12;
-            }
+    function formatTime(fmt, d, showSeconds) {
+      let h = d.getHours();
+      let m = d.getMinutes();
+      let s = d.getSeconds();
+      let suffix = '';
 
-            let timeStr = pad(h) + ':' + pad(m);
-            if (showSeconds) timeStr += ':' + pad(s);
-            timeStr += suffix;
+      if (fmt === '12') {
+        suffix = (h < 12) ? ' AM' : ' PM';
+        h = h % 12;
+        if (h === 0) h = 12;
+      }
 
-            return timeStr;
-        }
+      let timeStr = pad(h) + ':' + pad(m);
+      if (showSeconds) timeStr += ':' + pad(s);
+      timeStr += suffix;
 
-        function themeInit() {
-            console.log('🎨 Advanced Clock Theme Initialized');
-            return { settings: themeSettings };
-        }
+      return timeStr;
+    }
 
-        function themeRender(ctx, w, h, state, t) {
-            const settings = state.settings;
-            const now = new Date(t || Date.now());
+    function calculateFontSize(w, h, size) {
+      const sizeMap = { 15: 0.25, 20: 0.35, 35: 0.50, 60: 0.75 };
+      const ratio = sizeMap[size] || 0.50;
+      return Math.min(Math.floor(h * ratio), Math.floor(w * 0.6));
+    }
 
-            // Background
-            ctx.fillStyle = settings.bgColor;
-            ctx.fillRect(0, 0, w, h);
+    // === REQUIRED THEME FUNCTIONS ===
+    function themeInit() {
+      console.log('🕐 Digital Clock Theme Initialized');
 
-            // Calculate font size based on panel dimensions
-            const fontSize = Math.min(Math.floor(h * 0.7), Math.floor(w * 0.15));
+      // FORCE font size to 20 - prevent any override
+      themeSettings.fontSize = 20;
+      console.log('🔧 Font size FORCED to:', themeSettings.fontSize);
 
-            // Setup text
-            ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = settings.textColor;
+      return { settings: themeSettings };
+    }
 
-            // Apply effects
-            if (settings.pulseEffect) {
-                const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
-                ctx.globalAlpha = pulse;
-            }
+    function themeRender(ctx, w, h, state, t) {
+      const settings = state.settings;
+      const now = new Date(t || Date.now());
 
-            if (settings.glowEffect) {
-                ctx.shadowColor = settings.textColor;
-                ctx.shadowBlur = 10;
-            }
+      // Background
+      ctx.fillStyle = settings.bgColor;
+      ctx.fillRect(0, 0, w, h);
 
-            // Draw time
-            const timeString = formatTime(settings.timeFormat, now, settings.showSeconds);
-            ctx.fillText(timeString, w / 2, h / 2);
+      // Setup text
+      const fontSize = calculateFontSize(w, h, settings.fontSize);
+      ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = settings.textColor;
 
-            // Reset effects
-            ctx.globalAlpha = 1;
-            ctx.shadowBlur = 0;
-        }
+      // Center position with font size adjustment
+      let centerY = h / 2;
+      if (settings.fontSize <= 15) centerY -= 1;
+      else if (settings.fontSize <= 20) centerY -= 0;
 
-        console.log('🎨 Advanced Clock Theme Loaded Successfully!');
-    </script>
+      // Shadow effect
+      if (settings.shadowBlur > 0) {
+        ctx.shadowColor = settings.shadowColor || '#000000';
+        ctx.shadowBlur = settings.shadowBlur;
+        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillText(formatTime(settings.timeFormat, now, settings.showSeconds), w / 2, centerY);
+      }
+    }
+
+    // This theme integrates with the main system's existing controls
+    // No separate controls needed - theme settings will be managed by main system
+
+    console.log('🕐 Digital Clock Theme Loaded - Ready!');
+    console.log('🔧 themeInit exists:', typeof themeInit);
+    console.log('🎭 themeRender exists:', typeof themeRender);
+  </script>
 </body>
 </html>

@@ -55,10 +55,11 @@
       text-align: center;
       background: #0d1117;
       border-bottom: 1px solid #1f2a35;
+      overflow-x: auto; /* Allow horizontal scrolling for large canvas */
     }
 
     .preview-title {
-      margin: 0 0 15px 0;
+      margin: 0 15px 15px 0;
       font-size: 16px;
       color: #8b92a3;
     }
@@ -68,8 +69,24 @@
       background: #000;
       border: 2px solid #333;
       border-radius: 8px;
-      padding: 4px;
+      padding: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      position: relative;
+    }
+
+    .led-preview::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+      z-index: 1;
     }
 
     #themeCanvas {
@@ -77,6 +94,10 @@
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
+      position: relative;
+      z-index: 2;
+      max-width: 100%;
+      height: auto;
     }
 
     /* Theme Controls Section */
@@ -230,9 +251,12 @@
 
     <!-- LED Preview Section -->
     <div class="preview-section">
-      <h2 class="preview-title">LED Panel Preview (128x64)</h2>
+      <div class="inline gap-8 center" style="justify-content: center; align-items: flex-start;">
+        <h2 class="preview-title">LED Panel Preview (128×64)</h2>
+        <div class="muted" style="font-size: 12px; margin-top: 4px;">📏 Scale: 1 LED = 20px (Total: 2560×1280px)</div>
+      </div>
       <div class="led-preview">
-        <canvas id="themeCanvas" width="128" height="64"></canvas>
+        <canvas id="themeCanvas" width="2560" height="1280"></canvas>
       </div>
     </div>
 
@@ -325,6 +349,12 @@
     const TARGET_FPS = 30; // Consistent 30 FPS for smooth animation
     const FRAME_INTERVAL = 1000 / TARGET_FPS; // ~33ms per frame
 
+    // LED grid scaling
+    const LED_SIZE = 20; // Each LED pixel is 20px
+    const LED_PANEL_WIDTH = 128; // Original LED panel width
+    const LED_PANEL_HEIGHT = 64; // Original LED panel height
+    const CANVAS_SCALE = LED_SIZE; // Scale factor for rendering
+
     // Color Presets (for reference)
     const colorPresets = {
       classic: { text: '#00ff00', bg: '#000000', name: 'Classic' },
@@ -366,11 +396,27 @@
     function renderTheme(ctx, w, h, t) {
       const now = new Date(t || Date.now());
 
+      // Create off-screen canvas for LED panel resolution (128x64)
+      const offscreenCanvas = document.createElement('canvas');
+      offscreenCanvas.width = LED_PANEL_WIDTH;
+      offscreenCanvas.height = LED_PANEL_HEIGHT;
+      const offscreenCtx = offscreenCanvas.getContext('2d');
+
+      // Render at LED panel resolution first
+      renderToLEDPanel(offscreenCtx, LED_PANEL_WIDTH, LED_PANEL_HEIGHT, now);
+
+      // Then scale up to display canvas with pixelated rendering
+      ctx.imageSmoothingEnabled = false; // Keep pixels sharp
+      ctx.drawImage(offscreenCanvas, 0, 0, w, h);
+    }
+
+    // Function to render at actual LED panel resolution (128x64)
+    function renderToLEDPanel(ctx, w, h, now) {
       // Background
       ctx.fillStyle = themeSettings.bgColor;
       ctx.fillRect(0, 0, w, h);
 
-      // Setup text
+      // Setup text for LED panel resolution
       let fontSize = calculateFontSize(w, h, themeSettings.fontSize);
 
       // Apply pulse animation if enabled
@@ -523,9 +569,10 @@
       // Setup text
       let fontSize = calculateFontSize(w, h, mergedSettings.fontSize);
 
-      // Apply pulse animation if enabled
+      // Apply pulse animation if enabled (for main system, use simple pulse)
       if (mergedSettings.pulseAnimation) {
-        fontSize = Math.floor(fontSize * pulseScale);
+        const pulse = 0.95 + 0.05 * Math.sin(Date.now() / 500); // Simple pulse for main system
+        fontSize = Math.floor(fontSize * pulse);
       }
 
       ctx.font = `${mergedSettings.fontWeight} ${fontSize}px ${mergedSettings.fontFamily}`;

@@ -733,10 +733,27 @@
           console.log('🔍 DEBUG: Found theme font size buttons:', buttons.length);
           buttons.forEach((btn, i) => {
             console.log(`Button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size, 'active:', btn.classList.contains('active'));
-            // Check if it has click listeners
-            const events = getEventListeners ? getEventListeners(btn) : 'N/A';
-            console.log(`Button ${i} events:`, events);
+            // Test clicking button manually
+            btn.addEventListener('click', function() {
+              console.log('🖱️ DEBUG: Font size button clicked manually!', this.dataset.size);
+              if (typeof window.updateThemeSetting === 'function') {
+                window.updateThemeSetting('fontSize', parseInt(this.dataset.size));
+              } else {
+                console.log('❌ DEBUG: window.updateThemeSetting not found!');
+              }
+            });
           });
+        };
+
+        // Add function to manually test font size changes
+        window.debugFontSizeChange = function(size) {
+          console.log('🧪 DEBUG: Manually testing font size change to:', size);
+          if (typeof window.updateThemeSetting === 'function') {
+            window.updateThemeSetting('fontSize', size);
+            console.log('✅ DEBUG: updateThemeSetting called');
+          } else {
+            console.log('❌ DEBUG: window.updateThemeSetting not found!');
+          }
         };
 
         console.log('🧪 Debug functions added: debugThemeControl(), debugMainSystemControls()');

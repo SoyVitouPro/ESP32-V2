@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Digital Clock Theme</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: white;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            font-size: 1.1em;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .preview-section, .controls-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .led-preview {
+            background: #000;
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 200px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .led-display {
+            font-family: 'Courier New', monospace;
+            font-size: 48px;
+            font-weight: bold;
+            letter-spacing: 0.1em;
+            transition: all 0.3s ease;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+        }
+
+        .control-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #495057;
+            font-size: 1.1em;
+        }
+
+        .control-input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .control-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .color-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .color-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .color-picker {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .color-hex {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #6c757d;
+        }
+
+        .font-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .font-option {
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .font-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .font-option.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .size-slider {
+            width: 100%;
+            margin: 15px 0;
+        }
+
+        .size-preview {
+            text-align: center;
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .preset-btn {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .preset-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .preset-classic { background: linear-gradient(135deg, #00ff00, #00cc00); }
+        .preset-neon { background: linear-gradient(135deg, #ff00ff, #cc00cc); }
+        .preset-ocean { background: linear-gradient(135deg, #00ffff, #00cccc); }
+        .preset-sunset { background: linear-gradient(135deg, #ff6b35, #ff5722); }
+        .preset-matrix { background: linear-gradient(135deg, #00ff41, #00cc33); }
+
+        .switch-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .switch-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #667eea;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .export-section {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .export-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Animation effects */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes glow {
+            0% { text-shadow: 0 0 5px currentColor; }
+            50% { text-shadow: 0 0 20px currentColor, 0 0 30px currentColor; }
+            100% { text-shadow: 0 0 5px currentColor; }
+        }
+
+        .pulse-effect {
+            animation: pulse 1s infinite;
+        }
+
+        .glow-effect {
+            animation: glow 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <fps>1</fps>
+
+    <div class="container">
+        <header>
+            <h1>🎨 Advanced Digital Clock Theme</h1>
+            <p class="subtitle">Customize your LED clock display with stunning visual effects</p>
+        </header>
+
+        <div class="main-content">
+            <section class="preview-section">
+                <h2 class="section-title">📱 LED Preview</h2>
+                <div class="led-preview">
+                    <div id="ledDisplay" class="led-display">00:00:00</div>
+                </div>
+            </section>
+
+            <section class="controls-section">
+                <h2 class="section-title">⚙️ Theme Controls</h2>
+
+                <div class="control-group">
+                    <label class="control-label">🎨 Colors</label>
+                    <div class="color-inputs">
+                        <div class="color-input-group">
+                            <input type="color" id="textColor" class="color-picker" value="#00ff00">
+                            <span class="color-hex" id="textColorHex">#00ff00</span>
+                        </div>
+                        <div class="color-input-group">
+                            <input type="color" id="bgColor" class="color-picker" value="#000000">
+                            <span class="color-hex" id="bgColorHex">#000000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">🔤 Font Style</label>
+                    <div class="font-selector">
+                        <div class="font-option active" data-font="monospace">Monospace</div>
+                        <div class="font-option" data-font="Arial">Arial</div>
+                        <div class="font-option" data-font="Georgia">Georgia</div>
+                        <div class="font-option" data-font="Impact">Impact</div>
+                        <div class="font-option" data-font="Courier">Courier</div>
+                        <div class="font-option" data-font="Verdana">Verdana</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">📏 Font Size</label>
+                    <input type="range" id="fontSize" class="size-slider" min="20" max="80" value="48">
+                    <div class="size-preview">Size: <span id="sizeValue">48</span>px</div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">🎯 Color Presets</label>
+                    <div class="preset-buttons">
+                        <button class="preset-btn preset-classic" data-text="#00ff00" data-bg="#000000">Classic</button>
+                        <button class="preset-btn preset-neon" data-text="#ff00ff" data-bg="#0a0014">Neon</button>
+                        <button class="preset-btn preset-ocean" data-text="#00ffff" data-bg="#001a33">Ocean</button>
+                        <button class="preset-btn preset-sunset" data-text="#ff6b35" data-bg="#1a0a00">Sunset</button>
+                        <button class="preset-btn preset-matrix" data-text="#00ff41" data-bg="#000000">Matrix</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">⚡ Effects</label>
+                    <div class="switch-group">
+                        <div class="switch-item">
+                            <label class="switch">
+                                <input type="checkbox" id="pulseEffect">
+                                <span class="slider"></span>
+                            </label>
+                            <span>Pulse</span>
+                        </div>
+                        <div class="switch-item">
+                            <label class="switch">
+                                <input type="checkbox" id="glowEffect">
+                                <span class="slider"></span>
+                            </label>
+                            <span>Glow</span>
+                        </div>
+                        <div class="switch-item">
+                            <label class="switch">
+                                <input type="checkbox" id="showSeconds" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span>Show Seconds</span>
+                        </div>
+                        <div class="switch-item">
+                            <label class="switch">
+                                <input type="checkbox" id="format12">
+                                <span class="slider"></span>
+                            </label>
+                            <span>12-Hour</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <section class="export-section">
+            <h2 class="section-title">💾 Export Theme</h2>
+            <p style="margin-bottom: 20px; color: #6c757d;">Save your customized theme for use with LED displays</p>
+            <button class="export-btn" onclick="exportTheme()">Download Theme File</button>
+        </section>
+    </div>
+
+    <script>
+        // ========================================
+        // STANDALONE THEME ENGINE
+        // ========================================
+
+        const themeSettings = {
+            textColor: '#00ff00',
+            bgColor: '#000000',
+            fontSize: 48,
+            fontFamily: 'monospace',
+            fontWeight: 'bold',
+            timeFormat: '24',
+            showSeconds: true,
+            pulseEffect: false,
+            glowEffect: false
+        };
+
+        // Update LED display
+        function updateDisplay() {
+            const display = document.getElementById('ledDisplay');
+
+            if (!display) {
+                // In embedded mode, just return without trying to update UI
+                return;
+            }
+
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+
+            let timeString = '';
+
+            if (themeSettings.timeFormat === '12') {
+                const ampm = hours >= 12 ? ' PM' : ' AM';
+                hours = hours % 12 || 12;
+                timeString = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                if (themeSettings.showSeconds) {
+                    timeString += ':' + String(seconds).padStart(2, '0');
+                }
+                timeString += ampm;
+            } else {
+                timeString = String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+                if (themeSettings.showSeconds) {
+                    timeString += ':' + String(seconds).padStart(2, '0');
+                }
+            }
+
+            display.textContent = timeString;
+            display.style.color = themeSettings.textColor;
+            display.style.fontSize = themeSettings.fontSize + 'px';
+            display.style.fontFamily = themeSettings.fontFamily;
+            display.style.fontWeight = themeSettings.fontWeight;
+
+            // Apply effects
+            display.classList.toggle('pulse-effect', themeSettings.pulseEffect);
+            display.classList.toggle('glow-effect', themeSettings.glowEffect);
+
+            // Update preview background
+            const previewEl = document.querySelector('.led-preview');
+            if (previewEl) {
+                previewEl.style.background = themeSettings.bgColor;
+            }
+        }
+
+        // Initialize controls only in standalone mode
+        function initializeControls() {
+            // Color controls
+            const textColorEl = document.getElementById('textColor');
+            const bgColorEl = document.getElementById('bgColor');
+            const textColorHexEl = document.getElementById('textColorHex');
+            const bgColorHexEl = document.getElementById('bgColorHex');
+
+            if (textColorEl && textColorHexEl) {
+                textColorEl.addEventListener('input', (e) => {
+                    themeSettings.textColor = e.target.value;
+                    textColorHexEl.textContent = e.target.value;
+                    updateDisplay();
+                });
+            }
+
+            if (bgColorEl && bgColorHexEl) {
+                bgColorEl.addEventListener('input', (e) => {
+                    themeSettings.bgColor = e.target.value;
+                    bgColorHexEl.textContent = e.target.value;
+                    updateDisplay();
+                });
+            }
+
+            // Font selection
+            document.querySelectorAll('.font-option').forEach(option => {
+                option.addEventListener('click', () => {
+                    document.querySelectorAll('.font-option').forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+                    themeSettings.fontFamily = option.dataset.font;
+                    updateDisplay();
+                });
+            });
+
+            // Font size
+            const fontSizeEl = document.getElementById('fontSize');
+            const sizeValueEl = document.getElementById('sizeValue');
+
+            if (fontSizeEl && sizeValueEl) {
+                fontSizeEl.addEventListener('input', (e) => {
+                    themeSettings.fontSize = parseInt(e.target.value);
+                    sizeValueEl.textContent = e.target.value;
+                    updateDisplay();
+                });
+            }
+
+            // Preset buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const textColor = btn.dataset.text;
+                    const bgColor = btn.dataset.bg;
+
+                    const textColorEl = document.getElementById('textColor');
+                    const bgColorEl = document.getElementById('bgColor');
+                    const textColorHexEl = document.getElementById('textColorHex');
+                    const bgColorHexEl = document.getElementById('bgColorHex');
+
+                    if (textColorEl) textColorEl.value = textColor;
+                    if (bgColorEl) bgColorEl.value = bgColor;
+                    if (textColorHexEl) textColorHexEl.textContent = textColor;
+                    if (bgColorHexEl) bgColorHexEl.textContent = bgColor;
+
+                    themeSettings.textColor = textColor;
+                    themeSettings.bgColor = bgColor;
+                    updateDisplay();
+                });
+            });
+
+            // Effect toggles
+            const pulseEffectEl = document.getElementById('pulseEffect');
+            const glowEffectEl = document.getElementById('glowEffect');
+            const showSecondsEl = document.getElementById('showSeconds');
+            const format12El = document.getElementById('format12');
+
+            if (pulseEffectEl) {
+                pulseEffectEl.addEventListener('change', (e) => {
+                    themeSettings.pulseEffect = e.target.checked;
+                    updateDisplay();
+                });
+            }
+
+            if (glowEffectEl) {
+                glowEffectEl.addEventListener('change', (e) => {
+                    themeSettings.glowEffect = e.target.checked;
+                    updateDisplay();
+                });
+            }
+
+            if (showSecondsEl) {
+                showSecondsEl.addEventListener('change', (e) => {
+                    themeSettings.showSeconds = e.target.checked;
+                    updateDisplay();
+                });
+            }
+
+            if (format12El) {
+                format12El.addEventListener('change', (e) => {
+                    themeSettings.timeFormat = e.target.checked ? '12' : '24';
+                    updateDisplay();
+                });
+            }
+        }
+
+        // Check if we're in standalone mode (all DOM elements exist)
+        if (document.getElementById('ledDisplay')) {
+            console.log('🎨 Running in standalone mode - initializing controls');
+            initializeControls();
+            // Start the clock
+            setInterval(updateDisplay, 100);
+            updateDisplay();
+        } else {
+            console.log('🎨 Running in embedded mode - skipping UI initialization');
+        }
+
+        // Export theme function
+        function exportTheme() {
+            // Only allow export in standalone mode
+            if (!document.getElementById('ledDisplay')) {
+                console.log('🚫 Export only available in standalone mode');
+                return;
+            }
+
+            const themeCode = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Custom Digital Clock Theme</title>
+</head>
+<body>
+    <fps>1</fps>
+
+    <script>
+        const themeSettings = ${JSON.stringify(themeSettings, null, 2)};
+
+        function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+        function formatTime(fmt, d, showSeconds) {
+            let h = d.getHours();
+            let m = d.getMinutes();
+            let s = d.getSeconds();
+            let suffix = '';
+
+            if (fmt === '12') {
+                suffix = (h < 12) ? ' AM' : ' PM';
+                h = h % 12;
+                if (h === 0) h = 12;
+            }
+
+            let timeStr = pad(h) + ':' + pad(m);
+            if (showSeconds) timeStr += ':' + pad(s);
+            timeStr += suffix;
+
+            return timeStr;
+        }
+
+        function themeInit() {
+            console.log('🎨 Custom Theme Initialized');
+            return { settings: themeSettings };
+        }
+
+        function themeRender(ctx, w, h, state, t) {
+            const settings = state.settings;
+            const now = new Date(t || Date.now());
+
+            // Background
+            ctx.fillStyle = settings.bgColor;
+            ctx.fillRect(0, 0, w, h);
+
+            // Calculate font size based on panel dimensions
+            const fontSize = Math.min(Math.floor(h * 0.7), Math.floor(w * 0.15));
+
+            // Setup text
+            ctx.font = \`\${settings.fontWeight} \${fontSize}px \${settings.fontFamily}\`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = settings.textColor;
+
+            // Apply effects
+            if (settings.pulseEffect) {
+                const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+                ctx.globalAlpha = pulse;
+            }
+
+            if (settings.glowEffect) {
+                ctx.shadowColor = settings.textColor;
+                ctx.shadowBlur = 10;
+            }
+
+            // Draw time
+            const timeString = formatTime(settings.timeFormat, now, settings.showSeconds);
+            ctx.fillText(timeString, w / 2, h / 2);
+
+            // Reset effects
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        console.log('🎨 Custom Theme Loaded Successfully!');
+    <\/script>
+</body>
+</html>`;
+
+            const blob = new Blob([themeCode], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'custom_clock_theme.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ========================================
+        // REQUIRED THEME FUNCTIONS (for external use)
+        // ========================================
+
+        function themeInit() {
+            console.log('🎨 Advanced Theme Initialized');
+            return { settings: themeSettings };
+        }
+
+        function themeRender(ctx, w, h, state, t) {
+            const settings = state.settings;
+            const now = new Date(t || Date.now());
+
+            // Background
+            ctx.fillStyle = settings.bgColor;
+            ctx.fillRect(0, 0, w, h);
+
+            // Calculate font size based on panel dimensions
+            const fontSize = Math.min(Math.floor(h * 0.7), Math.floor(w * 0.15));
+
+            // Setup text
+            ctx.font = `${settings.fontWeight} ${fontSize}px ${settings.fontFamily}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = settings.textColor;
+
+            // Apply effects
+            if (settings.pulseEffect) {
+                const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+                ctx.globalAlpha = pulse;
+            }
+
+            if (settings.glowEffect) {
+                ctx.shadowColor = settings.textColor;
+                ctx.shadowBlur = 10;
+            }
+
+            // Draw time
+            const timeString = formatTime(settings.timeFormat, now, settings.showSeconds);
+            ctx.fillText(timeString, w / 2, h / 2);
+
+            // Reset effects
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+        }
+
+        function formatTime(fmt, d, showSeconds) {
+            let h = d.getHours();
+            let m = d.getMinutes();
+            let s = d.getSeconds();
+            let suffix = '';
+
+            if (fmt === '12') {
+                suffix = (h < 12) ? ' AM' : ' PM';
+                h = h % 12;
+                if (h === 0) h = 12;
+            }
+
+            let timeStr = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+            if (showSeconds) timeStr += ':' + String(s).padStart(2, '0');
+            timeStr += suffix;
+
+            return timeStr;
+        }
+
+        console.log('🎨 Advanced Theme Loaded Successfully!');
+    </script>
+</body>
+</html>

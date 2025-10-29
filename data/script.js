@@ -83,6 +83,26 @@
     stopThemeTimers();
   };
 
+  // Universal function to stop all modes on ESP32 and browser
+  const stopAllModes = async () => {
+    console.log('🛑 Stopping all modes before starting new one...');
+
+    // Stop browser-side activities
+    stopAllRunningContent();
+    stopThemeStreaming();
+
+    // Stop ESP32 modes
+    try {
+      await Promise.all([
+        fetch(apiBase + '/stop_clock', { method: 'POST' }),
+        fetch(apiBase + '/stop_theme', { method: 'POST' })
+      ]);
+      console.log('✅ All modes stopped successfully');
+    } catch (error) {
+      console.warn('⚠️ Failed to stop some modes:', error);
+    }
+  };
+
   const stopContentForPreview = () => {
     stopPreviewAnim();
     stopClockPreview();
@@ -1278,14 +1298,19 @@
       const videoMode = !$('videoConfig').classList.contains('hidden');
       const themeMode = !$('themeConfig').classList.contains('hidden');
 
+      // Stop all modes first before starting any new mode
+      await stopAllModes();
+
       if (textMode) {
+        console.log('Text: starting text display');
         await renderAndUpload();
       } else if (clockMode) {
+        console.log('Clock: starting clock display');
         await renderAndUploadClock();
         if (!clockTimer) startSmoothClockTimer();
       } else if (videoMode) {
-        // use Start/Stop buttons
         console.log('Video: use Start/Stop buttons');
+        // Note: Video mode has its own Start/Stop buttons
       } else if (themeMode) {
         console.log('Theme: starting streaming to ESP32');
         await startThemeStreaming();

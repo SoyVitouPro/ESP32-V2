@@ -22,7 +22,7 @@ app.add_middleware(
 )
 
 # Configuration
-THEME_FILE_PATH = "/home/acleda/Documents/PlatformIO/Projects/esp_khmer_text/theme_clock_test_template.html"
+THEME_FILE_PATH = "/home/acleda/Documents/PlatformIO/Projects/esp_khmer_text/standalone_theme_template.html"
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -47,6 +47,17 @@ manager = ConnectionManager()
 async def favicon():
     """Return empty favicon"""
     return {"message": "No favicon"}
+
+# Serve the basic clock template directly
+@app.get("/template", response_class=HTMLResponse)
+async def get_template():
+    """Serve the basic clock template for ESP32"""
+    try:
+        async with aiofiles.open(THEME_FILE_PATH, 'r') as f:
+            content = await f.read()
+        return content
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Serve the main UI
 @app.get("/", response_class=HTMLResponse)
@@ -320,8 +331,8 @@ async def get_ui():
                 <div class="controls">
                     <div class="control-group">
                         <label>🔠 Font Size</label>
-                        <input type="range" id="fontSize" min="10" max="100" value="60">
-                        <span id="fontSizeValue" style="margin-left: 5px; font-size: 12px;">60%</span>
+                        <input type="range" id="fontSize" min="20" max="80" value="48">
+                        <span id="fontSizeValue" style="margin-left: 5px; font-size: 12px;">48px</span>
                     </div>
                     <div class="control-group">
                         <label>🎨 Text Color</label>
@@ -352,10 +363,12 @@ async def get_ui():
                         </div>
                     </div>
                     <div class="control-group">
-                        <label>✨ LED Effects</label>
+                        <label>✨ Visual Effects</label>
                         <select id="ledEffect">
                             <option value="none">None</option>
-                            <option value="glow">Glow</option>
+                            <option value="glow">Glow Effect</option>
+                            <option value="pulse">Pulse Effect</option>
+                            <option value="both">Glow + Pulse</option>
                             <option value="smooth">Smooth Fade</option>
                             <option value="rainbow">Rainbow</option>
                         </select>
@@ -399,11 +412,11 @@ async def get_ui():
             ledCtx.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
         }
 
-        // Apply LED effect to canvas
+        // Apply LED effect to canvas with enhanced support for advanced themes
         function applyLEDEffect(imageData, settings) {
             const data = imageData.data;
             const effect = settings.ledEffect;
-            const brightness = settings.ledBrightness;
+            const brightness = settings.ledBrightness / 100; // Convert percentage to decimal
 
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
@@ -419,38 +432,66 @@ async def get_ui():
                         g = Math.floor(g * brightness);
                         b = Math.floor(b * brightness);
 
-                        // Apply LED effects
-                        if (effect === 'glow') {
-                            // Add glow effect for bright pixels
-                            if (r > 128 || g > 128 || b > 128) {
-                                data[i] = Math.min(255, r + 30);
-                                data[i + 1] = Math.min(255, g + 30);
-                                data[i + 2] = Math.min(255, b + 30);
+                        // Apply enhanced LED effects for advanced themes
+                        if (effect === 'glow' || settings.glowEffect) {
+                            // Enhanced glow effect with better color preservation
+                            const intensity = Math.max(r, g, b) / 255;
+                            if (intensity > 0.3) {
+                                const glowBoost = Math.floor(50 * intensity);
+                                data[i] = Math.min(255, r + glowBoost);
+                                data[i + 1] = Math.min(255, g + glowBoost);
+                                data[i + 2] = Math.min(255, b + glowBoost);
                             }
                         } else if (effect === 'smooth') {
-                            // Smooth transitions
+                            // Smooth transitions with enhanced processing
                             const avg = (r + g + b) / 3;
                             const factor = avg / 255;
-                            data[i] = Math.floor(r * (0.7 + factor * 0.3));
-                            data[i + 1] = Math.floor(g * (0.7 + factor * 0.3));
-                            data[i + 2] = Math.floor(b * (0.7 + factor * 0.3));
+                            const smoothFactor = 0.6 + factor * 0.4;
+                            data[i] = Math.floor(r * smoothFactor);
+                            data[i + 1] = Math.floor(g * smoothFactor);
+                            data[i + 2] = Math.floor(b * smoothFactor);
+                        } else if (effect === 'pulse' || settings.pulseEffect) {
+                            // Pulse effect synchronized with time
+                            const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+                            data[i] = Math.floor(r * pulse);
+                            data[i + 1] = Math.floor(g * pulse);
+                            data[i + 2] = Math.floor(b * pulse);
+                        } else if (effect === 'both') {
+                            // Combined glow and pulse effects
+                            const pulse = Math.sin(Date.now() / 500) * 0.3 + 0.7;
+                            const intensity = Math.max(r, g, b) / 255;
+                            if (intensity > 0.2) {
+                                const glowBoost = Math.floor(30 * intensity * pulse);
+                                data[i] = Math.min(255, r + glowBoost);
+                                data[i + 1] = Math.min(255, g + glowBoost);
+                                data[i + 2] = Math.min(255, b + glowBoost);
+                            }
                         } else if (effect === 'rainbow') {
-                            // Add rainbow cycling
+                            // Rainbow effect with better color blending
                             const time = Date.now() / 1000;
                             const hue = (x / GRID_WIDTH * 360 + time * 50) % 360;
                             const rgb = hslToRgb(hue / 360, 0.7, 0.5);
-                            data[i] = Math.floor((r + rgb[0]) / 2);
-                            data[i + 1] = Math.floor((g + rgb[1]) / 2);
-                            data[i + 2] = Math.floor((b + rgb[2]) / 2);
+                            const blendFactor = 0.3; // Subtle rainbow blend
+                            data[i] = Math.floor(r * (1 - blendFactor) + rgb[0] * blendFactor);
+                            data[i + 1] = Math.floor(g * (1 - blendFactor) + rgb[1] * blendFactor);
+                            data[i + 2] = Math.floor(b * (1 - blendFactor) + rgb[2] * blendFactor);
                         } else {
-                            // Normal effect
-                            data[i] = r;
-                            data[i + 1] = g;
-                            data[i + 2] = b;
+                            // Normal effect with slight LED matrix simulation
+                            // Add subtle pixelation effect for LED simulation
+                            if (x % 2 === 0 || y % 2 === 0) {
+                                const pixelDarken = 0.85;
+                                data[i] = Math.floor(r * pixelDarken);
+                                data[i + 1] = Math.floor(g * pixelDarken);
+                                data[i + 2] = Math.floor(b * pixelDarken);
+                            } else {
+                                data[i] = r;
+                                data[i + 1] = g;
+                                data[i + 2] = b;
+                            }
                         }
                         data[i + 3] = 255;
                     } else {
-                        // Background pixels
+                        // Background pixels with subtle LED grid effect
                         data[i] = 0;
                         data[i + 1] = 0;
                         data[i + 2] = 0;
@@ -585,36 +626,78 @@ async def get_ui():
             try {
                 // Use plain text, not HTML content
                 const cleanCode = getPlainText();
+                console.log('🔍 Parsing theme code, length:', cleanCode.length);
+
                 const scriptMatch = cleanCode.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
                 if (!scriptMatch) {
                     throw new Error('No script tag found in theme');
                 }
 
                 const scriptCode = scriptMatch[1];
-                eval(scriptCode);
+                console.log('🔍 Found script code, executing...');
+
+                // Execute the script code in a try-catch to capture any errors
+                try {
+                    eval(scriptCode);
+                    console.log('✅ Theme script executed successfully');
+                } catch (execError) {
+                    console.error('❌ Error executing theme script:', execError);
+                    throw new Error('Script execution error: ' + execError.message);
+                }
+
+                // Check if required functions exist
+                if (typeof themeInit === 'function') {
+                    console.log('✅ themeInit function found');
+                } else {
+                    console.error('❌ themeInit function not found');
+                }
+
+                if (typeof themeRender === 'function') {
+                    console.log('✅ themeRender function found');
+                } else {
+                    console.error('❌ themeRender function not found');
+                }
+
+                if (typeof formatTime === 'function') {
+                    console.log('✅ formatTime function found');
+                } else {
+                    console.error('❌ formatTime function not found');
+                }
 
                 if (typeof themeInit === 'function' && typeof themeRender === 'function') {
                     currentTheme = {
                         init: themeInit,
                         render: themeRender
                     };
+                    console.log('✅ Theme successfully parsed and loaded');
                 } else {
-                    throw new Error('Required theme functions not found');
+                    throw new Error('Required theme functions not found - themeInit and themeRender are required');
                 }
 
             } catch (error) {
+                console.error('❌ Theme parsing failed:', error);
                 showError('Theme parsing error: ' + error.message);
             }
         }
 
         // Start preview
         function startPreview() {
+            console.log('🎬 Starting preview...');
+
             if (!currentTheme) {
+                console.log('🔍 No current theme, parsing...');
                 parseTheme(codeEditor.textContent);
             }
 
             if (!currentTheme) {
-                showError('Failed to load theme');
+                console.error('❌ Failed to load theme - currentTheme is null, using fallback');
+                console.log('🎬 Using fallback clock renderer');
+                renderFallbackClock();
+                previewInterval = setInterval(renderFallbackClock, 1000);
+
+                previewBtn.textContent = 'Stop Preview';
+                previewBtn.classList.remove('btn-primary');
+                previewBtn.classList.add('btn-success');
                 return;
             }
 
@@ -630,38 +713,72 @@ async def get_ui():
                 return;
             }
 
-            const settings = {
-                textColor: document.getElementById('textColor').value,
-                bgColor: document.getElementById('bgColor').value,
-                fontSize: parseInt(document.getElementById('fontSize').value),
-                ledBrightness: parseInt(document.getElementById('ledBrightness').value) / 100,
-                ledEffect: document.getElementById('ledEffect').value,
-                timeFormat: document.getElementById('timeFormat').value,
-                showSeconds: document.getElementById('showSeconds').checked,
-                pulseAnimation: document.getElementById('pulseAnimation').checked,
-                fontFamily: 'Arial, sans-serif',
-                fontWeight: 'bold',
-                positionX: 0,
-                positionY: 0,
-                shadowColor: '#004400',
-                shadowBlur: 2,
-                fadeTransition: true
-            };
+            // Start with template's own settings and override with UI controls
+            const settings = state.settings ? {...state.settings} : {};
 
-            if (state.settings) {
-                Object.assign(state.settings, settings);
+            // Override with UI control values - Map to advanced theme settings
+            settings.textColor = document.getElementById('textColor').value;
+            settings.bgColor = document.getElementById('bgColor').value;
+
+            // Font size mapping - Use actual pixel values for advanced theme
+            const uiFontSize = parseInt(document.getElementById('fontSize').value);
+            settings.fontSize = Math.floor(uiFontSize * 0.8); // Scale down for LED display
+
+            // Map UI controls to advanced theme settings
+            const pulseAnimationChecked = document.getElementById('pulseAnimation').checked;
+            const ledEffectValue = document.getElementById('ledEffect').value;
+
+            // Handle different effect combinations for advanced theme
+            if (ledEffectValue === 'both') {
+                settings.pulseEffect = true;
+                settings.glowEffect = true;
+            } else if (ledEffectValue === 'pulse') {
+                settings.pulseEffect = true;
+                settings.glowEffect = false;
+            } else if (ledEffectValue === 'glow') {
+                settings.pulseEffect = false;
+                settings.glowEffect = true;
+            } else if (ledEffectValue === 'smooth') {
+                settings.pulseEffect = false;
+                settings.glowEffect = true;
             } else {
-                state.settings = settings;
+                settings.pulseEffect = pulseAnimationChecked;
+                settings.glowEffect = false;
             }
+
+            settings.timeFormat = document.getElementById('timeFormat').value;
+            settings.showSeconds = document.getElementById('showSeconds').checked;
+
+            // Enhanced font settings for advanced theme
+            settings.fontFamily = settings.fontFamily || 'monospace';
+            settings.fontWeight = settings.fontWeight || 'bold';
+
+            // Add fallback settings for advanced theme compatibility
+            settings.fontFamily = settings.fontFamily || 'Courier New, monospace';
+            settings.fontWeight = settings.fontWeight || 'bold';
+            settings.positionX = settings.positionX || 0;
+            settings.positionY = settings.positionY || 0;
+            settings.shadowColor = settings.shadowColor || settings.textColor;
+            settings.shadowBlur = settings.shadowBlur || (settings.glowEffect ? 10 : 2);
+            settings.fadeTransition = settings.fadeTransition !== undefined ? settings.fadeTransition : true;
+
+            // Update state settings
+            state.settings = settings;
 
             const render = () => {
                 try {
+                    const currentTime = Date.now();
                     // Clear theme canvas
                     themeCtx.fillStyle = settings.bgColor;
                     themeCtx.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
 
                     // Render theme to theme canvas
-                    currentTheme.render(themeCtx, GRID_WIDTH, GRID_HEIGHT, state, Date.now());
+                    if (currentTheme && typeof currentTheme.render === 'function') {
+                        currentTheme.render(themeCtx, GRID_WIDTH, GRID_HEIGHT, state, currentTime);
+                    } else {
+                        console.error('❌ No valid render function available');
+                        return;
+                    }
 
                     // Get image data and apply LED effects
                     const imageData = themeCtx.getImageData(0, 0, GRID_WIDTH, GRID_HEIGHT);
@@ -671,16 +788,42 @@ async def get_ui():
                     ledCtx.putImageData(processedData, 0, 0);
 
                 } catch (error) {
-                    console.error('Render error:', error);
+                    console.error('❌ Render error:', error);
+                    console.error('Error details:', error.stack);
                 }
             };
 
             render();
-            previewInterval = setInterval(render, 1000); // Update once per second, not 30 FPS
+            previewInterval = setInterval(render, 1000); // Update once per second for clock
 
             previewBtn.textContent = 'Stop Preview';
             previewBtn.classList.remove('btn-primary');
             previewBtn.classList.add('btn-success');
+        }
+
+        // Simple fallback clock renderer
+        function renderFallbackClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+
+            // Clear theme canvas
+            themeCtx.fillStyle = '#000000';
+            themeCtx.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
+
+            // Draw simple clock
+            themeCtx.fillStyle = '#00ff00';
+            themeCtx.font = 'bold 20px monospace';
+            themeCtx.textAlign = 'center';
+            themeCtx.textBaseline = 'middle';
+            themeCtx.fillText(timeString, GRID_WIDTH / 2, GRID_HEIGHT / 2);
+
+            // Apply LED effects and draw
+            const imageData = themeCtx.getImageData(0, 0, GRID_WIDTH, GRID_HEIGHT);
+            const processedData = applyLEDEffect(imageData, {
+                ledEffect: 'none',
+                ledBrightness: 0.8
+            });
+            ledCtx.putImageData(processedData, 0, 0);
         }
 
         // Stop preview
@@ -751,7 +894,7 @@ async def get_ui():
 
         // Update value displays
         document.getElementById('fontSize').addEventListener('input', (e) => {
-            fontSizeValue.textContent = e.target.value + '%';
+            fontSizeValue.textContent = e.target.value + 'px';
             if (previewInterval) startPreview();
         });
 
@@ -877,7 +1020,7 @@ async def get_ui():
 
         // Load default theme file
         function loadDefaultFile() {
-            const defaultFilePath = '/home/acleda/Documents/PlatformIO/Projects/esp_khmer_text/theme_clock_test_template.html';
+            const defaultFilePath = '/home/acleda/Documents/PlatformIO/Projects/esp_khmer_text/standalone_theme_template.html';
             ws.send(JSON.stringify({
                 type: 'load_path',
                 file_path: defaultFilePath

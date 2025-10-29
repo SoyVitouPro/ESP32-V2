@@ -105,6 +105,10 @@ static uint32_t restartAt = 0;              // time to restart next cycle
 static bool waitingRestart = false;
 static std::vector<int16_t> heads;         // multi-head array for continuous text stream
 
+// Display mode tracking
+enum DisplayMode { MODE_NONE, MODE_CLOCK, MODE_THEME };
+static DisplayMode currentMode = MODE_NONE;
+
 // Panel helpers
 static inline int panelIndexFromXY(int x, int y) {
   int col = x / PANEL_RES_X;
@@ -269,6 +273,13 @@ void handleUploadData() {
 
 void handleUploadDone() {
   sendCORSHeaders();
+
+  // Stop theme mode if it was running
+  if (currentMode == MODE_THEME) {
+    Serial.println("Stopping theme mode, switching to clock mode");
+  }
+  currentMode = MODE_CLOCK;
+
   // Read options - force centering but USE ANIMATION SETTINGS
   bgColor = hexTo565(server.arg("bg"));
   userOffX = 0; // Force center horizontally
@@ -462,6 +473,15 @@ void handleUploadTheme() {
     if (themeFile) {
       themeFile.close();
       Serial.println("/upload_theme: Theme saved to /theme.html");
+
+      // Stop clock mode if it was running
+      if (currentMode == MODE_CLOCK) {
+        Serial.println("Stopping clock mode, switching to theme mode");
+        animate = false;  // Stop clock animation
+        textPixels.clear();  // Clear text pixels to stop clock display
+      }
+      currentMode = MODE_THEME;
+
       sendCORSHeaders();
       server.send(200, "text/plain", "Theme uploaded successfully");
     } else {
@@ -551,6 +571,24 @@ void setup() {
   server.on("/upload", HTTP_POST, handleUploadDone, handleUploadData);
   server.on("/upload_bg", HTTP_POST, handleUploadBgDone, handleUploadBgData);
   server.on("/upload_theme", HTTP_POST, [](){ server.send(200, "text/plain", "Theme upload complete"); }, handleUploadTheme);
+  server.on("/stop_clock", HTTP_POST, [](){
+    sendCORSHeaders();
+    Serial.println("Stopping clock animation");
+    animate = false;  // Stop animation
+    textPixels.clear();  // Clear text pixels to stop display
+    currentMode = MODE_NONE;  // Set mode to none
+    server.send(200, "text/plain", "Clock stopped");
+  });
+  server.on("/stop_theme", HTTP_POST, [](){
+    sendCORSHeaders();
+    Serial.println("Stopping theme mode");
+    currentMode = MODE_NONE;  // Set mode to none
+    // Clear display
+    if (vdisplay) {
+      vdisplay->fillScreen(0);
+    }
+    server.send(200, "text/plain", "Theme stopped");
+  });
 
   // CORS preflight handler
   server.on("/upload", HTTP_OPTIONS, [](){
@@ -574,6 +612,14 @@ void setup() {
     server.send(200, "text/plain", "");
   });
   server.on("/panel_layout", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/stop_clock", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/stop_theme", HTTP_OPTIONS, [](){
     sendCORSHeaders();
     server.send(200, "text/plain", "");
   });
@@ -650,8 +696,8 @@ void setup() {
 
 void loop() {
   server.handleClient();
-  // Animate if enabled and we have a text bitmap
-  if (animate && !textPixels.empty()) {
+  // Animate if enabled, we have a text bitmap, and we're in clock mode
+  if (animate && !textPixels.empty() && currentMode == MODE_CLOCK) {
     uint32_t now = millis();
     if (now - lastAnim >= animSpeedMs) {
       // DEBUG: Animation loop is running

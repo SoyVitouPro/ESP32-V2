@@ -727,65 +727,116 @@
           }
         };
 
-        // Override main system's setupThemeControlHandlers to ensure font size buttons work
+        // AGGRESSIVE FONT SIZE CONTROL SETUP - Force it to work
+        console.log('🔧 Setting up AGGRESSIVE font size control handlers...');
+
+        // Set up font size controls repeatedly to ensure they work
+        const setupFontSizeControls = function() {
+          console.log('🔧 setupFontSizeControls() called');
+
+          const buttons = document.querySelectorAll('.theme-font-size-box');
+          console.log('🔍 Found font size buttons:', buttons.length);
+
+          if (buttons.length === 0) {
+            console.log('❌ No font size buttons found yet, retrying...');
+            return false;
+          }
+
+          buttons.forEach((btn, i) => {
+            console.log(`🔧 Setting up handler for button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size, 'active:', btn.classList.contains('active'));
+
+            // Remove all existing event listeners by cloning
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+
+            // Add aggressive click handler
+            newBtn.addEventListener('click', function(e) {
+              e.preventDefault();
+              console.log('🖱️ AGGRESSIVE Font size button clicked!', this.dataset.size, this.textContent);
+
+              // Visual feedback
+              buttons.forEach(b => b.classList.remove('active'));
+              this.classList.add('active');
+
+              // Convert to number
+              const size = parseInt(this.dataset.size);
+              console.log('📏 Font size value:', size, '(type:', typeof size, ')');
+
+              // Test if updateThemeSetting exists
+              if (typeof window.updateThemeSetting === 'function') {
+                console.log('✅ window.updateThemeSetting exists, calling with fontSize =', size);
+
+                // Call the function
+                window.updateThemeSetting('fontSize', size);
+                console.log('✅ updateThemeSetting called for fontSize successfully');
+              } else {
+                console.log('❌ window.updateThemeSetting not found! Current window object:', window);
+                console.log('🔍 Available functions:', Object.keys(window).filter(k => typeof window[k] === 'function'));
+              }
+            });
+
+            // Add visual hover effects
+            newBtn.style.cursor = 'pointer';
+            newBtn.addEventListener('mouseover', function() {
+              console.log('🖱️ Hovering over font size button:', this.dataset.size);
+            });
+          });
+
+          return true;
+        };
+
+        // Try to set up controls immediately
+        const immediateSetup = setupFontSizeControls();
+        if (immediateSetup) {
+          console.log('✅ Immediate font size control setup successful');
+        }
+
+        // Set up override for main system's function
         if (typeof window.setupThemeControlHandlers === 'function') {
           const originalSetupThemeControlHandlers = window.setupThemeControlHandlers;
 
           window.setupThemeControlHandlers = function() {
-            console.log('🔧 Enhanced setupThemeControlHandlers called');
+            console.log('🔧 Override setupThemeControlHandlers called');
 
-            // Call original function first
+            // Call original function
             if (typeof originalSetupThemeControlHandlers === 'function') {
-              originalSetupThemeControlHandlers();
+              originalSetupControlHandlers();
               console.log('✅ Original setupThemeControlHandlers completed');
             }
 
-            // Then manually set up font size button event handlers
+            // Ensure our font size controls are set up
             setTimeout(() => {
-              const buttons = document.querySelectorAll('.theme-font-size-box');
-              console.log('🔍 Enhanced: Found theme font size buttons:', buttons.length);
-
-              if (buttons.length > 0) {
-                buttons.forEach((btn, i) => {
-                  console.log(`🔧 Setting up enhanced handler for button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size);
-
-                  // Remove any existing listeners to avoid duplicates
-                  const newBtn = btn.cloneNode(true);
-                  btn.parentNode.replaceChild(newBtn, btn);
-
-                  // Add our enhanced click handler
-                  newBtn.addEventListener('click', function(e) {
-                    console.log('🖱️ Enhanced Font size button clicked:', this.dataset.size);
-
-                    // Remove active class from all buttons
-                    buttons.forEach(b => b.classList.remove('active'));
-                    // Add active class to clicked button
-                    this.classList.add('active');
-
-                    // Get the size value
-                    const size = parseInt(this.dataset.size);
-                    console.log('📏 Converting font size to number:', size, '(type:', typeof size, ')');
-
-                    // Call updateThemeSetting
-                    if (typeof window.updateThemeSetting === 'function') {
-                      window.updateThemeSetting('fontSize', size);
-                      console.log('✅ Enhanced updateThemeSetting called for fontSize:', size);
-                    } else {
-                      console.log('❌ window.updateThemeSetting not found!');
-                    }
-                  });
-                });
-                console.log('✅ Enhanced font size button handlers setup completed');
+              const retrySetup = setupFontSizeControls();
+              if (retrySetup) {
+                console.log('✅ Retry font size control setup successful');
               } else {
-                console.log('❌ No theme font size buttons found!');
+                console.log('⚠️ Retry font size control setup failed');
               }
-            }, 200); // Small delay to ensure DOM is ready
+            }, 300);
           };
 
-          console.log('🔧 Enhanced setupThemeControlHandlers override installed');
+          console.log('🔧 setupThemeControlHandlers override installed');
         } else {
-          console.log('❌ setupThemeControlHandlers function not found in window!');
+          console.log('❌ setupThemeControlHandlers function not found, retrying...');
+          // Keep trying to set up
+          setInterval(() => {
+            const retrySetup = setupFontSizeControls();
+            if (retrySetup) {
+              console.log('✅ Interval retry font size control setup successful');
+            }
+          }, 1000);
         }
+
+        // Also set up on click anywhere on the page (force it)
+        document.addEventListener('click', function(e) {
+          if (e.target.classList && e.target.classList.contains('theme-font-size-box')) {
+            console.log('🖱️ DOCUMENT-level click detected on font size button');
+            setTimeout(() => {
+              const retrySetup = setupFontSizeControls();
+              console.log('🔄 Post-click font size control setup:', retrySetup);
+            }, 100);
+          }
+        }, true);
 
         // Add function to check what main system controls are doing
         window.debugMainSystemControls = function() {

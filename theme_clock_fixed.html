@@ -339,9 +339,9 @@
       pulseAnimation: false
     };
 
-    // Canvas context for preview
+    // Canvas context for preview (only available in standalone mode)
     const canvas = document.getElementById('themeCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas ? canvas.getContext('2d') : null;
     let animationFrame = null;
     let pulseScale = 1.0;
     let pulseDirection = 1;
@@ -349,11 +349,14 @@
     const TARGET_FPS = 30; // Consistent 30 FPS for smooth animation
     const FRAME_INTERVAL = 1000 / TARGET_FPS; // ~33ms per frame
 
-    // LED grid scaling
+    // LED grid scaling (only used in standalone mode)
     const LED_SIZE = 20; // Each LED pixel is 20px
     const LED_PANEL_WIDTH = 128; // Original LED panel width
     const LED_PANEL_HEIGHT = 64; // Original LED panel height
     const CANVAS_SCALE = LED_SIZE; // Scale factor for rendering
+
+    // Check if running in standalone mode
+    const isStandaloneMode = !!canvas;
 
     // Color Presets (for reference)
     const colorPresets = {
@@ -445,8 +448,11 @@
       }
     }
 
-    // === PREVIEW ANIMATION ===
+    // === PREVIEW ANIMATION (standalone mode only) ===
     function animate(currentTime) {
+      // Only animate if in standalone mode and canvas exists
+      if (!isStandaloneMode || !ctx) return;
+
       // Check if enough time has passed for the target FPS
       if (currentTime - lastUpdateTime >= FRAME_INTERVAL) {
         // Update pulse animation (with delta time for consistent speed)
@@ -484,8 +490,14 @@
       }
     }
 
-    // === CONTROL EVENT HANDLERS ===
+    // === CONTROL EVENT HANDLERS (standalone mode only) ===
     function setupThemeControlHandlers() {
+      // Only setup handlers in standalone mode
+      if (!isStandaloneMode) {
+        console.log('🎛️ Skipping control handlers - running in main system mode');
+        return;
+      }
+
       console.log('🎛️ Setting up theme control handlers...');
 
       // Font size buttons
@@ -598,23 +610,28 @@
 
     // === INITIALIZATION ===
     function initializeTheme() {
-      console.log('🚀 Initializing Standalone Digital Clock Theme...');
+      if (isStandaloneMode) {
+        console.log('🚀 Initializing Standalone Digital Clock Theme...');
 
-      // Setup control handlers
-      setupThemeControlHandlers();
+        // Setup control handlers
+        setupThemeControlHandlers();
 
-      // Set initial values from controls
-      updateThemeSetting('textColor', document.getElementById('themeTextColor').value);
-      updateThemeSetting('bgColor', document.getElementById('themeBgColor').value);
-      updateThemeSetting('timeFormat', document.getElementById('themeTimeFormat').value);
-      updateThemeSetting('showSeconds', document.getElementById('themeShowSeconds').checked);
-      updateThemeSetting('pulseAnimation', document.getElementById('themePulseAnimation').checked);
+        // Set initial values from controls
+        updateThemeSetting('textColor', document.getElementById('themeTextColor').value);
+        updateThemeSetting('bgColor', document.getElementById('themeBgColor').value);
+        updateThemeSetting('timeFormat', document.getElementById('themeTimeFormat').value);
+        updateThemeSetting('showSeconds', document.getElementById('themeShowSeconds').checked);
+        updateThemeSetting('pulseAnimation', document.getElementById('themePulseAnimation').checked);
 
-      // Start animation with proper timing initialization
-      lastUpdateTime = performance.now();
-      animate(lastUpdateTime);
+        // Start animation with proper timing initialization
+        lastUpdateTime = performance.now();
+        animate(lastUpdateTime);
 
-      console.log('✅ Standalone Digital Clock Theme loaded and ready!');
+        console.log('✅ Standalone Digital Clock Theme loaded and ready!');
+      } else {
+        console.log('📦 Digital Clock Theme loaded for main system');
+      }
+
       console.log('🔧 themeInit exists:', typeof themeInit);
       console.log('🎭 themeRender exists:', typeof themeRender);
     }

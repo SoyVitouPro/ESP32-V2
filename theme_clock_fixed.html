@@ -478,7 +478,7 @@
     }
 
     // === THEME SETTINGS UPDATE ===
-    function updateThemeSetting(setting, value) {
+    function updateThemeSettingFunction(setting, value) {
       themeSettings[setting] = value;
       console.log(`Theme setting updated: ${setting} = ${value}`);
 
@@ -517,7 +517,7 @@
           this.classList.add('active');
           // Update theme setting
           const size = parseInt(this.getAttribute('data-size'));
-          updateThemeSetting('fontSize', size);
+          updateThemeSettingFunction('fontSize', size);
         });
       });
 
@@ -526,7 +526,7 @@
       const textColorHex = document.getElementById('textColorHex');
       if (themeTextColor && textColorHex) {
         themeTextColor.addEventListener('input', (e) => {
-          updateThemeSetting('textColor', e.target.value);
+          updateThemeSettingFunction('textColor', e.target.value);
         });
       }
 
@@ -535,7 +535,7 @@
       const bgColorHex = document.getElementById('bgColorHex');
       if (themeBgColor && bgColorHex) {
         themeBgColor.addEventListener('input', (e) => {
-          updateThemeSetting('bgColor', e.target.value);
+          updateThemeSettingFunction('bgColor', e.target.value);
         });
       }
 
@@ -543,7 +543,7 @@
       const themeTimeFormat = document.getElementById('themeTimeFormat');
       if (themeTimeFormat) {
         themeTimeFormat.addEventListener('change', (e) => {
-          updateThemeSetting('timeFormat', e.target.value);
+          updateThemeSettingFunction('timeFormat', e.target.value);
         });
       }
 
@@ -551,7 +551,7 @@
       const themeShowSeconds = document.getElementById('themeShowSeconds');
       if (themeShowSeconds) {
         themeShowSeconds.addEventListener('change', (e) => {
-          updateThemeSetting('showSeconds', e.target.checked);
+          updateThemeSettingFunction('showSeconds', e.target.checked);
         });
       }
 
@@ -559,7 +559,7 @@
       const themePulseAnimation = document.getElementById('themePulseAnimation');
       if (themePulseAnimation) {
         themePulseAnimation.addEventListener('change', (e) => {
-          updateThemeSetting('pulseAnimation', e.target.checked);
+          updateThemeSettingFunction('pulseAnimation', e.target.checked);
         });
       }
 
@@ -580,9 +580,9 @@
         window.updateThemeSetting = function(setting, value) {
           console.log('🔄 Enhanced updateThemeSetting called:', setting, '=', value);
 
-          // Call our theme's updateThemeSetting first to persist globally
-          if (typeof updateThemeSetting === 'function') {
-            updateThemeSetting(setting, value);
+          // Call our theme's internal updateThemeSettingFunction first to persist globally
+          if (typeof updateThemeSettingFunction === 'function') {
+            updateThemeSettingFunction(setting, value);
           }
 
           // Then call the original main system function for preview updates
@@ -671,19 +671,19 @@
 
         // Update themeSettings with control values (or use existing if already set)
         if (!themeSettings.textColor || themeSettings.textColor === '#00ff00') {
-          updateThemeSetting('textColor', savedTextColor);
+          updateThemeSettingFunction('textColor', savedTextColor);
         }
         if (!themeSettings.bgColor || themeSettings.bgColor === '#000000') {
-          updateThemeSetting('bgColor', savedBgColor);
+          updateThemeSettingFunction('bgColor', savedBgColor);
         }
         if (!themeSettings.timeFormat) {
-          updateThemeSetting('timeFormat', savedTimeFormat);
+          updateThemeSettingFunction('timeFormat', savedTimeFormat);
         }
         if (typeof themeSettings.showSeconds === 'undefined') {
-          updateThemeSetting('showSeconds', savedShowSeconds);
+          updateThemeSettingFunction('showSeconds', savedShowSeconds);
         }
         if (typeof themeSettings.pulseAnimation === 'undefined') {
-          updateThemeSetting('pulseAnimation', savedPulseAnimation);
+          updateThemeSettingFunction('pulseAnimation', savedPulseAnimation);
         }
 
         // Start animation with proper timing initialization
@@ -697,6 +697,12 @@
 
       console.log('🔧 themeInit exists:', typeof themeInit);
       console.log('🎭 themeRender exists:', typeof themeRender);
+
+      // Expose theme's internal updateThemeSettingFunction for direct access
+      if (typeof window !== 'undefined') {
+        window._themeInternalUpdateSetting = updateThemeSettingFunction;
+        console.log('🌐 Theme internal updateSetting exposed as _themeInternalUpdateSetting');
+      }
     }
 
     // Initialize when DOM is ready

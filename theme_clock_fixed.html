@@ -321,6 +321,9 @@
     let animationFrame = null;
     let pulseScale = 1.0;
     let pulseDirection = 1;
+    let lastUpdateTime = 0;
+    const TARGET_FPS = 30; // Consistent 30 FPS for smooth animation
+    const FRAME_INTERVAL = 1000 / TARGET_FPS; // ~33ms per frame
 
     // Color Presets (for reference)
     const colorPresets = {
@@ -397,19 +400,26 @@
     }
 
     // === PREVIEW ANIMATION ===
-    function animate() {
-      // Update pulse animation
-      if (themeSettings.pulseAnimation) {
-        pulseScale += 0.005 * pulseDirection;
-        if (pulseScale >= 1.1 || pulseScale <= 0.9) {
-          pulseDirection *= -1;
+    function animate(currentTime) {
+      // Check if enough time has passed for the target FPS
+      if (currentTime - lastUpdateTime >= FRAME_INTERVAL) {
+        // Update pulse animation (with delta time for consistent speed)
+        if (themeSettings.pulseAnimation) {
+          const deltaTime = (currentTime - lastUpdateTime) / 1000; // Convert to seconds
+          pulseScale += 0.5 * deltaTime * pulseDirection; // 0.5 units per second
+          if (pulseScale >= 1.1 || pulseScale <= 0.9) {
+            pulseDirection *= -1;
+          }
+        } else {
+          pulseScale = 1.0;
         }
-      } else {
-        pulseScale = 1.0;
-      }
 
-      // Render frame
-      renderTheme(ctx, canvas.width, canvas.height);
+        // Render frame
+        renderTheme(ctx, canvas.width, canvas.height);
+
+        // Update last frame time
+        lastUpdateTime = currentTime;
+      }
 
       // Continue animation
       animationFrame = requestAnimationFrame(animate);
@@ -553,8 +563,9 @@
       updateThemeSetting('showSeconds', document.getElementById('themeShowSeconds').checked);
       updateThemeSetting('pulseAnimation', document.getElementById('themePulseAnimation').checked);
 
-      // Start animation
-      animate();
+      // Start animation with proper timing initialization
+      lastUpdateTime = performance.now();
+      animate(lastUpdateTime);
 
       console.log('✅ Standalone Digital Clock Theme loaded and ready!');
       console.log('🔧 themeInit exists:', typeof themeInit);

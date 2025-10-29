@@ -482,11 +482,18 @@
       themeSettings[setting] = value;
       console.log(`Theme setting updated: ${setting} = ${value}`);
 
-      // Update displays
-      if (setting === 'textColor') {
-        document.getElementById('textColorHex').textContent = value;
-      } else if (setting === 'bgColor') {
-        document.getElementById('bgColorHex').textContent = value;
+      // Store settings globally so they persist in main system
+      if (typeof window !== 'undefined') {
+        window._digitalClockThemeSettings = { ...themeSettings };
+      }
+
+      // Update displays (only in standalone mode)
+      if (isStandaloneMode) {
+        if (setting === 'textColor') {
+          document.getElementById('textColorHex').textContent = value;
+        } else if (setting === 'bgColor') {
+          document.getElementById('bgColorHex').textContent = value;
+        }
       }
     }
 
@@ -562,6 +569,15 @@
     // === REQUIRED THEME FUNCTIONS (for main system) ===
     function themeInit() {
       console.log('🕐 Digital Clock Theme Initialized (Standalone)');
+
+      // Load persisted settings if available
+      if (typeof window !== 'undefined' && window._digitalClockThemeSettings) {
+        Object.assign(themeSettings, window._digitalClockThemeSettings);
+        console.log('📋 Loaded persisted theme settings:', themeSettings);
+      } else {
+        console.log('📋 Using default theme settings:', themeSettings);
+      }
+
       return { settings: { ...themeSettings } };
     }
 
@@ -613,15 +629,38 @@
       if (isStandaloneMode) {
         console.log('🚀 Initializing Standalone Digital Clock Theme...');
 
+        // Load persisted settings if available
+        if (typeof window !== 'undefined' && window._digitalClockThemeSettings) {
+          Object.assign(themeSettings, window._digitalClockThemeSettings);
+          console.log('📋 Loaded persisted settings on init:', themeSettings);
+        }
+
         // Setup control handlers
         setupThemeControlHandlers();
 
-        // Set initial values from controls
-        updateThemeSetting('textColor', document.getElementById('themeTextColor').value);
-        updateThemeSetting('bgColor', document.getElementById('themeBgColor').value);
-        updateThemeSetting('timeFormat', document.getElementById('themeTimeFormat').value);
-        updateThemeSetting('showSeconds', document.getElementById('themeShowSeconds').checked);
-        updateThemeSetting('pulseAnimation', document.getElementById('themePulseAnimation').checked);
+        // Set initial values from controls (or use persisted values)
+        const savedTextColor = document.getElementById('themeTextColor').value;
+        const savedBgColor = document.getElementById('themeBgColor').value;
+        const savedTimeFormat = document.getElementById('themeTimeFormat').value;
+        const savedShowSeconds = document.getElementById('themeShowSeconds').checked;
+        const savedPulseAnimation = document.getElementById('themePulseAnimation').checked;
+
+        // Update themeSettings with control values (or use existing if already set)
+        if (!themeSettings.textColor || themeSettings.textColor === '#00ff00') {
+          updateThemeSetting('textColor', savedTextColor);
+        }
+        if (!themeSettings.bgColor || themeSettings.bgColor === '#000000') {
+          updateThemeSetting('bgColor', savedBgColor);
+        }
+        if (!themeSettings.timeFormat) {
+          updateThemeSetting('timeFormat', savedTimeFormat);
+        }
+        if (typeof themeSettings.showSeconds === 'undefined') {
+          updateThemeSetting('showSeconds', savedShowSeconds);
+        }
+        if (typeof themeSettings.pulseAnimation === 'undefined') {
+          updateThemeSetting('pulseAnimation', savedPulseAnimation);
+        }
 
         // Start animation with proper timing initialization
         lastUpdateTime = performance.now();

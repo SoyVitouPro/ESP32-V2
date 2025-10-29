@@ -1238,10 +1238,8 @@
 
         console.log('Theme loading completed successfully!');
 
-        // Auto-start streaming when theme is loaded
-        setTimeout(() => {
-          startThemeStreaming();
-        }, 500);
+        // Theme will only start when user clicks Apply button (no auto-start)
+        console.log('📝 Theme loaded. Click Apply to start streaming.');
       } catch (e) {
         console.error('Theme loading error:', e);
         alert('Theme error: ' + e.message);

@@ -673,6 +673,29 @@
 
       console.log('🔧 themeInit exists:', typeof themeInit);
       console.log('🎭 themeRender exists:', typeof themeRender);
+
+      // Override main system's updateThemeSetting to ensure theme persistence
+      if (typeof window !== 'undefined') {
+        // Save any existing main system updateThemeSetting function
+        const originalUpdateThemeSetting = window.updateThemeSetting;
+
+        // Create enhanced updateThemeSetting that calls both functions
+        window.updateThemeSetting = function(setting, value) {
+          console.log('🔄 Enhanced updateThemeSetting called:', setting, '=', value);
+
+          // Call our theme's updateThemeSetting first to persist globally
+          if (typeof updateThemeSetting === 'function') {
+            updateThemeSetting(setting, value);
+          }
+
+          // Then call the original main system function for preview updates
+          if (typeof originalUpdateThemeSetting === 'function') {
+            originalUpdateThemeSetting(setting, value);
+          }
+        };
+
+        console.log('🔧 Enhanced updateThemeSetting with theme persistence enabled');
+      }
     }
 
     // Initialize when DOM is ready

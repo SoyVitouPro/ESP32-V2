@@ -727,21 +727,75 @@
           }
         };
 
+        // Override main system's setupThemeControlHandlers to ensure font size buttons work
+        if (typeof window.setupThemeControlHandlers === 'function') {
+          const originalSetupThemeControlHandlers = window.setupThemeControlHandlers;
+
+          window.setupThemeControlHandlers = function() {
+            console.log('🔧 Enhanced setupThemeControlHandlers called');
+
+            // Call original function first
+            if (typeof originalSetupThemeControlHandlers === 'function') {
+              originalSetupThemeControlHandlers();
+              console.log('✅ Original setupThemeControlHandlers completed');
+            }
+
+            // Then manually set up font size button event handlers
+            setTimeout(() => {
+              const buttons = document.querySelectorAll('.theme-font-size-box');
+              console.log('🔍 Enhanced: Found theme font size buttons:', buttons.length);
+
+              if (buttons.length > 0) {
+                buttons.forEach((btn, i) => {
+                  console.log(`🔧 Setting up enhanced handler for button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size);
+
+                  // Remove any existing listeners to avoid duplicates
+                  const newBtn = btn.cloneNode(true);
+                  btn.parentNode.replaceChild(newBtn, btn);
+
+                  // Add our enhanced click handler
+                  newBtn.addEventListener('click', function(e) {
+                    console.log('🖱️ Enhanced Font size button clicked:', this.dataset.size);
+
+                    // Remove active class from all buttons
+                    buttons.forEach(b => b.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+
+                    // Get the size value
+                    const size = parseInt(this.dataset.size);
+                    console.log('📏 Converting font size to number:', size, '(type:', typeof size, ')');
+
+                    // Call updateThemeSetting
+                    if (typeof window.updateThemeSetting === 'function') {
+                      window.updateThemeSetting('fontSize', size);
+                      console.log('✅ Enhanced updateThemeSetting called for fontSize:', size);
+                    } else {
+                      console.log('❌ window.updateThemeSetting not found!');
+                    }
+                  });
+                });
+                console.log('✅ Enhanced font size button handlers setup completed');
+              } else {
+                console.log('❌ No theme font size buttons found!');
+              }
+            }, 200); // Small delay to ensure DOM is ready
+          };
+
+          console.log('🔧 Enhanced setupThemeControlHandlers override installed');
+        } else {
+          console.log('❌ setupThemeControlHandlers function not found in window!');
+        }
+
         // Add function to check what main system controls are doing
         window.debugMainSystemControls = function() {
           const buttons = document.querySelectorAll('.theme-font-size-box');
           console.log('🔍 DEBUG: Found theme font size buttons:', buttons.length);
           buttons.forEach((btn, i) => {
             console.log(`Button ${i}:`, btn.textContent, 'data-size:', btn.dataset.size, 'active:', btn.classList.contains('active'));
-            // Test clicking button manually
-            btn.addEventListener('click', function() {
-              console.log('🖱️ DEBUG: Font size button clicked manually!', this.dataset.size);
-              if (typeof window.updateThemeSetting === 'function') {
-                window.updateThemeSetting('fontSize', parseInt(this.dataset.size));
-              } else {
-                console.log('❌ DEBUG: window.updateThemeSetting not found!');
-              }
-            });
+            // Check event listeners
+            const events = getEventListeners ? getEventListeners(btn) : 'N/A';
+            console.log(`Button ${i} events:`, events);
           });
         };
 

@@ -201,12 +201,12 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
   display: flex; flex-direction: column; gap: 12px; width: 100%;
 }
 
-.font-size-box, .brightness-box, .speed-box, .interval-box {
+.font-size-box, .brightness-box, .speed-box, .interval-box, .x-gap-box {
   width: 35px; height: 30px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; position: relative; padding: 0; margin: 0; border: 2px solid #333; font-weight: 500; background: #233040; color: var(--fg);
   display: inline-flex; align-items: center; justify-content: center; font-size: 11px;
 }
-.font-size-box:hover, .brightness-box:hover, .speed-box:hover, .interval-box:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-.font-size-box.active, .brightness-box.active, .speed-box.active, .interval-box.active { border-color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }
+.font-size-box:hover, .brightness-box:hover, .speed-box:hover, .interval-box:hover, .x-gap-box:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.font-size-box.active, .brightness-box.active, .speed-box.active, .interval-box.active, .x-gap-box.active { border-color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }
 
 /* Theme font size boxes */
 .theme-font-size-box {

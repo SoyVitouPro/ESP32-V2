@@ -115,12 +115,14 @@
     const pw = 128, ph = 64;
     const size = parseInt($('fontSize').value, 10);
     const text = $('text').value;
+    const xGap = parseInt($('xGap').value, 10) || 0;
     const fam = getFontFamily();
     const font = `bold ${size}px ${fam}`;
 
     ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-    const m = ctx.measureText(text);
-    textW = Math.ceil(m.width);
+
+    // Calculate text width including character gaps
+    textW = Math.ceil(measureTextWithGap(ctx, text, xGap));
     textH = Math.ceil(size * 1.2);
     const gap = parseInt($('interval').value, 10) || 1;
     spacing = Math.max(1, textW + gap);
@@ -135,13 +137,56 @@
     }
     lastTs = 0; accMs = 0;
 
-    console.log(`Text animation initialized: "${text}" width=${textW}px, height=${textH}px, spacing=${spacing}, copies=${minCopies}`);
+    console.log(`Text animation initialized: "${text}" width=${textW}px, height=${textH}px, spacing=${spacing}, copies=${minCopies}, xGap=${xGap}`);
+  };
+
+  const drawTextWithGap = (ctx, text, x, y, gap) => {
+    if (gap === 0) {
+      // No gap, use normal fillText for performance
+      ctx.fillText(text, x, y);
+      return;
+    }
+
+    // Draw text character by character with gaps
+    let currentX = x;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      ctx.fillText(char, currentX, y);
+      const charWidth = ctx.measureText(char).width;
+      currentX += charWidth + gap;
+      // Add space between words automatically for better readability
+      if (char === ' ' && gap < 3) {
+        currentX += (3 - gap); // Ensure minimum word spacing
+      }
+    }
+  };
+
+  const measureTextWithGap = (ctx, text, gap) => {
+    if (gap === 0) {
+      return ctx.measureText(text).width;
+    }
+
+    // Calculate text width with character gaps
+    let totalWidth = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      totalWidth += ctx.measureText(char).width;
+      if (i < text.length - 1) {
+        totalWidth += gap;
+        // Add extra spacing for words when gap is small
+        if (char === ' ' && gap < 3) {
+          totalWidth += (3 - gap); // Ensure minimum word spacing
+        }
+      }
+    }
+    return totalWidth;
   };
 
   const drawPreviewFrame = (animated) => {
     const text = $('text').value;
     const fam = getFontFamily();
     const size = parseInt($('fontSize').value, 10);
+    const xGap = parseInt($('xGap').value, 10) || 0;
     const font = `bold ${size}px ${fam}`;
     const color = $('color').value;
     const bg = $('bg').value;
@@ -169,6 +214,9 @@
     const cy = Math.floor(ph * 0.5) + 2;
     ctx.font = font; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
 
+    // Update textW to include character gaps
+    textW = Math.ceil(measureTextWithGap(ctx, text, xGap));
+
     if (animated && text.length > 0) {
       ctx.textAlign = 'left';
       heads.forEach(headX => {
@@ -180,25 +228,26 @@
           ctx.beginPath();
           ctx.rect(0, 0, pw, ph);
           ctx.clip();
-          ctx.fillText(text, xLeft, cy);
+          drawTextWithGap(ctx, text, xLeft, cy, xGap);
           ctx.restore();
         }
       });
     } else {
-      ctx.textAlign = 'center';
+      ctx.textAlign = 'left'; // Use left alignment for consistent gap rendering
       // For static display, ensure text fits within bounds
       if (textW <= pw) {
-        ctx.fillText(text, Math.floor(pw * 0.5), cy);
+        drawTextWithGap(ctx, text, Math.floor((pw - textW) / 2), cy, xGap);
       } else {
         // If text is too long for static display, truncate it
         const maxWidth = pw - 4; // 2px margin on each side
         let truncated = text;
-        while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 0) {
+        while (measureTextWithGap(ctx, truncated + '...', xGap) > maxWidth && truncated.length > 0) {
           truncated = truncated.slice(0, -1);
         }
         if (truncated.length > 0) {
           truncated += '...';
-          ctx.fillText(truncated, Math.floor(pw * 0.5), cy);
+          const truncatedWidth = measureTextWithGap(ctx, truncated, xGap);
+          drawTextWithGap(ctx, truncated, Math.floor((pw - truncatedWidth) / 2), cy, xGap);
         }
       }
     }
@@ -1380,7 +1429,7 @@
     });
 
     // Config inputs (no auto preview except clock)
-    ['text','fontSize','color','bg','brightness','animate','dir','speed','interval'].forEach(id=>{
+    ['text','fontSize','color','bg','brightness','animate','dir','speed','interval','xGap'].forEach(id=>{
       $(id) && $(id).addEventListener('input', () => {});
     });
     ['clockSize','clockColor','clockBgColor'].forEach(id=>{
@@ -1463,6 +1512,15 @@
         document.querySelectorAll('.interval-box').forEach(b=>b.classList.remove('active'));
         box.classList.add('active');
         $('interval').value = box.getAttribute('data-interval');
+      });
+    });
+
+    // X-gap boxes
+    document.querySelectorAll('.x-gap-box').forEach(box=>{
+      box.addEventListener('click', () => {
+        document.querySelectorAll('.x-gap-box').forEach(b=>b.classList.remove('active'));
+        box.classList.add('active');
+        $('xGap').value = box.getAttribute('data-gap');
       });
     });
 
@@ -1659,25 +1717,28 @@
     let outCanvas = document.createElement('canvas');
     if ($('text').value.trim().length > 0) {
       const fam = getFontFamily(); const size = parseInt($('fontSize').value, 10);
+      const xGap = parseInt($('xGap').value, 10) || 0;
       const font = `bold ${size}px ${fam}`;
       const text = $('text').value;
       const t = document.createElement('canvas');
       const tctx = t.getContext('2d');
       tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
-      const metrics = tctx.measureText(text);
 
-      // Ensure canvas is large enough to hold the full text
-      let tw = Math.max(1, Math.ceil(metrics.width) + 8); // Add extra padding
+      // Calculate text width including character gaps
+      const textWidth = measureTextWithGap(tctx, text, xGap);
+
+      // Ensure canvas is large enough to hold the full text with gaps
+      let tw = Math.max(1, Math.ceil(textWidth) + 8); // Add extra padding
       let th = Math.max(1, Math.ceil(size * 1.2 + 8));
 
       // Log text dimensions for debugging
-      console.log(`Rendering text "${text}": width=${tw}px, height=${th}px, measured=${metrics.width}px`);
+      console.log(`Rendering text "${text}": width=${tw}px, height=${th}px, measured with gaps=${textWidth}px, xGap=${xGap}`);
 
       t.width = tw; t.height = th;
       tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
       tctx.fillStyle = $('color').value;
       const baseY = Math.floor(size * 1.0); // Adjust baseline for better positioning
-      tctx.fillText(text, 4, baseY); // Add small left margin
+      drawTextWithGap(tctx, text, 4, baseY, xGap); // Add small left margin
 
       const img = tctx.getImageData(0,0,t.width,t.height);
       const bb = cropImageData(img.data, t.width, t.height);

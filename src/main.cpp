@@ -12,6 +12,8 @@
 #include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
 #include <string.h>
 #include <vector>
+#include <nvs_flash.h>
+#include <nvs.h>
 
 // Panel configuration (defaults). Adjust via UI if needed.
 #ifndef PANEL_RES_X
@@ -90,6 +92,7 @@ static std::vector<uint8_t> g_panel_active; // 1=enabled, 0=disabled per physica
 
 // Render settings from client
 static uint16_t bgColor = 0x0000;           // RGB565 background
+static uint16_t textColor = 0xFFFF;          // ADD: RGB565 text color
 static int16_t userOffX = 0;                // base X offset
 static int16_t userOffY = 0;                // base Y offset
 static bool animate = false;                // scroll enable
@@ -108,6 +111,30 @@ static std::vector<int16_t> heads;         // multi-head array for continuous te
 // Display mode tracking
 enum DisplayMode { MODE_NONE, MODE_CLOCK, MODE_THEME };
 static DisplayMode currentMode = MODE_NONE;
+
+// Persistent storage structure
+struct LastSettings {
+  bool animate;
+  int8_t animDir;
+  uint16_t animSpeedMs;
+  int16_t loopOffsetPx;
+  uint16_t bgColor;
+  uint16_t textColor;        // ADD: Text color
+  uint16_t brightness;
+  DisplayMode mode;
+  bool hasText;
+  bool hasBgImage;
+  uint16_t textWidth;
+  uint16_t textHeight;
+  int16_t scrollX;           // Current scroll position
+  uint16_t spacing;          // Animation spacing
+  uint32_t savedTime;        // When the state was saved
+};
+
+static LastSettings lastSettings = {0};
+static std::vector<uint16_t> lastFrameBuffer;  // Store last displayed frame
+static uint8_t currentBrightness = 200;  // Track current brightness
+static uint32_t lastSaveTime = 0;  // Track when we last saved the frame
 
 // Panel helpers
 static inline int panelIndexFromXY(int x, int y) {
@@ -140,6 +167,321 @@ static const char* panelLabelForIndex(int idx) {
   int n = sizeof(labels)/sizeof(labels[0]);
   if (idx >= 0 && idx < n) return labels[idx];
   return "panel";
+}
+
+// Persistent storage functions
+static void saveLastSettings() {
+  nvs_handle_t nvs_handle;
+  esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+  if (err != ESP_OK) {
+    Serial.printf("Error opening NVS: %s\n", esp_err_to_name(err));
+    return;
+  }
+
+  // Update current settings
+  lastSettings.animate = animate;
+  lastSettings.animDir = animDir;
+  lastSettings.animSpeedMs = animSpeedMs;
+  lastSettings.loopOffsetPx = loopOffsetPx;
+  lastSettings.bgColor = bgColor;
+  lastSettings.textColor = textColor;  // ADD: Save text color
+  lastSettings.mode = currentMode;
+  lastSettings.hasText = !textPixels.empty();
+  lastSettings.hasBgImage = hasBgImage;
+  lastSettings.textWidth = imgW;
+  lastSettings.textHeight = imgH;
+
+  // Save current animation state - SIMPLE VERSION
+  lastSettings.scrollX = scrollX;
+  lastSettings.spacing = imgW + loopOffsetPx;
+  lastSettings.savedTime = millis();
+
+  // Save settings to NVS
+  nvs_set_u8(nvs_handle, "animate", lastSettings.animate ? 1 : 0);
+  nvs_set_i8(nvs_handle, "animDir", lastSettings.animDir);
+  nvs_set_u16(nvs_handle, "animSpeedMs", lastSettings.animSpeedMs);
+  nvs_set_i16(nvs_handle, "loopOffsetPx", lastSettings.loopOffsetPx);
+  nvs_set_u16(nvs_handle, "bgColor", lastSettings.bgColor);
+  nvs_set_u16(nvs_handle, "textColor", lastSettings.textColor);  // ADD: Save text color
+  nvs_set_u8(nvs_handle, "mode", static_cast<uint8_t>(lastSettings.mode));
+  nvs_set_u8(nvs_handle, "hasText", lastSettings.hasText ? 1 : 0);
+  nvs_set_u8(nvs_handle, "hasBgImage", lastSettings.hasBgImage ? 1 : 0);
+  nvs_set_u16(nvs_handle, "textWidth", lastSettings.textWidth);
+  nvs_set_u16(nvs_handle, "textHeight", lastSettings.textHeight);
+
+  // Save animation state
+  nvs_set_i16(nvs_handle, "scrollX", lastSettings.scrollX);
+  nvs_set_u16(nvs_handle, "spacing", lastSettings.spacing);
+  nvs_set_u32(nvs_handle, "savedTime", lastSettings.savedTime);
+
+  // Save brightness
+  nvs_set_u8(nvs_handle, "brightness", currentBrightness);
+  lastSettings.brightness = currentBrightness;
+
+  err = nvs_commit(nvs_handle);
+  if (err != ESP_OK) {
+    Serial.printf("Error committing NVS: %s\n", esp_err_to_name(err));
+  } else {
+    Serial.println("Settings saved to NVS");
+  }
+
+  nvs_close(nvs_handle);
+}
+
+static void loadLastSettings() {
+  nvs_handle_t nvs_handle;
+  esp_err_t err = nvs_open("storage", NVS_READONLY, &nvs_handle);
+  if (err != ESP_OK) {
+    Serial.println("No saved settings found, using defaults");
+    return;
+  }
+
+  // Load settings from NVS
+  uint8_t u8_val;
+  int8_t i8_val;
+  int16_t i16_val;
+  uint16_t u16_val;
+
+  if (nvs_get_u8(nvs_handle, "animate", &u8_val) == ESP_OK) {
+    lastSettings.animate = (u8_val == 1);
+    animate = lastSettings.animate;
+  }
+  if (nvs_get_i8(nvs_handle, "animDir", &i8_val) == ESP_OK) {
+    lastSettings.animDir = i8_val;
+    animDir = lastSettings.animDir;
+  }
+  if (nvs_get_u16(nvs_handle, "animSpeedMs", &u16_val) == ESP_OK) {
+    lastSettings.animSpeedMs = u16_val;
+    animSpeedMs = lastSettings.animSpeedMs;
+  }
+  if (nvs_get_i16(nvs_handle, "loopOffsetPx", &i16_val) == ESP_OK) {
+    lastSettings.loopOffsetPx = i16_val;
+    loopOffsetPx = lastSettings.loopOffsetPx;
+  }
+  if (nvs_get_u16(nvs_handle, "bgColor", &u16_val) == ESP_OK) {
+    lastSettings.bgColor = u16_val;
+    bgColor = lastSettings.bgColor;
+  }
+  if (nvs_get_u16(nvs_handle, "textColor", &u16_val) == ESP_OK) {  // ADD: Load text color
+    lastSettings.textColor = u16_val;
+    textColor = lastSettings.textColor;
+  }
+  if (nvs_get_u8(nvs_handle, "mode", &u8_val) == ESP_OK) {
+    lastSettings.mode = static_cast<DisplayMode>(u8_val);
+    currentMode = lastSettings.mode;
+  }
+  if (nvs_get_u8(nvs_handle, "hasText", &u8_val) == ESP_OK) {
+    lastSettings.hasText = (u8_val == 1);
+  }
+  if (nvs_get_u8(nvs_handle, "hasBgImage", &u8_val) == ESP_OK) {
+    lastSettings.hasBgImage = (u8_val == 1);
+    hasBgImage = lastSettings.hasBgImage;
+  }
+  if (nvs_get_u16(nvs_handle, "textWidth", &u16_val) == ESP_OK) {
+    lastSettings.textWidth = u16_val;
+    imgW = u16_val;
+  }
+  if (nvs_get_u16(nvs_handle, "textHeight", &u16_val) == ESP_OK) {
+    lastSettings.textHeight = u16_val;
+    imgH = u16_val;
+  }
+
+  // Load animation state
+  uint32_t u32_val;
+  if (nvs_get_i16(nvs_handle, "scrollX", &i16_val) == ESP_OK) {
+    lastSettings.scrollX = i16_val;
+    scrollX = i16_val;
+  }
+  if (nvs_get_u16(nvs_handle, "spacing", &u16_val) == ESP_OK) {
+    lastSettings.spacing = u16_val;
+  }
+  if (nvs_get_u32(nvs_handle, "savedTime", &u32_val) == ESP_OK) {
+    lastSettings.savedTime = u32_val;
+  }
+
+  if (nvs_get_u8(nvs_handle, "brightness", &u8_val) == ESP_OK) {
+    lastSettings.brightness = u8_val;
+    currentBrightness = u8_val;
+    if (dma_display) {
+      dma_display->setBrightness8(lastSettings.brightness);
+    }
+  }
+
+  nvs_close(nvs_handle);
+  Serial.println("Settings loaded from NVS");
+
+  // Animation restoration will be done after text is loaded in loadLastFrame
+  Serial.println("Animation settings loaded - will restore after text data is loaded");
+}
+
+static void saveLastFrame() {
+  if (frameBuffer.empty()) return;
+
+  // Save frame buffer to file
+  File file = LittleFS.open("/last_frame.rgb565", "w");
+  if (!file) {
+    Serial.println("Failed to open last frame file for writing");
+    return;
+  }
+
+  size_t bytesToWrite = frameBuffer.size() * sizeof(uint16_t);
+  size_t written = file.write(reinterpret_cast<const uint8_t*>(frameBuffer.data()), bytesToWrite);
+  file.close();
+
+  if (written == bytesToWrite) {
+    Serial.printf("Last frame saved: %u bytes\n", (unsigned)written);
+  } else {
+    Serial.printf("Error saving last frame: wrote %u of %u bytes\n", (unsigned)written, (unsigned)bytesToWrite);
+  }
+
+  // Also save text data if we have it (for animation restoration)
+  if (!textPixels.empty()) {
+    File textFile = LittleFS.open("/last_text.dat", "w");
+    if (textFile) {
+      // Save header with dimensions
+      uint8_t header[8];
+      header[0] = imgW & 255;
+      header[1] = (imgW >> 8) & 255;
+      header[2] = imgH & 255;
+      header[3] = (imgH >> 8) & 255;
+      header[4] = textAlpha.empty() ? 0 : 1; // Alpha flag
+      textFile.write(header, 4);
+
+      // Save text pixels
+      size_t textBytes = textPixels.size() * sizeof(uint16_t);
+      textFile.write(reinterpret_cast<const uint8_t*>(textPixels.data()), textBytes);
+
+      // Save alpha channel if present
+      if (!textAlpha.empty()) {
+        textFile.write(textAlpha.data(), textAlpha.size());
+      }
+
+      textFile.close();
+      Serial.printf("Text data saved: %u pixels\n", (unsigned)textPixels.size());
+    }
+  }
+}
+
+static void loadLastFrame() {
+  // Try to load text data first
+  File textFile = LittleFS.open("/last_text.dat", "r");
+  if (textFile) {
+    Serial.println("Loading saved text data...");
+
+    // Read header
+    uint8_t header[5];
+    if (textFile.read(header, 5) == 5) {
+      uint16_t savedImgW = header[0] | (header[1] << 8);
+      uint16_t savedImgH = header[2] | (header[3] << 8);
+      bool hasAlpha = (header[4] == 1);
+
+      // Load text pixels
+      size_t textPixelCount = savedImgW * savedImgH;
+      textPixels.resize(textPixelCount);
+      size_t textBytesToRead = textPixelCount * sizeof(uint16_t);
+      size_t textBytesRead = textFile.read(reinterpret_cast<uint8_t*>(textPixels.data()), textBytesToRead);
+
+      // Load alpha channel if present
+      if (hasAlpha && textBytesRead == textBytesToRead) {
+        textAlpha.resize(textPixelCount);
+        size_t alphaBytesRead = textFile.read(textAlpha.data(), textPixelCount);
+        if (alphaBytesRead == textPixelCount) {
+          Serial.printf("Text data loaded: %ux%u pixels with alpha\n", savedImgW, savedImgH);
+        } else {
+          Serial.printf("Error loading alpha channel: read %u of %u bytes\n", (unsigned)alphaBytesRead, (unsigned)textPixelCount);
+          textAlpha.clear();
+        }
+      } else {
+        textAlpha.clear();
+        Serial.printf("Text data loaded: %ux%u pixels without alpha\n", savedImgW, savedImgH);
+      }
+
+      if (textBytesRead == textBytesToRead) {
+        imgW = savedImgW;
+        imgH = savedImgH;
+      }
+    }
+    textFile.close();
+  }
+
+  // Load the frame buffer
+  File file = LittleFS.open("/last_frame.rgb565", "r");
+  if (!file) {
+    Serial.println("No last frame file found");
+    return;
+  }
+
+  size_t fileSize = file.size();
+  size_t expectedSize = VIRT_W() * VIRT_H() * sizeof(uint16_t);
+
+  if (fileSize != expectedSize) {
+    Serial.printf("Last frame size mismatch: %u bytes, expected %u bytes\n", (unsigned)fileSize, (unsigned)expectedSize);
+    file.close();
+    return;
+  }
+
+  // Resize frame buffer and load data
+  frameBuffer.resize(VIRT_W() * VIRT_H());
+  size_t read = file.read(reinterpret_cast<uint8_t*>(frameBuffer.data()), fileSize);
+  file.close();
+
+  if (read == fileSize) {
+    Serial.printf("Last frame loaded: %u bytes\n", (unsigned)read);
+
+    // Display the last frame immediately
+    if (vdisplay && !frameBuffer.empty()) {
+      vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
+      Serial.println("Last frame displayed on startup");
+    }
+
+    // Restore animation if needed - SIMPLE VERSION
+    if (lastSettings.animate && lastSettings.hasText && !textPixels.empty()) {
+      Serial.println("Restoring simple animation state");
+
+      // Initialize basic animation state
+      baseY = (int)VIRT_H() / 2 - (int)imgH / 2 + userOffY;
+      currentMode = MODE_CLOCK; // Set to clock mode to enable animation loop
+
+      // Simple spacing calculation
+      int spacing = imgW + loopOffsetPx;
+      if (spacing < 1) spacing = 1;
+
+      // IMPROVED: Ensure enough copies for seamless scrolling
+      // Need enough copies to cover screen width + extra buffer
+      const int minCopiesNeeded = (VIRT_W() / spacing) + 2; // Minimum to cover screen
+      const int totalCopies = (minCopiesNeeded > 4) ? minCopiesNeeded : 4; // Always have at least 4 copies
+      heads.clear();
+      heads.reserve(totalCopies);
+
+      // Simple restart from beginning (no complex time compensation)
+      if (animDir < 0) { // left scrolling - start from right edge
+        for (int i = 0; i < totalCopies; i++) {
+          heads.push_back(VIRT_W() + (i * spacing));
+        }
+      } else { // right scrolling - start from left edge
+        for (int i = 0; i < totalCopies; i++) {
+          heads.push_back(-imgW - (i * spacing));
+        }
+      }
+
+      // Use saved scroll position if valid, otherwise start fresh
+      if (lastSettings.scrollX != 0) {
+        scrollX = lastSettings.scrollX;
+        Serial.printf("Using saved scroll position: %d\n", scrollX);
+      } else {
+        scrollX = 0;
+        Serial.println("Starting scroll from position 0");
+      }
+
+      Serial.printf("Animation restored: %d heads, spacing=%d, direction=%s, scrollX=%d, loopOffset=%d\n",
+                    totalCopies, spacing, (animDir < 0) ? "left" : "right", scrollX, loopOffsetPx);
+
+      waitingRestart = false;
+      lastAnim = millis(); // Start animation immediately
+    }
+  } else {
+    Serial.printf("Error loading last frame: read %u of %u bytes\n", (unsigned)read, (unsigned)fileSize);
+  }
 }
 
 static int indexFromToken(const String& tok) {
@@ -292,6 +634,7 @@ void handleUploadDone() {
 
   // Read options - force centering but USE ANIMATION SETTINGS
   bgColor = hexTo565(server.arg("bg"));
+  textColor = hexTo565(server.arg("color"));  // ADD: Read text color from upload
   userOffX = 0; // Force center horizontally
   userOffY = 0; // Force center vertically
 
@@ -310,6 +653,7 @@ void handleUploadDone() {
   if (server.hasArg("brightness")) {
     int bp = constrain(server.arg("brightness").toInt(), 0, 100);
     uint8_t b8 = (uint8_t)((bp * 255) / 100);
+    currentBrightness = b8;
     dma_display->setBrightness8(b8);
   }
   // Clear cached bg image if switching to plain color
@@ -412,6 +756,10 @@ void handleUploadDone() {
       maskDisabledPanels();
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
     }
+
+    // Save settings and last frame
+    saveLastSettings();
+    saveLastFrame();
   }
   server.send(200, "text/plain", "OK");
 }
@@ -449,6 +797,10 @@ void handleUploadBgData() {
     if (textPixels.empty()) {
       if (bgPixels.size() == (size_t)VIRT_W() * (size_t)VIRT_H()) {
         vdisplay->drawRGBBitmap(0, 0, bgPixels.data(), VIRT_W(), VIRT_H());
+        // Save background as last frame
+        frameBuffer = bgPixels;
+        saveLastSettings();
+        saveLastFrame();
       } else {
         vdisplay->fillScreen(bgColor);
       }
@@ -506,6 +858,17 @@ void setup() {
   Serial.begin(115200);
   delay(100);
   Serial.println("Starting HUB75 + WebServer for Khmer text...");
+
+  // Initialize NVS
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    // NVS partition was truncated and needs to be erased
+    Serial.println("Erasing NVS flash...");
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    err = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(err);
+  Serial.println("NVS initialized");
 
   randomSeed(micros());
 
@@ -567,6 +930,10 @@ void setup() {
   } else {
     Serial.println("LittleFS mounted");
   }
+
+  // Load saved settings and last frame
+  loadLastSettings();
+  loadLastFrame();
 
   // Bring up Wi-Fi AP and web server
   WiFi.mode(WIFI_AP);
@@ -744,9 +1111,18 @@ void loop() {
       }
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
 
+      // Auto-save frame every 5 seconds during animation
+      uint32_t currentTime = millis();
+      if (currentTime - lastSaveTime >= 5000) {
+        saveLastFrame();
+        lastSaveTime = currentTime;
+        // Serial.println("Auto-saved frame during animation");
+      }
+
       // advance all heads
       int gap = (int)loopOffsetPx;
-      int spacing = (int)imgW + gap; if (spacing < 1) spacing = 1;
+      int spacing = (int)imgW + gap;
+      if (spacing < 1) spacing = 1; // Ensure minimum spacing
 
       if (animDir < 0) { // left scrolling
         // Move all heads left
@@ -754,7 +1130,7 @@ void loop() {
           heads[i] -= 1;
         }
 
-        // Recycle any head that goes completely off screen
+        // Recycle any head that goes completely off screen - FIXED VERSION
         for (int i = 0; i < (int)heads.size(); i++) {
           if (heads[i] + imgW <= 0) {
             // Find the rightmost head to position after it
@@ -762,7 +1138,10 @@ void loop() {
             for (int j = 1; j < (int)heads.size(); j++) {
               if (heads[j] > rightmost) rightmost = heads[j];
             }
+            // Position immediately after the rightmost head with proper spacing
             heads[i] = rightmost + spacing;
+            // Debug: ensure smooth transition
+            // Serial.printf("Recycled head %d: old pos=%d, new pos=%d, spacing=%d\n", i, heads[i] - spacing, heads[i], spacing);
           }
         }
       } else { // right scrolling
@@ -771,7 +1150,7 @@ void loop() {
           heads[i] += 1;
         }
 
-        // Recycle any head that goes completely off screen
+        // Recycle any head that goes completely off screen - FIXED VERSION
         for (int i = 0; i < (int)heads.size(); i++) {
           if (heads[i] >= VIRT_W()) {
             // Find the leftmost head to position before it
@@ -779,7 +1158,10 @@ void loop() {
             for (int j = 1; j < (int)heads.size(); j++) {
               if (heads[j] < leftmost) leftmost = heads[j];
             }
+            // Position immediately before the leftmost head with proper spacing
             heads[i] = leftmost - spacing;
+            // Debug: ensure smooth transition
+            // Serial.printf("Recycled head %d: old pos=%d, new pos=%d, spacing=%d\n", i, heads[i] + spacing, heads[i], spacing);
           }
         }
       }

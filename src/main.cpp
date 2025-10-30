@@ -240,14 +240,22 @@ void handleUploadData() {
     if (uploadBuf.size() < 4) { server.send(400, "text/plain", "Bad image"); return; }
     imgW = uploadBuf[0] | (uploadBuf[1] << 8);
     imgH = uploadBuf[2] | (uploadBuf[3] << 8);
-    if (imgW == 0 || imgH == 0 || imgW > (uint16_t)VIRT_W() || imgH > (uint16_t)VIRT_H()) {
+    Serial.printf("Parsed image size: %ux%u\n", imgW, imgH);
+    // Allow text wider than panel for scrolling animation
+    // Set reasonable limits: max 4x panel width for long text
+    const uint16_t maxAllowedWidth = (uint16_t)VIRT_W() * 4;
+    if (imgW == 0 || imgH == 0 || imgW > maxAllowedWidth || imgH > (uint16_t)VIRT_H()) {
+      Serial.printf("Rejected invalid size: %ux%u (max: %ux%u)\n", imgW, imgH, maxAllowedWidth, (uint16_t)VIRT_H());
       server.send(400, "text/plain", "Invalid size");
       return;
     }
     size_t expected565 = 4 + (size_t)imgW * (size_t)imgH * 2;
     size_t expectedA8_565 = 4 + (size_t)imgW * (size_t)imgH * 3;
+    Serial.printf("Expected sizes: RGB565=%u, A8+RGB565=%u, received=%u\n", (unsigned)expected565, (unsigned)expectedA8_565, (unsigned)uploadBuf.size());
+
     if (uploadBuf.size() == expectedA8_565) {
       // Parse A8 + RGB565 interleaved
+      Serial.printf("Parsing A8+RGB565 format\n");
       textPixels.assign((size_t)imgW * (size_t)imgH, 0);
       textAlpha.assign((size_t)imgW * (size_t)imgH, 0);
       const uint8_t* p = &uploadBuf[4];
@@ -259,10 +267,12 @@ void handleUploadData() {
       }
     } else if (uploadBuf.size() == expected565) {
       // Legacy RGB565 only
+      Serial.printf("Parsing RGB565 format\n");
       const uint16_t* pixels = reinterpret_cast<const uint16_t*>(&uploadBuf[4]);
       textPixels.assign(pixels, pixels + (imgW * imgH));
       textAlpha.clear();
     } else {
+      Serial.printf("Size mismatch error: expected %u or %u bytes, got %u\n", (unsigned)expected565, (unsigned)expectedA8_565, (unsigned)uploadBuf.size());
       server.send(400, "text/plain", "Size mismatch");
       return;
     }

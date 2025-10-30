@@ -125,13 +125,17 @@
     const gap = parseInt($('interval').value, 10) || 1;
     spacing = Math.max(1, textW + gap);
 
-    const totalCopies = Math.ceil((pw + spacing * 2) / spacing) + 2;
+    // For long text, ensure we have enough copies to fill the screen
+    // Total copies needed = screen width / text width + buffer
+    const minCopies = Math.max(2, Math.ceil((pw + textW * 2) / spacing) + 1);
     heads = [];
-    for (let i = 0; i < totalCopies; i++) {
+    for (let i = 0; i < minCopies; i++) {
       if ($('dir').value === 'left') heads.push(pw + (i * spacing));
       else heads.push(-textW - (i * spacing));
     }
     lastTs = 0; accMs = 0;
+
+    console.log(`Text animation initialized: "${text}" width=${textW}px, height=${textH}px, spacing=${spacing}, copies=${minCopies}`);
   };
 
   const drawPreviewFrame = (animated) => {
@@ -169,11 +173,34 @@
       ctx.textAlign = 'left';
       heads.forEach(headX => {
         const xLeft = Math.floor(headX);
-        if (xLeft >= -textW && xLeft <= 128) ctx.fillText(text, xLeft, cy);
+        // Only draw if text is visible within canvas bounds (with some buffer)
+        if (xLeft >= -textW && xLeft <= pw) {
+          // Clip text to canvas bounds for performance
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, pw, ph);
+          ctx.clip();
+          ctx.fillText(text, xLeft, cy);
+          ctx.restore();
+        }
       });
     } else {
       ctx.textAlign = 'center';
-      ctx.fillText(text, Math.floor(pw * 0.5), cy);
+      // For static display, ensure text fits within bounds
+      if (textW <= pw) {
+        ctx.fillText(text, Math.floor(pw * 0.5), cy);
+      } else {
+        // If text is too long for static display, truncate it
+        const maxWidth = pw - 4; // 2px margin on each side
+        let truncated = text;
+        while (ctx.measureText(truncated + '...').width > maxWidth && truncated.length > 0) {
+          truncated = truncated.slice(0, -1);
+        }
+        if (truncated.length > 0) {
+          truncated += '...';
+          ctx.fillText(truncated, Math.floor(pw * 0.5), cy);
+        }
+      }
     }
   };
 
@@ -1633,23 +1660,32 @@
     if ($('text').value.trim().length > 0) {
       const fam = getFontFamily(); const size = parseInt($('fontSize').value, 10);
       const font = `bold ${size}px ${fam}`;
+      const text = $('text').value;
       const t = document.createElement('canvas');
       const tctx = t.getContext('2d');
       tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
-      const metrics = tctx.measureText($('text').value);
-      let tw = Math.max(1, Math.ceil(metrics.width) + 4);
-      let th = Math.max(1, Math.ceil(size * 1.2 + 6));
+      const metrics = tctx.measureText(text);
+
+      // Ensure canvas is large enough to hold the full text
+      let tw = Math.max(1, Math.ceil(metrics.width) + 8); // Add extra padding
+      let th = Math.max(1, Math.ceil(size * 1.2 + 8));
+
+      // Log text dimensions for debugging
+      console.log(`Rendering text "${text}": width=${tw}px, height=${th}px, measured=${metrics.width}px`);
+
       t.width = tw; t.height = th;
       tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
       tctx.fillStyle = $('color').value;
-      const baseY = Math.floor(size);
-      tctx.fillText($('text').value, 0, baseY);
+      const baseY = Math.floor(size * 1.0); // Adjust baseline for better positioning
+      tctx.fillText(text, 4, baseY); // Add small left margin
 
       const img = tctx.getImageData(0,0,t.width,t.height);
       const bb = cropImageData(img.data, t.width, t.height);
       let outW = Math.max(1, bb.w), outH = Math.max(1, bb.h);
       outCanvas.width = outW; outCanvas.height = outH;
       outCanvas.getContext('2d').putImageData(new ImageData(img.data, t.width, t.height), -bb.x, -bb.y);
+
+      console.log(`Cropped text: width=${outW}px, height=${outH}px, crop bounds={x:${bb.x}, y:${bb.y}, w:${bb.w}, h:${bb.h}}`);
     } else {
       outCanvas.width = 1; outCanvas.height = 1;
     }
@@ -1661,7 +1697,7 @@
     buf[0]=outW&255; buf[1]=(outW>>8)&255; buf[2]=outH&255; buf[3]=(outH>>8)&255;
     let p=4, d=out.data;
     for(let y=0;y<outH;y++) for(let x=0;x<outW;x++){
-      const i=(y*outH + x) * 4; // bug risk: should be y*outW + x; fix:
+      const i=(y*outW + x) * 4; // Fixed: changed outH to outW
     }
     // correct packing loop
     p = 4;

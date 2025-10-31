@@ -7,8 +7,12 @@
 html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
-  font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", Roboto, Arial, sans-serif;
   overflow: hidden;
+  /* Ensure proper emoji rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 header {
@@ -25,10 +29,23 @@ header h1 { margin: 0; font-size: 24px; }
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   background-size: 200% 200%; animation: gradientShift 3s ease infinite;
 }
+
+/* Ensure emoji rendering across different browsers and devices */
+.emoji, button, .control-label, h1 {
+  font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", system-ui, -apple-system, sans-serif;
+  unicode-range: U+2700–U+27BF, U+1F600–U+1F64F, U+1F300–U+1F5FF, U+1F680–U+1F6FF, U+1F700–U+1F77F, U+1F780–U+1F7FF, U+1F800–U+1F8FF, U+2600–U+26FF, U+1F900–U+1F9FF;
+}
 @keyframes gradientShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
 
 .card { background: transparent; border: 1px solid #1f2a35; border-radius: 0; padding: 12px; }
 .card.gradient-bg { background: radial-gradient(circle at 30% 20%, rgba(255,147,46,0.20) 0%, rgba(255,147,46,0.10) 50%, #121820 100%); }
+
+/* Extra horizontal margin for text config card */
+#textConfig {
+  margin-left: 16px;
+  margin-right: 16px;
+  border: none !important;
+}
 
 .row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; margin: 16px 0; }
 .row label { color: var(--muted); font-size: 12px; }
@@ -208,6 +225,7 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 .font-size-box:hover, .brightness-box:hover, .speed-box:hover, .interval-box:hover, .x-gap-box:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 .font-size-box.active, .brightness-box.active, .speed-box.active, .interval-box.active, .x-gap-box.active { border-color: #FFFFFF !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.2); }
 
+
 /* Theme font size boxes */
 .theme-font-size-box {
   width: 35px; height: 30px; border-radius: 6px; cursor: pointer; transition: all 0.2s ease; position: relative; padding: 0; margin: 0; border: 2px solid #333; font-weight: 500; background: #233040; color: var(--fg);
@@ -235,8 +253,45 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 
 #dir { width: 200px !important; min-width: 200px !important; }
 
-.bg-color-selection-wrapper, .color-selection-wrapper, .font-size-selection-wrapper, .brightness-selection-wrapper, .speed-selection-wrapper, .interval-selection-wrapper, .animation-selection-wrapper {
+.bg-color-selection-wrapper, .color-selection-wrapper, .font-size-selection-wrapper, .brightness-selection-wrapper, .speed-selection-wrapper, .interval-selection-wrapper, .animation-selection-wrapper, .x-gap-selection-wrapper {
   border: 1px solid #1f2a35; border-radius: 6px; padding: 8px; background: rgba(35, 48, 64, 0.3); display: inline-block; width: 100%;
+}
+
+/* Direction buttons styling */
+.dir-btn {
+  background: #233040;
+  color: var(--fg);
+  border: 2px solid #333;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 70px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dir-btn:hover {
+  background: #2d3748;
+  border-color: #4a5568;
+  transform: scale(1.02);
+}
+
+.dir-btn.active {
+  background: var(--accent);
+  color: #093a39;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.dir-btn.active:hover {
+  background: var(--accent);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(255,147,46,0.3);
 }
 .interval-selection-wrapper {
   margin-bottom: 80px;

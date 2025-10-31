@@ -63,7 +63,7 @@
   };
 
   const getFontFamily = () =>
-    `'Noto Sans Khmer', 'Khmer OS Content', system-ui, Arial, sans-serif`;
+    `'Noto Sans Khmer', 'Khmer OS Content', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', system-ui, Arial, sans-serif`;
 
   // ========= Stop / Cleanup =========
   const stopPreviewAnim = () => { if (rafId) cancelAnimationFrame(rafId); rafId = 0; };
@@ -1521,6 +1521,18 @@
         document.querySelectorAll('.x-gap-box').forEach(b=>b.classList.remove('active'));
         box.classList.add('active');
         $('xGap').value = box.getAttribute('data-gap');
+      });
+    });
+
+    // Direction buttons
+    document.querySelectorAll('.dir-btn').forEach(btn=>{
+      btn.addEventListener('click', () => {
+        // Remove active class from all direction buttons
+        document.querySelectorAll('.dir-btn').forEach(b=>b.classList.remove('active'));
+        // Add active class to clicked button
+        btn.classList.add('active');
+        // Update hidden input value
+        $('dir').value = btn.getAttribute('data-dir');
       });
     });
 

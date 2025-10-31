@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,13 +8,15 @@
   <title>LED Configuration</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-  <header>
-    <div style="display: flex; align-items: center; justify-content: center; gap: 12px;">
-      <img src="logo.png" alt="Logo" style="width: 32px; height: 32px;">
-      <h1 class="rainbow">Gen-Z-Configuration</h1>
+  <header style="background-color: #332e2d;">
+    <div style="display: flex; align-items: center; justify-content: flex-start !important; gap: 12px; padding-left: 20px;">
+      <img src="logo.png" alt="Logo" style="width: 36px; height: 36px;">
+      <h1 style="font-size: 18px; color: white;">Gen-Z-Configuration</h1>
     </div>
   </header>
+
 
   <main class="main">
     <!-- Preview Bar -->
@@ -64,9 +67,10 @@
               <button class="color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
               <button class="color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
               <button class="color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
-              <button class="color-box custom-color-btn" data-color="#808080" style="background:#808080" title="Custom Color">⚙️</button>
+              <button class="color-box custom-color-btn" data-color="#808080" style="background:#808080"
+                title="Custom Color">⚙️</button>
 
-              </div>
+            </div>
           </div>
           <input type="hidden" id="color" value="#FFFFFF" />
         </div>
@@ -75,12 +79,18 @@
           <label for="textGradient">Text Gradient</label>
           <div class="text-gradient-selection-wrapper">
             <div class="inline gap-12">
-              <button class="text-gradient-box" data-gradient="rainbow" style="background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7, #DDA0DD)"></button>
-              <button class="text-gradient-box" data-gradient="sunset" style="background: linear-gradient(90deg, #FF512F, #F09819)"></button>
-              <button class="text-gradient-box" data-gradient="ocean" style="background: linear-gradient(90deg, #2E3192, #1BFFFF)"></button>
-              <button class="text-gradient-box" data-gradient="forest" style="background: linear-gradient(90deg, #134E5E, #71B280)"></button>
-              <button class="text-gradient-box" data-gradient="fire" style="background: linear-gradient(90deg, #FF416C, #FF4B2B)"></button>
-              <button class="text-gradient-box" data-gradient="purple" style="background: linear-gradient(90deg, #667eea, #764ba2)"></button>
+              <button class="text-gradient-box" data-gradient="rainbow"
+                style="background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7, #DDA0DD)"></button>
+              <button class="text-gradient-box" data-gradient="sunset"
+                style="background: linear-gradient(90deg, #FF512F, #F09819)"></button>
+              <button class="text-gradient-box" data-gradient="ocean"
+                style="background: linear-gradient(90deg, #2E3192, #1BFFFF)"></button>
+              <button class="text-gradient-box" data-gradient="forest"
+                style="background: linear-gradient(90deg, #134E5E, #71B280)"></button>
+              <button class="text-gradient-box" data-gradient="fire"
+                style="background: linear-gradient(90deg, #FF416C, #FF4B2B)"></button>
+              <button class="text-gradient-box" data-gradient="purple"
+                style="background: linear-gradient(90deg, #667eea, #764ba2)"></button>
             </div>
             <input type="hidden" id="textGradient" value="none" />
           </div>
@@ -100,8 +110,9 @@
                 <button class="bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
                 <button class="bg-color-box" data-color="#827C75" style="background:#827C75"></button>
                 <button class="bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
-                <button class="bg-color-box custom-bg-color-btn" data-color="#808080" style="background:#808080" title="Custom Background Color">⚙️</button>
-                  </div>
+                <button class="bg-color-box custom-bg-color-btn" data-color="#808080" style="background:#808080"
+                  title="Custom Background Color">⚙️</button>
+              </div>
             </div>
 
             <input id="bg" type="hidden" value="#000000" />
@@ -219,12 +230,12 @@
           </div>
         </div>
 
-        
+
         <!-- Theme Controls Section -->
         <div class="row hidden" id="themeControlsSection">
           <label>Theme Controls</label>
-    
-            <div class="theme-controls">
+
+          <div class="theme-controls">
             <!-- Font Size Control -->
             <div class="control">
               <div class="control-label">🔠 Font Size</div>
@@ -280,7 +291,7 @@
           </div>
         </div>
 
-        
+
         <div class="spacer-400"></div>
       </div>
       <!-- END THEME CONFIG -->
@@ -344,22 +355,22 @@
         <div class="row" id="videoFitRow">
           <label>Fit & Options</label>
           <div class="video-fit-selection-wrapper">
-              <div class="inline gap-12 justify-between">
-                <div class="inline gap-12">
-                  <button class="video-fit-box active" data-fit="fill">Fill Panel</button>
-                  <button class="video-fit-box" data-fit="fit">Fit Inside</button>
-                </div>
-                <div class="inline gap-12 center" style="margin-left: 80px;">
-                  <label class="muted">Loop</label>
-                  <div id="videoLoopToggle" class="toggle-switch checked" data-checked="true"></div>
-                </div>
+            <div class="inline gap-12 justify-between">
+              <div class="inline gap-12">
+                <button class="video-fit-box active" data-fit="fill">Fill Panel</button>
+                <button class="video-fit-box" data-fit="fit">Fit Inside</button>
+              </div>
+              <div class="inline gap-12 center" style="margin-left: 80px;">
+                <label class="muted">Loop</label>
+                <div id="videoLoopToggle" class="toggle-switch checked" data-checked="true"></div>
               </div>
             </div>
+          </div>
           <input type="hidden" id="videoFit" value="fill" />
           <input type="hidden" id="videoFps" value="15" />
           <input type="hidden" id="videoLoop" checked />
         </div>
-  
+
         <div class="spacer-400"></div>
       </div>
       <!-- END VIDEO CONFIG -->
@@ -368,8 +379,10 @@
     <footer></footer>
 
     <!-- Hidden color input for custom color picker - positioned at center -->
-    <input type="color" id="customTextColor" style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
-    <input type="color" id="customBgColor" style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
+    <input type="color" id="customTextColor"
+      style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
+    <input type="color" id="customBgColor"
+      style="position: fixed; top: 50%; left: 40%; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; z-index: -1;" />
 
     <!-- Panel Configuration Overlay -->
     <div id="panelConfigPage" class="panel-overlay hidden">
@@ -396,4 +409,5 @@
 
   <script src="script.js"></script>
 </body>
+
 </html>

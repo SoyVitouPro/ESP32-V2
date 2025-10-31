@@ -653,7 +653,7 @@ void handleUploadDone() {
   animate = (server.arg("animate") == "1");
   animDir = (server.arg("dir") == "right") ? 1 : -1;
   animSpeedMs = server.hasArg("speed") ? constrain(server.arg("speed").toInt(), 2, 60) : 20;
-  loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 25) : 5;
+  loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 300) : 5;
 
   // DEBUG: Print animation settings to Serial
   Serial.printf("Animation settings: animate=%s, dir=%s, speed=%d ms, interval=%d px\n",

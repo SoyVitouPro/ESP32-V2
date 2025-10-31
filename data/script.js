@@ -45,6 +45,11 @@
 
   const rgb565 = (r, g, b) => ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b) >> 3);
 
+  // Arduino-style map function for JavaScript
+  const map = (value, inMin, inMax, outMin, outMax) => {
+    return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+  };
+
   const cropImageData = (img, w, h) => {
     let minX = w, minY = h, maxX = -1, maxY = -1;
     for (let y = 0; y < h; y++) {
@@ -258,12 +263,17 @@
       stopPreviewAnim(); drawPreviewFrame(false); return;
     }
     if (!lastTs) lastTs = ts;
-    const speed = parseInt($('speed').value, 10) || 30;
+    // Apply same speed mapping as ESP32: higher percentage = faster animation
+    const speedPercent = parseInt($('speed').value, 10) || 80;
+    // Map 10% → 40ms (slow), 100% → 2ms (fast) - minimum practical delay
+    const speed = map(speedPercent, 10, 100, 40, 2);
+    // Ensure minimum delay for browser stability
+    const actualSpeed = Math.max(2, Math.round(speed));
     accMs += (ts - lastTs); lastTs = ts;
 
     const pw = 128;
-    while (accMs >= speed) {
-      accMs -= speed;
+    while (accMs >= actualSpeed) {
+      accMs -= actualSpeed;
       if ($('dir').value === 'left') {
         heads = heads.map(h => h - 1);
         heads.forEach((head, i) => { if (head + textW <= 0) heads[i] = Math.max(...heads) + spacing; });

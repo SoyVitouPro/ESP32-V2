@@ -652,7 +652,17 @@ void handleUploadDone() {
   // FIX: Read animation parameters from client instead of hardcoding
   animate = (server.arg("animate") == "1");
   animDir = (server.arg("dir") == "right") ? 1 : -1;
-  animSpeedMs = server.hasArg("speed") ? constrain(server.arg("speed").toInt(), 2, 60) : 20;
+  // Speed mapping: 10% = 40ms (slow), 100% = 2ms (fast), with proper interpolation
+  if (server.hasArg("speed")) {
+    int speedPercent = constrain(server.arg("speed").toInt(), 10, 100);
+    // Reverse mapping: higher percentage = faster animation = lower delay
+    // Map 10% → 40ms, 100% → 2ms (minimum practical delay)
+    animSpeedMs = map(speedPercent, 10, 100, 40, 2);
+    // Ensure minimum delay of 2ms for ESP32 stability
+    if (animSpeedMs < 2) animSpeedMs = 2;
+  } else {
+    animSpeedMs = 20; // Default speed
+  }
   loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 300) : 5;
 
   // DEBUG: Print animation settings to Serial

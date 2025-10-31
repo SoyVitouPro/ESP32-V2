@@ -31,7 +31,13 @@ header h1 { margin: 0; font-size: 24px; }
 }
 
 /* Ensure emoji rendering across different browsers and devices */
-.emoji, button, .control-label, h1 {
+.emoji, .control-label {
+  font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", system-ui, -apple-system, sans-serif;
+  unicode-range: U+2700–U+27BF, U+1F600–U+1F64F, U+1F300–U+1F5FF, U+1F680–U+1F6FF, U+1F700–U+1F77F, U+1F780–U+1F7FF, U+1F800–U+1F8FF, U+2600–U+26FF, U+1F900–U+1F9FF;
+}
+
+/* Special emoji handling for buttons and elements that contain emojis */
+.tab, .preview-btn, .upload-btn, .custom-color-btn, .custom-bg-color-btn, .dir-btn, .icon-btn, .x-gap-box[data-gap="0"], .control-label, h1 {
   font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", system-ui, -apple-system, sans-serif;
   unicode-range: U+2700–U+27BF, U+1F600–U+1F64F, U+1F300–U+1F5FF, U+1F680–U+1F6FF, U+1F700–U+1F77F, U+1F780–U+1F7FF, U+1F800–U+1F8FF, U+2600–U+26FF, U+1F900–U+1F9FF;
 }
@@ -60,8 +66,8 @@ header h1 { margin: 0; font-size: 24px; }
 .min-35 { min-width: 35px; } .w-80 { width: 80px; } .w-120 { width: 120px; }
 .text-right { text-align: right; }
 
-input[type="text"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #233040; background: transparent; color: var(--fg); }
-select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #233040; background: transparent; color: var(--fg); }
+input[type="text"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #233040; background: rgba(35, 48, 64, 0.4); color: var(--fg); }
+select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #233040; background: rgba(35, 48, 64, 0.4); color: var(--fg); }
 select option { background: #ffffff; color: #000000; }
 
 input[type="color"] { padding: 6px; height: 32px; border: 2px solid #233040; border-radius: 6px; width: 50px; }
@@ -253,7 +259,7 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 
 #dir { width: 200px !important; min-width: 200px !important; }
 
-.bg-color-selection-wrapper, .color-selection-wrapper, .font-size-selection-wrapper, .brightness-selection-wrapper, .speed-selection-wrapper, .interval-selection-wrapper, .animation-selection-wrapper, .x-gap-selection-wrapper {
+.bg-color-selection-wrapper, .color-selection-wrapper, .font-size-selection-wrapper, .brightness-selection-wrapper, .speed-selection-wrapper, .interval-selection-wrapper, .animation-selection-wrapper, .x-gap-selection-wrapper, .text-gradient-selection-wrapper {
   border: 1px solid #1f2a35; border-radius: 6px; padding: 8px; background: rgba(35, 48, 64, 0.3); display: inline-block; width: 100%;
 }
 
@@ -292,6 +298,38 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
   background: var(--accent);
   transform: scale(1.05);
   box-shadow: 0 2px 8px rgba(255,147,46,0.3);
+}
+
+/* Text gradient boxes styling */
+.text-gradient-box {
+  width: 35px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  padding: 0;
+  margin: 0;
+  border: 2px solid #333;
+  font-weight: 500;
+  background: #233040;
+  color: var(--fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  min-width: 35px;
+}
+
+.text-gradient-box:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  border-color: #4a5568;
+}
+
+.text-gradient-box.active {
+  border-color: #FFFFFF !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.2);
 }
 .interval-selection-wrapper {
   margin-bottom: 80px;

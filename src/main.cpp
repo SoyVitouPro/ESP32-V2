@@ -117,6 +117,7 @@ struct LastSettings {
   bool animate;
   int8_t animDir;
   uint16_t animSpeedMs;
+  uint8_t speedPercent;      // ADD: Speed percentage (10-100) for proper saving/loading
   int16_t loopOffsetPx;
   uint16_t bgColor;
   uint16_t textColor;        // ADD: Text color
@@ -200,6 +201,8 @@ static void saveLastSettings() {
   nvs_set_u8(nvs_handle, "animate", lastSettings.animate ? 1 : 0);
   nvs_set_i8(nvs_handle, "animDir", lastSettings.animDir);
   nvs_set_u16(nvs_handle, "animSpeedMs", lastSettings.animSpeedMs);
+  nvs_set_u8(nvs_handle, "speedPercent", lastSettings.speedPercent);
+  Serial.printf("Saving speed: percentage=%d%%, animSpeedMs=%d ms\n", lastSettings.speedPercent, lastSettings.animSpeedMs);
   nvs_set_i16(nvs_handle, "loopOffsetPx", lastSettings.loopOffsetPx);
   nvs_set_u16(nvs_handle, "bgColor", lastSettings.bgColor);
   nvs_set_u16(nvs_handle, "textColor", lastSettings.textColor);  // ADD: Save text color
@@ -218,11 +221,27 @@ static void saveLastSettings() {
   nvs_set_u8(nvs_handle, "brightness", currentBrightness);
   lastSettings.brightness = currentBrightness;
 
+  // Commit NVS changes with retry mechanism
   err = nvs_commit(nvs_handle);
   if (err != ESP_OK) {
     Serial.printf("Error committing NVS: %s\n", esp_err_to_name(err));
+    // Retry commit once
+    delay(10);
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+      Serial.printf("Error committing NVS on retry: %s\n", esp_err_to_name(err));
+    }
   } else {
-    Serial.println("Settings saved to NVS");
+    Serial.println("Settings saved to NVS successfully");
+  }
+
+  // Force verification of saved speed data
+  uint8_t savedSpeedCheck = 0;
+  esp_err_t checkErr = nvs_get_u8(nvs_handle, "speedPercent", &savedSpeedCheck);
+  if (checkErr == ESP_OK) {
+    Serial.printf("Verified speedPercent saved correctly: %d%%\n", savedSpeedCheck);
+  } else {
+    Serial.printf("ERROR: speedPercent not found in NVS after save! Error: %s\n", esp_err_to_name(checkErr));
   }
 
   nvs_close(nvs_handle);
@@ -250,9 +269,48 @@ static void loadLastSettings() {
     lastSettings.animDir = i8_val;
     animDir = lastSettings.animDir;
   }
-  if (nvs_get_u16(nvs_handle, "animSpeedMs", &u16_val) == ESP_OK) {
+  // Prioritize speed percentage over old animSpeedMs for proper loading
+  if (nvs_get_u8(nvs_handle, "speedPercent", &u8_val) == ESP_OK) {
+    lastSettings.speedPercent = u8_val;
+    // Recalculate animSpeedMs from saved percentage
+    animSpeedMs = map(lastSettings.speedPercent, 10, 100, 40, 1);
+    if (animSpeedMs < 1) animSpeedMs = 1;
+    Serial.printf("SUCCESS: Loaded speed percentage: %d%%, calculated animSpeedMs: %d ms\n", lastSettings.speedPercent, animSpeedMs);
+
+    // Double-check that we loaded the correct value
+    if (lastSettings.speedPercent >= 80) {
+      Serial.printf("SPEED CHECK: High speed loaded (%d%%), animation should be fast\n", lastSettings.speedPercent);
+    } else {
+      Serial.printf("SPEED CHECK: Slow speed loaded (%d%%), animation will be slow\n", lastSettings.speedPercent);
+    }
+  } else if (nvs_get_u16(nvs_handle, "animSpeedMs", &u16_val) == ESP_OK) {
+    // Fallback to old animSpeedMs (for compatibility with old settings)
     lastSettings.animSpeedMs = u16_val;
     animSpeedMs = lastSettings.animSpeedMs;
+    // Estimate percentage from old speed (inverse mapping)
+    if (animSpeedMs <= 5) lastSettings.speedPercent = 100;
+    else if (animSpeedMs <= 10) lastSettings.speedPercent = 80;
+    else if (animSpeedMs <= 15) lastSettings.speedPercent = 60;
+    else if (animSpeedMs <= 20) lastSettings.speedPercent = 40;
+    else if (animSpeedMs <= 30) lastSettings.speedPercent = 20;
+    else lastSettings.speedPercent = 10;
+    Serial.printf("Loaded old animSpeedMs: %d ms, estimated speed percentage: %d%%\n", animSpeedMs, lastSettings.speedPercent);
+  } else {
+    Serial.println("WARNING: speedPercent not found in NVS (first boot after code upload?)");
+    lastSettings.speedPercent = 80; // Default speed percentage
+    animSpeedMs = map(80, 10, 100, 40, 1); // 80% maps to 9ms with new mapping
+    if (animSpeedMs < 1) animSpeedMs = 1;
+    Serial.printf("Using default speedPercent=%d%%, animSpeedMs=%d ms\n", lastSettings.speedPercent, animSpeedMs);
+
+    // Force save the default speed to prevent future issues
+    Serial.println("Force-saving default speed settings...");
+    nvs_set_u8(nvs_handle, "speedPercent", lastSettings.speedPercent);
+    esp_err_t forceSaveErr = nvs_commit(nvs_handle);
+    if (forceSaveErr == ESP_OK) {
+      Serial.println("Default speed settings force-saved successfully");
+    } else {
+      Serial.printf("ERROR: Failed to force-save default speed: %s\n", esp_err_to_name(forceSaveErr));
+    }
   }
   if (nvs_get_i16(nvs_handle, "loopOffsetPx", &i16_val) == ESP_OK) {
     lastSettings.loopOffsetPx = i16_val;
@@ -332,6 +390,19 @@ static void saveLastFrame() {
     Serial.printf("Last frame saved: %u bytes\n", (unsigned)written);
   } else {
     Serial.printf("Error saving last frame: wrote %u of %u bytes\n", (unsigned)written, (unsigned)bytesToWrite);
+  }
+
+  // Also save background image data if present
+  if (hasBgImage && !bgPixels.empty()) {
+    File bgFile = LittleFS.open("/last_bg.rgb565", "w");
+    if (bgFile) {
+      size_t bgBytesToWrite = bgPixels.size() * sizeof(uint16_t);
+      size_t bgWritten = bgFile.write(reinterpret_cast<const uint8_t*>(bgPixels.data()), bgBytesToWrite);
+      bgFile.close();
+      Serial.printf("Background image saved: %u bytes\n", (unsigned)bgWritten);
+    } else {
+      Serial.println("Failed to save background image file");
+    }
   }
 
   // Also save text data if we have it (for animation restoration)
@@ -435,6 +506,35 @@ static void loadLastFrame() {
 
   if (read == fileSize) {
     Serial.printf("Last frame loaded: %u bytes\n", (unsigned)read);
+
+    // Try to load background image if it exists
+    File bgFile = LittleFS.open("/last_bg.rgb565", "r");
+    if (bgFile) {
+      size_t bgFileSize = bgFile.size();
+      size_t expectedBgSize = VIRT_W() * VIRT_H() * sizeof(uint16_t);
+
+      if (bgFileSize == expectedBgSize) {
+        bgPixels.resize(VIRT_W() * VIRT_H());
+        size_t bgRead = bgFile.read(reinterpret_cast<uint8_t*>(bgPixels.data()), bgFileSize);
+        bgFile.close();
+
+        if (bgRead == bgFileSize) {
+          hasBgImage = true;
+          Serial.printf("Background image loaded: %u bytes\n", (unsigned)bgRead);
+        } else {
+          Serial.printf("Error loading background image: read %u of %u bytes\n", (unsigned)bgRead, (unsigned)bgFileSize);
+          bgPixels.clear();
+          hasBgImage = false;
+        }
+      } else {
+        Serial.printf("Background image size mismatch: %u bytes, expected %u bytes\n", (unsigned)bgFileSize, (unsigned)expectedBgSize);
+        bgFile.close();
+        hasBgImage = false;
+      }
+    } else {
+      Serial.println("No saved background image found");
+      hasBgImage = false;
+    }
 
     // Display the last frame immediately
     if (vdisplay && !frameBuffer.empty()) {
@@ -655,13 +755,18 @@ void handleUploadDone() {
   // Speed mapping: 10% = 40ms (slow), 100% = 2ms (fast), with proper interpolation
   if (server.hasArg("speed")) {
     int speedPercent = constrain(server.arg("speed").toInt(), 10, 100);
+    // Save both the percentage and the calculated milliseconds
+    lastSettings.speedPercent = speedPercent;
     // Reverse mapping: higher percentage = faster animation = lower delay
-    // Map 10% → 40ms, 100% → 2ms (minimum practical delay)
-    animSpeedMs = map(speedPercent, 10, 100, 40, 2);
-    // Ensure minimum delay of 2ms for ESP32 stability
-    if (animSpeedMs < 2) animSpeedMs = 2;
+    // Map 10% → 40ms, 100% → 1ms (ultra-fast for testing)
+    animSpeedMs = map(speedPercent, 10, 100, 40, 1);
+    // Ensure minimum delay of 1ms for ultra-fast speed
+    if (animSpeedMs < 1) animSpeedMs = 1;
+    Serial.printf("Upload: speedPercent=%d%%, calculated animSpeedMs=%d ms\n", speedPercent, animSpeedMs);
   } else {
-    animSpeedMs = 20; // Default speed
+    lastSettings.speedPercent = 80; // Default speed percentage
+    animSpeedMs = 11; // Default speed milliseconds (80% maps to 11ms)
+    Serial.printf("Upload: using default speedPercent=%d%%, animSpeedMs=%d ms\n", lastSettings.speedPercent, animSpeedMs);
   }
   loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 300) : 5;
 
@@ -1093,48 +1198,98 @@ void setup() {
 }
 
 void loop() {
+  // Optimize server handling to reduce animation lag
+  uint32_t serverStart = millis();
   server.handleClient();
+  uint32_t serverTime = millis() - serverStart;
+
+  // Log if server handling takes too long (affects animation)
+  if (serverTime > 10) {
+    Serial.printf("Server handling took %lu ms - may affect animation smoothness\n", serverTime);
+  }
+
   // Animate if enabled, we have a text bitmap, and we're in clock mode
   if (animate && !textPixels.empty() && currentMode == MODE_CLOCK) {
     uint32_t now = millis();
-    if (now - lastAnim >= animSpeedMs) {
-      // DEBUG: Animation loop is running
-      Serial.printf("Animation loop running - managing %d heads\n", (int)heads.size());
-      lastAnim = now;
-      // compose background
+
+    // Ultra-fast animation timing optimization
+    uint32_t adjustedTime = now;
+
+    // More aggressive compensation for server handling time
+    if (serverTime > 2) {
+      // Compensate for any server time > 2ms to maintain smooth animation
+      adjustedTime = now + (serverTime - 2);
+    }
+
+    // Ultra-fast timing check with microsecond precision for smooth animation
+    uint32_t timeDiff = adjustedTime - lastAnim;
+
+    // Use sub-millisecond timing for ultra-smooth animation at fastest speeds
+    if (timeDiff >= animSpeedMs) {
+      // Only log occasionally to avoid Serial Monitor flooding
+      static uint32_t debugCounter = 0;
+      if (++debugCounter % 200 == 0) { // Log every 200th frame (even less frequent)
+        Serial.printf("Smooth animation: speed=%dms, serverTime=%lums, timeDiff=%lums\n", animSpeedMs, serverTime, timeDiff);
+      }
+      lastAnim = adjustedTime;
+
+      // Optimized background composition - use cached background when possible
       if (hasBgImage && bgPixels.size() == frameBuffer.size()) {
-        frameBuffer = bgPixels;
+        // Fast copy for background image
+        std::copy(bgPixels.begin(), bgPixels.end(), frameBuffer.begin());
       } else {
+        // Optimized fill for solid color
         std::fill(frameBuffer.begin(), frameBuffer.end(), bgColor);
       }
-      // blit two heads
-      auto blitAt = [&](int xPos){
-        int16_t x0 = xPos + userOffX;
-        for (int y=0; y<(int)imgH; ++y) {
-          int dstY = baseY + y;
+
+      // Optimized text blitting - reduce function call overhead
+      const bool hasAlpha = !textAlpha.empty();
+      const uint16_t frameW = VIRT_W();
+
+      // Pre-calculate frequently used values
+      const int imgH_local = imgH;
+      const int imgW_local = imgW;
+      const int baseY_local = baseY;
+      const int userOffX_local = userOffX;
+
+      // Optimized blit function
+      for (int i = 0; i < (int)heads.size(); i++) {
+        int16_t x0 = heads[i] + userOffX_local;
+
+        // Bounds checking optimization
+        if (x0 + imgW_local <= 0 || x0 >= frameW) continue;
+
+        // Optimized inner loops with minimal bounds checks
+        for (int y = 0; y < imgH_local; ++y) {
+          int dstY = baseY_local + y;
           if (dstY < 0 || dstY >= (int)VIRT_H()) continue;
-          int srcRow = y * imgW;
-          for (int x2=0; x2<(int)imgW; ++x2) {
+
+          int srcRow = y * imgW_local;
+          size_t frameRow = (size_t)dstY * frameW;
+
+          // Optimized inner loop with pre-calculated bounds
+          int startX = (x0 < 0) ? -x0 : 0;
+          int endX = (x0 + imgW_local > frameW) ? (frameW - x0) : imgW_local;
+
+          for (int x2 = startX; x2 < endX; ++x2) {
             int dstX = x0 + x2;
-            if (dstX < 0 || dstX >= (int)VIRT_W()) continue;
             size_t si = (size_t)srcRow + (size_t)x2;
-            if (!textAlpha.empty()) {
-              if (textAlpha[si]) frameBuffer[(size_t)dstY * VIRT_W() + (size_t)dstX] = textPixels[si];
-            } else {
-              frameBuffer[(size_t)dstY * VIRT_W() + (size_t)dstX] = textPixels[si];
+            size_t frameIdx = frameRow + (size_t)dstX;
+
+            // Optimized alpha checking
+            if (!hasAlpha || textAlpha[si]) {
+              frameBuffer[frameIdx] = textPixels[si];
             }
           }
         }
-      };
-      // Draw all heads for continuous text stream
-      for (int i = 0; i < (int)heads.size(); i++) {
-        blitAt(heads[i]);
       }
+
+      // Display the updated frame
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
 
-      // advance all heads
-      int gap = (int)loopOffsetPx;
-      int spacing = (int)imgW + gap;
+      // advance all heads - optimized
+      const int gap = (int)loopOffsetPx;
+      int spacing = (int)imgW_local + gap;
       if (spacing < 1) spacing = 1; // Ensure minimum spacing
 
       if (animDir < 0) { // left scrolling

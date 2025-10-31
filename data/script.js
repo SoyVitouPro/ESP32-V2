@@ -217,7 +217,60 @@
     }
 
     const cy = Math.floor(ph * 0.5) + 2;
-    ctx.font = font; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+    ctx.font = font; ctx.textBaseline = 'middle';
+
+    // Check if text gradient is selected for preview
+    const selectedGradient = $('textGradient').value;
+    if (selectedGradient !== 'none') {
+      // Apply gradient to text for preview
+      let gradient;
+      // Calculate text width for gradient
+      const previewTextWidth = Math.ceil(measureTextWithGap(ctx, text, xGap));
+
+      // Create gradient based on selection
+      switch(selectedGradient) {
+        case 'rainbow':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#FF6B6B');
+          gradient.addColorStop(0.2, '#4ECDC4');
+          gradient.addColorStop(0.4, '#45B7D1');
+          gradient.addColorStop(0.6, '#96CEB4');
+          gradient.addColorStop(0.8, '#FFEAA7');
+          gradient.addColorStop(1, '#DDA0DD');
+          break;
+        case 'sunset':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#FF512F');
+          gradient.addColorStop(1, '#F09819');
+          break;
+        case 'ocean':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#2E3192');
+          gradient.addColorStop(1, '#1BFFFF');
+          break;
+        case 'forest':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#134E5E');
+          gradient.addColorStop(1, '#71B280');
+          break;
+        case 'fire':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#FF416C');
+          gradient.addColorStop(1, '#FF4B2B');
+          break;
+        case 'purple':
+          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
+          gradient.addColorStop(0, '#667eea');
+          gradient.addColorStop(1, '#764ba2');
+          break;
+        default:
+          gradient = color;
+      }
+      ctx.fillStyle = gradient;
+    } else {
+      // Use solid color
+      ctx.fillStyle = color;
+    }
 
     // Update textW to include character gaps
     textW = Math.ceil(measureTextWithGap(ctx, text, xGap));
@@ -265,10 +318,10 @@
     if (!lastTs) lastTs = ts;
     // Apply same speed mapping as ESP32: higher percentage = faster animation
     const speedPercent = parseInt($('speed').value, 10) || 80;
-    // Map 10% → 40ms (slow), 100% → 2ms (fast) - minimum practical delay
-    const speed = map(speedPercent, 10, 100, 40, 2);
+    // Map 10% → 40ms (slow), 100% → 1ms (ultra-fast) - matching ESP32
+    const speed = map(speedPercent, 10, 100, 40, 1);
     // Ensure minimum delay for browser stability
-    const actualSpeed = Math.max(2, Math.round(speed));
+    const actualSpeed = Math.max(1, Math.round(speed));
     accMs += (ts - lastTs); lastTs = ts;
 
     const pw = 128;
@@ -1560,7 +1613,12 @@
           this.classList.add('active');
           $('color').value = this.getAttribute('data-color');
         }
-      });
+
+        // When text color is selected, deactivate all gradient buttons
+        document.querySelectorAll('.text-gradient-box').forEach(b=>b.classList.remove('active'));
+        $('textGradient').value = 'none';
+
+          });
     });
 
     // Handle custom color input change
@@ -1582,9 +1640,28 @@
         if (customBtn) {
           customBtn.classList.add('active');
         }
-      });
 
+        // When custom text color is selected, deactivate all gradient buttons
+        document.querySelectorAll('.text-gradient-box').forEach(b=>b.classList.remove('active'));
+        $('textGradient').value = 'none';
+
+          });
       }
+
+    // Text gradient boxes with mutual exclusivity
+    document.querySelectorAll('.text-gradient-box').forEach(box=>{
+      box.addEventListener('click', () => {
+        // Remove active class from all text gradient boxes
+        document.querySelectorAll('.text-gradient-box').forEach(b=>b.classList.remove('active'));
+        // Add active class to clicked gradient box
+        box.classList.add('active');
+        // Update hidden input value
+        $('textGradient').value = box.getAttribute('data-gradient');
+
+        // When gradient is selected, deactivate all text color buttons
+        document.querySelectorAll('.color-box, .color-box-wrapper').forEach(b=>b.classList.remove('active'));
+      });
+    });
 
   document.querySelectorAll('.bg-color-box').forEach(box=>{
       box.addEventListener('click', function(){
@@ -1758,7 +1835,60 @@
 
       t.width = tw; t.height = th;
       tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
-      tctx.fillStyle = $('color').value;
+      // Check if text gradient is selected
+      const selectedGradient = $('textGradient').value;
+      if (selectedGradient !== 'none') {
+        // Apply gradient to text
+        let gradient;
+        // Use the calculated text width including gaps for gradient
+        const gradientWidth = textWidth;
+
+        // Create gradient based on selection
+        switch(selectedGradient) {
+          case 'rainbow':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#FF6B6B');
+            gradient.addColorStop(0.2, '#4ECDC4');
+            gradient.addColorStop(0.4, '#45B7D1');
+            gradient.addColorStop(0.6, '#96CEB4');
+            gradient.addColorStop(0.8, '#FFEAA7');
+            gradient.addColorStop(1, '#DDA0DD');
+            break;
+          case 'sunset':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#FF512F');
+            gradient.addColorStop(1, '#F09819');
+            break;
+          case 'ocean':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#2E3192');
+            gradient.addColorStop(1, '#1BFFFF');
+            break;
+          case 'forest':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#134E5E');
+            gradient.addColorStop(1, '#71B280');
+            break;
+          case 'fire':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#FF416C');
+            gradient.addColorStop(1, '#FF4B2B');
+            break;
+          case 'purple':
+            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            break;
+          default:
+            gradient = $('color').value;
+        }
+
+        tctx.fillStyle = gradient;
+      } else {
+        // Use solid color
+        tctx.fillStyle = $('color').value;
+      }
+
       const baseY = Math.floor(size * 1.0); // Adjust baseline for better positioning
       drawTextWithGap(tctx, text, 4, baseY, xGap); // Add small left margin
 

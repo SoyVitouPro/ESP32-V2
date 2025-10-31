@@ -69,6 +69,21 @@
         </div>
 
         <div class="row">
+          <label for="textGradient">Text Gradient</label>
+          <div class="text-gradient-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="text-gradient-box" data-gradient="rainbow" style="background: linear-gradient(90deg, #FF6B6B, #4ECDC4, #45B7D1, #96CEB4, #FFEAA7, #DDA0DD)"></button>
+              <button class="text-gradient-box" data-gradient="sunset" style="background: linear-gradient(90deg, #FF512F, #F09819)"></button>
+              <button class="text-gradient-box" data-gradient="ocean" style="background: linear-gradient(90deg, #2E3192, #1BFFFF)"></button>
+              <button class="text-gradient-box" data-gradient="forest" style="background: linear-gradient(90deg, #134E5E, #71B280)"></button>
+              <button class="text-gradient-box" data-gradient="fire" style="background: linear-gradient(90deg, #FF416C, #FF4B2B)"></button>
+              <button class="text-gradient-box" data-gradient="purple" style="background: linear-gradient(90deg, #667eea, #764ba2)"></button>
+            </div>
+            <input type="hidden" id="textGradient" value="none" />
+          </div>
+        </div>
+
+        <div class="row">
           <label for="bgMode">Background</label>
           <div class="inline">
             <select id="bgMode" class="w-80">

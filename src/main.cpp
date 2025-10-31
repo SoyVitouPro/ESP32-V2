@@ -338,14 +338,17 @@ static void saveLastFrame() {
   if (!textPixels.empty()) {
     File textFile = LittleFS.open("/last_text.dat", "w");
     if (textFile) {
-      // Save header with dimensions
+      // Save header with dimensions and color
       uint8_t header[8];
       header[0] = imgW & 255;
       header[1] = (imgW >> 8) & 255;
       header[2] = imgH & 255;
       header[3] = (imgH >> 8) & 255;
       header[4] = textAlpha.empty() ? 0 : 1; // Alpha flag
-      textFile.write(header, 4);
+      header[5] = textColor & 255;
+      header[6] = (textColor >> 8) & 255;
+      header[7] = 0; // Reserved
+      textFile.write(header, 8);
 
       // Save text pixels
       size_t textBytes = textPixels.size() * sizeof(uint16_t);
@@ -369,11 +372,16 @@ static void loadLastFrame() {
     Serial.println("Loading saved text data...");
 
     // Read header
-    uint8_t header[5];
-    if (textFile.read(header, 5) == 5) {
+    uint8_t header[8];
+    if (textFile.read(header, 8) == 8) {
       uint16_t savedImgW = header[0] | (header[1] << 8);
       uint16_t savedImgH = header[2] | (header[3] << 8);
       bool hasAlpha = (header[4] == 1);
+      uint16_t savedTextColor = header[5] | (header[6] << 8);
+
+      // Restore text color
+      textColor = savedTextColor;
+      Serial.printf("Restored text color: 0x%04X\n", textColor);
 
       // Load text pixels
       size_t textPixelCount = savedImgW * savedImgH;
@@ -434,13 +442,16 @@ static void loadLastFrame() {
       Serial.println("Last frame displayed on startup");
     }
 
-    // Restore animation if needed - SIMPLE VERSION
+    // Restore animation if needed - IMPROVED VERSION
     if (lastSettings.animate && lastSettings.hasText && !textPixels.empty()) {
-      Serial.println("Restoring simple animation state");
+      Serial.println("Restoring animation state with text and colors");
 
       // Initialize basic animation state
       baseY = (int)VIRT_H() / 2 - (int)imgH / 2 + userOffY;
       currentMode = MODE_CLOCK; // Set to clock mode to enable animation loop
+
+      // Ensure all color settings are properly restored
+      Serial.printf("Restored colors - BG: 0x%04X, Text: 0x%04X\n", bgColor, textColor);
 
       // Simple spacing calculation
       int spacing = imgW + loopOffsetPx;
@@ -1110,14 +1121,6 @@ void loop() {
         blitAt(heads[i]);
       }
       vdisplay->drawRGBBitmap(0, 0, frameBuffer.data(), VIRT_W(), VIRT_H());
-
-      // Auto-save frame every 5 seconds during animation
-      uint32_t currentTime = millis();
-      if (currentTime - lastSaveTime >= 5000) {
-        saveLastFrame();
-        lastSaveTime = currentTime;
-        // Serial.println("Auto-saved frame during animation");
-      }
 
       // advance all heads
       int gap = (int)loopOffsetPx;

@@ -316,12 +316,30 @@
       stopPreviewAnim(); drawPreviewFrame(false); return;
     }
     if (!lastTs) lastTs = ts;
-    // Apply same speed mapping as ESP32: higher percentage = faster animation
+    // Apply same aggressive speed mapping as ESP32: higher percentage = faster animation
     const speedPercent = parseInt($('speed').value, 10) || 80;
-    // Map 10% → 40ms (slow), 100% → 1ms (ultra-fast) - matching ESP32
-    const speed = map(speedPercent, 10, 100, 40, 1);
+
+    // Aggressive speed mapping matching ESP32
+    let targetMs;
+    if (speedPercent == 10) {
+      targetMs = 50;    // 0.5x of 100% speed (20 FPS)
+    } else if (speedPercent == 20) {
+      targetMs = 25;    // Same as current 100% speed (40 FPS)
+    } else if (speedPercent == 40) {
+      targetMs = 17;    // 1.5x faster than current 100% (59 FPS)
+    } else if (speedPercent == 60) {
+      targetMs = 13;    // 2x faster than current 100% (77 FPS)
+    } else if (speedPercent == 80) {
+      targetMs = 8;     // 3.5x faster than current 100% (125 FPS)
+    } else if (speedPercent == 100) {
+      targetMs = 6;     // 4x faster than current 100% (167 FPS)
+    } else {
+      // Linear interpolation between specific points
+      targetMs = map(speedPercent, 10, 100, 50, 6);
+    }
+
     // Ensure minimum delay for browser stability
-    const actualSpeed = Math.max(1, Math.round(speed));
+    const actualSpeed = Math.max(6, Math.round(targetMs));
     accMs += (ts - lastTs); lastTs = ts;
 
     const pw = 128;

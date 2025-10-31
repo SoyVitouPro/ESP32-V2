@@ -272,9 +272,26 @@ static void loadLastSettings() {
   // Prioritize speed percentage over old animSpeedMs for proper loading
   if (nvs_get_u8(nvs_handle, "speedPercent", &u8_val) == ESP_OK) {
     lastSettings.speedPercent = u8_val;
-    // Recalculate animSpeedMs from saved percentage
-    animSpeedMs = map(lastSettings.speedPercent, 10, 100, 40, 1);
-    if (animSpeedMs < 1) animSpeedMs = 1;
+    // Recalculate animSpeedMs from saved percentage using aggressive mapping
+    int targetMs;
+    if (lastSettings.speedPercent == 10) {
+      targetMs = 50;    // 0.5x of 100% speed (20 FPS)
+    } else if (lastSettings.speedPercent == 20) {
+      targetMs = 25;    // Same as current 100% speed (40 FPS)
+    } else if (lastSettings.speedPercent == 40) {
+      targetMs = 17;    // 1.5x faster than current 100% (59 FPS)
+    } else if (lastSettings.speedPercent == 60) {
+      targetMs = 13;    // 2x faster than current 100% (77 FPS)
+    } else if (lastSettings.speedPercent == 80) {
+      targetMs = 8;     // 3.5x faster than current 100% (125 FPS)
+    } else if (lastSettings.speedPercent == 100) {
+      targetMs = 6;     // 4x faster than current 100% (167 FPS)
+    } else {
+      // Linear interpolation between specific points
+      targetMs = map(lastSettings.speedPercent, 10, 100, 50, 6);
+    }
+    animSpeedMs = targetMs;
+    if (animSpeedMs < 6) animSpeedMs = 6;
     Serial.printf("SUCCESS: Loaded speed percentage: %d%%, calculated animSpeedMs: %d ms\n", lastSettings.speedPercent, animSpeedMs);
 
     // Double-check that we loaded the correct value
@@ -298,8 +315,8 @@ static void loadLastSettings() {
   } else {
     Serial.println("WARNING: speedPercent not found in NVS (first boot after code upload?)");
     lastSettings.speedPercent = 80; // Default speed percentage
-    animSpeedMs = map(80, 10, 100, 40, 1); // 80% maps to 9ms with new mapping
-    if (animSpeedMs < 1) animSpeedMs = 1;
+    animSpeedMs = 8; // Default is 80% which maps to 8ms (125 FPS)
+    if (animSpeedMs < 6) animSpeedMs = 6;
     Serial.printf("Using default speedPercent=%d%%, animSpeedMs=%d ms\n", lastSettings.speedPercent, animSpeedMs);
 
     // Force save the default speed to prevent future issues
@@ -758,14 +775,32 @@ void handleUploadDone() {
     // Save both the percentage and the calculated milliseconds
     lastSettings.speedPercent = speedPercent;
     // Reverse mapping: higher percentage = faster animation = lower delay
-    // Map 10% → 40ms, 100% → 1ms (ultra-fast for testing)
-    animSpeedMs = map(speedPercent, 10, 100, 40, 1);
-    // Ensure minimum delay of 1ms for ultra-fast speed
-    if (animSpeedMs < 1) animSpeedMs = 1;
+    // Aggressive speed mapping: 10% = 50ms (20 FPS), 100% = 12.5ms (80 FPS)
+    // Special mapping for specific percentages:
+    int targetMs;
+    if (speedPercent == 10) {
+      targetMs = 50;    // 0.5x of 100% speed (20 FPS)
+    } else if (speedPercent == 20) {
+      targetMs = 25;    // Same as current 100% speed (40 FPS)
+    } else if (speedPercent == 40) {
+      targetMs = 17;    // 1.5x faster than current 100% (59 FPS)
+    } else if (speedPercent == 60) {
+      targetMs = 13;    // 2x faster than current 100% (77 FPS)
+    } else if (speedPercent == 80) {
+      targetMs = 8;     // 3.5x faster than current 100% (125 FPS)
+    } else if (speedPercent == 100) {
+      targetMs = 6;     // 4x faster than current 100% (167 FPS)
+    } else {
+      // Linear interpolation between specific points
+      targetMs = map(speedPercent, 10, 100, 50, 6);
+    }
+    animSpeedMs = targetMs;
+    // Ensure minimum delay for ultra-fast scrolling
+    if (animSpeedMs < 6) animSpeedMs = 6;
     Serial.printf("Upload: speedPercent=%d%%, calculated animSpeedMs=%d ms\n", speedPercent, animSpeedMs);
   } else {
     lastSettings.speedPercent = 80; // Default speed percentage
-    animSpeedMs = 11; // Default speed milliseconds (80% maps to 11ms)
+    animSpeedMs = 8; // Default is 80% which maps to 8ms (125 FPS)
     Serial.printf("Upload: using default speedPercent=%d%%, animSpeedMs=%d ms\n", lastSettings.speedPercent, animSpeedMs);
   }
   loopOffsetPx = server.hasArg("interval") ? constrain(server.arg("interval").toInt(), 1, 300) : 5;

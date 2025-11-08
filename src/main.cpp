@@ -1238,9 +1238,9 @@ void loop() {
   server.handleClient();
   uint32_t serverTime = millis() - serverStart;
 
-  // Log if server handling takes too long (affects animation)
-  if (serverTime > 10) {
-    Serial.printf("Server handling took %lu ms - may affect animation smoothness\n", serverTime);
+  // Brief yield to ensure smooth clock timing
+  if (serverTime > 1) {
+    delay(1); // Small delay to prevent blocking
   }
 
   // Animate if enabled, we have a text bitmap, and we're in clock mode

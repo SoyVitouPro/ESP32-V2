@@ -412,7 +412,8 @@
   const startClockPreview = () => {
     if (clockPreviewTimer) clearInterval(clockPreviewTimer);
     drawClockPreviewFrame();
-    clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+    // Update every 100ms for very smooth preview updates (won't affect ESP32 timing)
+    clockPreviewTimer = setInterval(drawClockPreviewFrame, 100);
   };
 
   const renderAndUploadClock = async () => {
@@ -430,8 +431,13 @@
     const tctx = t.getContext('2d');
     tctx.fillStyle = clockBg; tctx.fillRect(0, 0, pw, ph);
     tctx.font = font; tctx.textBaseline = 'middle'; tctx.textAlign = 'center'; tctx.fillStyle = col;
-    const txt = formatTime(fmt);
-      // Adjust vertical position based on font size for better centering
+
+    // Get precise current time once to avoid timing drift
+    const now = new Date();
+    let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds();
+    const txt = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+    // Adjust vertical position based on font size for better centering
     let yOffset = Math.floor(ph * 0.5);
     if (size <= 15) {
       yOffset -= 2; // Shift up for very small text
@@ -457,21 +463,49 @@
     fd.append('offx', 0);
     fd.append('offy', 0);
     fd.append('animate', 0);
-    fd.append('dir', 'left');
-    fd.append('speed', 20);
-    fd.append('interval', 5);
-    await fetch(apiBase + '/upload', { method: 'POST', body: fd });
+    fd.append('dir', 'none');
+    fd.append('speed', 0);
+    fd.append('interval', 0);
+
+    // Use smaller timeout to avoid blocking
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms timeout
+
+    try {
+      await fetch(apiBase + '/upload', {
+        method: 'POST',
+        body: fd,
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.log('Clock upload error:', error.message);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
 
   const startSmoothClockTimer = () => {
     let lastUploadTime = 0;
-    const UPLOAD_INTERVAL = 1000;
+    const UPLOAD_INTERVAL = 1000; // Exact 1 second for perfect timing
+    let nextUploadTime = performance.now() + UPLOAD_INTERVAL;
 
     const updateClock = async (timestamp) => {
+      const now = performance.now();
+
+      // Always update preview for smoothness
       if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
-      if (timestamp - lastUploadTime >= UPLOAD_INTERVAL) {
-        lastUploadTime = timestamp;
-        try { await renderAndUploadClock(); } catch {}
+
+      // Use precise timing to avoid double-counting
+      if (now >= nextUploadTime) {
+        lastUploadTime = now;
+        nextUploadTime = now + UPLOAD_INTERVAL;
+        try {
+          await renderAndUploadClock();
+        } catch (error) {
+          console.log('Clock upload error:', error);
+        }
       }
       if (clockTimer) clockTimer = requestAnimationFrame(updateClock);
     };
@@ -690,6 +724,29 @@
   };
 
   // Apply current theme with current settings to the LED display
+  // Direct theme application function
+  const applyThemeDirectly = async () => {
+    if (!window.__theme || !originalThemeContent) {
+      console.error('❌ No theme loaded to apply');
+      return;
+    }
+
+    try {
+      console.log('🔄 Direct theme application starting...');
+
+      // Stop all existing content
+      await stopAllModes();
+
+      // Start theme streaming
+      await startThemeStreaming();
+
+      console.log('✅ Theme applied directly and streaming started');
+    } catch (error) {
+      console.error('❌ Failed to apply theme directly:', error);
+      throw error;
+    }
+  };
+
   const applyCurrentTheme = async () => {
     if (!window.__theme || !originalThemeContent) {
       console.error('❌ No theme loaded to apply');

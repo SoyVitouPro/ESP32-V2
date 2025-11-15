@@ -9,6 +9,8 @@
 #include <WebServer.h>
 #include <FS.h>
 #include <LittleFS.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ESP32-VirtualMatrixPanel-I2S-DMA.h>
 #include <string.h>
 #include <vector>
@@ -75,6 +77,14 @@ void sendCORSHeaders() {
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
 }
+
+// YouTube config
+static const char* YT_API_KEY = "AIzaSyCAKj7eDgmQm4B2b9OFyKFLvgiLEjrOoNo";
+static const char* YT_CHANNEL_ID = "UCaPOzWiPWJFJr9dXzkkvUOw";
+static unsigned long yt_last_fetch = 0;
+static String yt_cached_json;
+static String yt_cached_subs;
+static String yt_last_id;
 
 // Uploaded text bitmap (RGB565), text-only cropped image
 static std::vector<uint8_t> uploadBuf;      // raw bytes as received (header + pixels)
@@ -1153,6 +1163,46 @@ void setup() {
     sendCORSHeaders();
     server.send(200, "text/plain", "");
   });
+  server.on("/wifi_scan", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/wifi_connect", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/wifi_status", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/yt_stats", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/proxy_image", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/yt_icon_download", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/themes_ids", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/theme_download", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/yt_icon_current", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
+  server.on("/upload_icon", HTTP_OPTIONS, [](){
+    sendCORSHeaders();
+    server.send(200, "text/plain", "");
+  });
   server.on("/stop_clock", HTTP_OPTIONS, [](){
     sendCORSHeaders();
     server.send(200, "text/plain", "");
@@ -1220,6 +1270,319 @@ void setup() {
     json += "]}";
     sendCORSHeaders();
     server.send(200, "application/json", json);
+  });
+  // WiFi scan endpoint
+  server.on("/wifi_scan", HTTP_GET, [](){
+    sendCORSHeaders();
+    int n = WiFi.scanNetworks();
+    String out = "[";
+    for (int i = 0; i < n; ++i) {
+      if (i) out += ",";
+      String ssid = WiFi.SSID(i);
+      long rssi = WiFi.RSSI(i);
+      bool secure = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+      out += "{\"ssid\":\"" + ssid + "\",";
+      out += "\"rssi\":" + String((int)rssi) + ",";
+      out += "\"secure\":" + String(secure ? "true" : "false") + "}";
+    }
+    out += "]";
+    server.send(200, "application/json", out);
+  });
+  // WiFi connect endpoint
+  server.on("/wifi_connect", HTTP_POST, [](){
+    sendCORSHeaders();
+    if (!server.hasArg("ssid")) { server.send(400, "application/json", "{\"error\":\"missing ssid\"}"); return; }
+    String ssid = server.arg("ssid");
+    String pass = server.hasArg("pass") ? server.arg("pass") : "";
+    WiFi.mode(WIFI_AP_STA);
+    Serial.printf("WiFi: connecting to SSID '%s'...\n", ssid.c_str());
+    WiFi.begin(ssid.c_str(), pass.length() ? pass.c_str() : nullptr);
+    unsigned long start = millis();
+    wl_status_t st;
+    while ((st = WiFi.status()) != WL_CONNECTED && (millis() - start) < 10000) {
+      delay(250);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+      IPAddress ip = WiFi.localIP();
+      String json = "{\"status\":\"connected\",\"ssid\":\"" + ssid + "\",\"ip\":\"" + ip.toString() + "\"}";
+      server.send(200, "application/json", json);
+    } else {
+      server.send(200, "application/json", "{\"status\":\"failed\"}");
+    }
+  });
+  // WiFi status endpoint
+  server.on("/wifi_status", HTTP_GET, [](){
+    sendCORSHeaders();
+    bool connected = (WiFi.status() == WL_CONNECTED);
+    String json = "{";
+    json += "\"connected\":"; json += connected ? "true" : "false"; json += ",";
+    if (connected) {
+      json += "\"ssid\":\"" + WiFi.SSID() + "\",";
+      json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
+    }
+    json += "\"ap_ip\":\"" + WiFi.softAPIP().toString() + "\"}";
+    server.send(200, "application/json", json);
+  });
+  // YouTube stats endpoint (cached ~5s)
+  server.on("/yt_stats", HTTP_GET, [](){
+    sendCORSHeaders();
+    // Return cache if fetched within last 10 seconds
+    unsigned long now = millis();
+    String id = server.hasArg("id") ? server.arg("id") : String(YT_CHANNEL_ID);
+    if (yt_cached_json.length() && id == yt_last_id && (now - yt_last_fetch) < 5000UL) {
+      server.send(200, "application/json", yt_cached_json);
+      return;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+      server.send(200, "application/json", "{\"error\":\"wifi_disconnected\"}");
+      return;
+    }
+
+    WiFiClientSecure client;
+    client.setInsecure(); // skip certificate validation for simplicity
+    HTTPClient https;
+
+    String url = String("https://www.googleapis.com/youtube/v3/channels?part=statistics&id=") + id + "&key=" + YT_API_KEY;
+    if (!https.begin(client, url)) {
+      server.send(200, "application/json", "{\"error\":\"begin_failed\"}");
+      return;
+    }
+    https.setTimeout(4000);
+    int code = https.GET();
+    if (code <= 0) {
+      https.end();
+      server.send(200, "application/json", "{\"error\":\"http_failed\"}");
+      return;
+    }
+    String payload = https.getString();
+    https.end();
+
+    // Very simple extraction of subscriberCount without ArduinoJson
+    String subs;
+    int p = payload.indexOf("\"subscriberCount\"");
+    if (p >= 0) {
+      int colon = payload.indexOf(':', p);
+      if (colon > 0) {
+        int q1 = payload.indexOf('"', colon+1);
+        int q2 = payload.indexOf('"', q1+1);
+        if (q1 > 0 && q2 > q1) {
+          subs = payload.substring(q1+1, q2);
+        }
+      }
+    }
+    if (subs.length() == 0) {
+      server.send(200, "application/json", "{\"error\":\"parse_error\"}");
+      return;
+    }
+    yt_cached_subs = subs;
+    yt_last_fetch = now;
+    yt_last_id = id;
+    yt_cached_json = String("{\"subscriberCount\":\"") + subs + "\"}";
+    server.send(200, "application/json", yt_cached_json);
+  });
+
+  // Simple proxy to fetch remote images (GIF/PNG) to avoid CORS/taint
+  server.on("/proxy_image", HTTP_GET, [](){
+    sendCORSHeaders();
+    if (!server.hasArg("url")) { server.send(400, "text/plain", "missing url"); return; }
+    if (WiFi.status() != WL_CONNECTED) { server.send(503, "text/plain", "no internet"); return; }
+    String url = server.arg("url");
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient https;
+    if (!https.begin(client, url)) { server.send(500, "text/plain", "begin failed"); return; }
+    https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    int code = https.GET();
+    if (code <= 0) { https.end(); server.send(502, "text/plain", "fetch failed"); return; }
+
+    String ctype = https.header("Content-Type");
+    if (ctype.length() == 0) {
+      if (url.endsWith(".gif")) ctype = "image/gif";
+      else if (url.endsWith(".png")) ctype = "image/png";
+      else ctype = "application/octet-stream";
+    }
+    WiFiClient *stream = https.getStreamPtr();
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, ctype, "");
+
+    uint8_t buf[1024];
+    int len;
+    while ((len = stream->readBytes(reinterpret_cast<char*>(buf), sizeof(buf))) > 0) {
+      server.sendContent_P(reinterpret_cast<const char*>(buf), len);
+      delay(0);
+    }
+    https.end();
+  });
+
+  // Download external icon to LittleFS for same-origin use
+  server.on("/yt_icon_download", HTTP_POST, [](){
+    sendCORSHeaders();
+    if (!server.hasArg("url")) { server.send(400, "application/json", "{\"error\":\"missing url\"}"); return; }
+    if (WiFi.status() != WL_CONNECTED) { server.send(503, "application/json", "{\"error\":\"no_internet\"}"); return; }
+    String url = server.arg("url");
+
+    // Choose client based on scheme
+    bool isHttps = url.startsWith("https://");
+    std::unique_ptr<WiFiClient> plain(new WiFiClient());
+    std::unique_ptr<WiFiClientSecure> secure(new WiFiClientSecure());
+    if (isHttps) secure->setInsecure();
+
+    HTTPClient http;
+    bool ok = isHttps ? http.begin(*secure, url) : http.begin(*plain, url);
+    if (!ok) { server.send(500, "application/json", "{\"error\":\"begin_failed\"}"); return; }
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(8000);
+    int code = http.GET();
+    if (code <= 0) { http.end(); server.send(502, "application/json", "{\"error\":\"fetch_failed\"}"); return; }
+
+    String ctype = http.header("Content-Type"); ctype.toLowerCase();
+    String ext = ".bin";
+    if (ctype.indexOf("gif") >= 0) ext = ".gif";
+    else if (ctype.indexOf("png") >= 0) ext = ".png";
+    else if (ctype.indexOf("jpeg") >= 0 || ctype.indexOf("jpg") >= 0) ext = ".jpg";
+    else {
+      // fallback from URL
+      if (url.endsWith(".gif")) ext = ".gif";
+      else if (url.endsWith(".png")) ext = ".png";
+      else if (url.endsWith(".jpg") || url.endsWith(".jpeg")) ext = ".jpg";
+    }
+
+    // Remove previous files
+    LittleFS.remove("/yt_icon.gif");
+    LittleFS.remove("/yt_icon.png");
+    LittleFS.remove("/yt_icon.jpg");
+    LittleFS.remove("/yt_icon.bin");
+
+    String path = String("/yt_icon") + ext;
+    File f = LittleFS.open(path, "w");
+    if (!f) { http.end(); server.send(500, "application/json", "{\"error\":\"fs_open_failed\"}"); return; }
+
+    WiFiClient *stream = http.getStreamPtr();
+    const size_t maxBytes = 1024 * 1024; // 1MB limit
+    uint8_t buf[1024];
+    size_t total = 0; int len;
+    while ((len = stream->readBytes(reinterpret_cast<char*>(buf), sizeof(buf))) > 0) {
+      f.write(buf, len);
+      total += len;
+      if (total > maxBytes) { f.close(); LittleFS.remove(path); http.end(); server.send(413, "application/json", "{\"error\":\"too_large\"}"); return; }
+      delay(0);
+    }
+    f.close(); http.end();
+
+    String res = String("{\"ok\":true,\"path\":\"") + path + "\"}";
+    server.send(200, "application/json", res);
+  });
+
+  // Fetch theme IDs from remote API using ESP internet
+  server.on("/themes_ids", HTTP_GET, [](){
+    sendCORSHeaders();
+    if (WiFi.status() != WL_CONNECTED) {
+      server.send(503, "application/json", "{\"error\":\"no_internet\"}");
+      return;
+    }
+    const char* url = "https://api.ikhode.com/themes/ids";
+    WiFiClientSecure client; client.setInsecure();
+    HTTPClient https;
+    if (!https.begin(client, url)) { server.send(500, "application/json", "{\"error\":\"begin_failed\"}"); return; }
+    https.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    https.setTimeout(8000);
+    int code = https.GET();
+    if (code <= 0) { https.end(); server.send(502, "application/json", "{\"error\":\"fetch_failed\"}"); return; }
+    String payload = https.getString();
+    https.end();
+    server.send(200, "application/json", payload);
+  });
+
+  // Download theme file by ID and save as local icon
+  server.on("/theme_download", HTTP_POST, [](){
+    sendCORSHeaders();
+    if (!server.hasArg("id")) { server.send(400, "application/json", "{\"error\":\"missing id\"}"); return; }
+    if (WiFi.status() != WL_CONNECTED) { server.send(503, "application/json", "{\"error\":\"no_internet\"}"); return; }
+    String id = server.arg("id");
+    String url = String("https://api.ikhode.com/themes/") + id + "/file";
+
+    // Choose client based on scheme (https)
+    WiFiClientSecure client; client.setInsecure();
+    HTTPClient http;
+    if (!http.begin(client, url)) { server.send(500, "application/json", "{\"error\":\"begin_failed\"}"); return; }
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(15000);
+    int code = http.GET();
+    if (code <= 0) { http.end(); server.send(502, "application/json", "{\"error\":\"fetch_failed\"}"); return; }
+
+    String ctype = http.header("Content-Type"); ctype.toLowerCase();
+    String ext = ".bin";
+    if (ctype.indexOf("gif") >= 0) ext = ".gif";
+    else if (ctype.indexOf("png") >= 0) ext = ".png";
+    else if (ctype.indexOf("jpeg") >= 0 || ctype.indexOf("jpg") >= 0) ext = ".jpg";
+
+    LittleFS.remove("/yt_icon.gif");
+    LittleFS.remove("/yt_icon.png");
+    LittleFS.remove("/yt_icon.jpg");
+    LittleFS.remove("/yt_icon.bin");
+
+    String path = String("/yt_icon") + ext;
+    File f = LittleFS.open(path, "w");
+    if (!f) { http.end(); server.send(500, "application/json", "{\"error\":\"fs_open_failed\"}"); return; }
+    WiFiClient *stream = http.getStreamPtr();
+    const size_t maxBytes = 1024 * 1024; // 1MB cap
+    uint8_t buf[1024]; size_t total = 0; int len;
+    while ((len = stream->readBytes(reinterpret_cast<char*>(buf), sizeof(buf))) > 0) {
+      f.write(buf, len); total += len; if (total > maxBytes) { f.close(); LittleFS.remove(path); http.end(); server.send(413, "application/json", "{\"error\":\"too_large\"}"); return; }
+      delay(0);
+    }
+    f.close(); http.end();
+    String res = String("{\"ok\":true,\"path\":\"") + path + "\"}";
+    server.send(200, "application/json", res);
+  });
+
+  // Stream currently saved icon with CORS for cross-origin preview
+  server.on("/yt_icon_current", HTTP_GET, [](){
+    sendCORSHeaders();
+    const char* candidates[] = { "/yt_icon.gif", "/yt_icon.png", "/yt_icon.jpg", "/yt_icon.bin" };
+    const char* types[]      = { "image/gif",  "image/png",   "image/jpeg",  "application/octet-stream" };
+    File f; const char* ctype = nullptr;
+    for (int i=0;i<4;i++) {
+      if (LittleFS.exists(candidates[i])) { f = LittleFS.open(candidates[i], "r"); ctype = types[i]; break; }
+    }
+    if (!f) { server.send(404, "application/json", "{\"error\":\"not_found\"}"); return; }
+    server.streamFile(f, String(ctype));
+    f.close();
+  });
+
+  // Upload a GIF/PNG icon directly from browser and save in LittleFS
+  static File _iconUploadFile;
+  static bool _iconUploadOK = false;
+  static String _iconSavedPath;
+  server.on("/upload_icon", HTTP_POST, [](){
+    sendCORSHeaders();
+    String res = String("{\"ok\":") + (_iconUploadOK?"true":"false") + ",\"path\":\"" + _iconSavedPath + "\"}";
+    server.send(200, "application/json", res);
+  }, [](){
+    HTTPUpload &up = server.upload();
+    if (up.status == UPLOAD_FILE_START) {
+      _iconUploadOK = false; _iconSavedPath = "";
+      // Default path
+      String filename = up.filename;
+      filename.toLowerCase();
+      String path = "/yt_icon";
+      if (filename.endsWith(".gif")) path += ".gif";
+      else if (filename.endsWith(".png")) path += ".png";
+      else if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) path += ".jpg";
+      else path += ".bin";
+      LittleFS.remove("/yt_icon.gif");
+      LittleFS.remove("/yt_icon.png");
+      LittleFS.remove("/yt_icon.jpg");
+      LittleFS.remove("/yt_icon.bin");
+      _iconUploadFile = LittleFS.open(path, FILE_WRITE);
+      if (_iconUploadFile) _iconSavedPath = path;
+    } else if (up.status == UPLOAD_FILE_WRITE) {
+      if (_iconUploadFile) _iconUploadFile.write(up.buf, up.currentSize);
+    } else if (up.status == UPLOAD_FILE_END) {
+      if (_iconUploadFile) { _iconUploadFile.close(); _iconUploadOK = true; }
+    }
   });
   // Theme status endpoint
   server.on("/theme_status", HTTP_GET, [](){

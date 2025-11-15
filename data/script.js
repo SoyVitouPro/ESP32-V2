@@ -19,6 +19,23 @@
   let heads = [];
   let clockPreviewTimer = 0;
   let clockTimer = 0;
+  let youtubeTimer = 0;
+  let youtubeLastCount = null;
+  let ytIconImg = null;
+  let ytIconImgReady = false;
+  let youtubeAnimTimer = 0; // no longer used for URL themes (kept for compatibility)
+  let youtubePreviewTimer = 0;
+  let selectedThemeId = '';
+  // GIF decode + animation state (gifuct-js)
+  let gifFrames = [];
+  let gifDelays = [];
+  let gifLogicalW = 0, gifLogicalH = 0;
+  let gifFrameIndex = 0;
+  let gifAnimTimer = 0; // LED streaming loop (GIF frames)
+  let gifOffscreen = null; // canvas to build frame to image
+  let ledOffscreen = null; // 128x64 offscreen for LED composition
+
+  const stopGifAnimation = () => { if (gifAnimTimer) { clearTimeout(gifAnimTimer); gifAnimTimer = 0; } };
   let videoEl = null;
   let videoPreviewRaf = 0;
   let videoUploadActive = false;
@@ -86,6 +103,7 @@
     if (clockTimer) { cancelAnimationFrame(clockTimer); clockTimer = 0; }
     stopVideoPreview(); videoUploadActive = false; videoUploadInFlight = false;
     stopThemeTimers();
+    if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
   };
 
   // Universal function to stop all modes on ESP32 and browser
@@ -609,6 +627,7 @@
     const videoMode = !$('videoConfig').classList.contains('hidden');
     const clockMode = !$('clockConfig').classList.contains('hidden');
     const textMode = !$('textConfig').classList.contains('hidden');
+    const youtubeMode = !$('youtubeConfig').classList.contains('hidden');
 
     if (videoMode) {
       stopPreviewAnim(); drawVideoPreviewFrame();
@@ -616,6 +635,8 @@
       stopPreviewAnim(); drawClockPreviewFrame();
       if (clockPreviewTimer) clearInterval(clockPreviewTimer);
       clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+    } else if (youtubeMode) {
+      stopPreviewAnim(); drawYoutubePreviewFrame();
     } else if (textMode && $('animate').checked && $('text').value.trim().length > 0) {
       stopPreviewAnim(); initPreviewAnim(); drawPreviewFrame(true); rafId = requestAnimationFrame(animatePreview);
     } else {
@@ -629,18 +650,21 @@
     const tabClock = $('tabClock');
     const tabVideo = $('tabVideo');
     const tabTheme = $('tabTheme');
+    const tabWifi = $('tabWifi');
+    const tabYoutube = $('tabYoutube');
 
     const textCfg = $('textConfig');
     const clockCfg = $('clockConfig');
     const videoCfg = $('videoConfig');
     const themeCfg = $('themeConfig');
+    const wifiCfg = $('wifiConfig');
+    const youtubeCfg = $('youtubeConfig');
 
     const activate = (which) => {
-      const map = { text: textCfg, clock: clockCfg, video: videoCfg, theme: themeCfg };
       // Tabs visual
-      [tabText, tabClock, tabVideo, tabTheme].forEach(btn => btn && btn.classList.remove('active'));
+      [tabText, tabClock, tabVideo, tabTheme, tabWifi, tabYoutube].forEach(btn => btn && btn.classList.remove('active'));
       // Sections hide/show
-      [textCfg, clockCfg, videoCfg, themeCfg].forEach(el => el && el.classList.add('hidden'));
+      [textCfg, clockCfg, videoCfg, themeCfg, wifiCfg, youtubeCfg].forEach(el => el && el.classList.add('hidden'));
 
       if (which === 'text') { tabText.classList.add('active'); textCfg.classList.remove('hidden'); hideThemeControls(); }
       if (which === 'clock') { tabClock.classList.add('active'); clockCfg.classList.remove('hidden'); hideThemeControls(); }
@@ -649,26 +673,273 @@
         tabTheme.classList.add('active'); themeCfg.classList.remove('hidden');
         if (window.__theme) showThemeControls();
       }
+      if (which === 'wifi') { tabWifi.classList.add('active'); wifiCfg.classList.remove('hidden'); hideThemeControls(); }
+      if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); hideThemeControls(); drawYoutubePreviewFrame(); if (youtubePreviewTimer) clearInterval(youtubePreviewTimer); youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67); }
     };
 
     tabText.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
+      if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
+      if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopGifAnimation();
+      const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('text');
     });
     tabClock.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
+      if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
+      if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopGifAnimation();
+      const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('clock');
     });
     tabVideo.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
+      if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
+      if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopGifAnimation();
+      const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
     });
-    tabTheme.addEventListener('click', () => activate('theme'));
+    tabTheme.addEventListener('click', () => { if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('theme'); });
+    if (tabWifi) tabWifi.addEventListener('click', () => { if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
+    if (tabYoutube) tabYoutube.addEventListener('click', () => activate('youtube'));
 
     // default
     activate('text');
 
     // Theme upload / start / reapply wiring is in initThemeControls()
+  };
+
+  // ========= WiFi =========
+  const setWifiStatus = (text, ok=false) => {
+    const el = $('wifiStatus');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? '#00ff90' : 'var(--muted)';
+  };
+
+  const fetchWifiStatus = async () => {
+    try {
+      const r = await fetch(apiBase + '/wifi_status');
+      if (!r.ok) return;
+      const s = await r.json();
+      if (s.connected) setWifiStatus(`Connected to ${s.ssid} (${s.ip || 'no IP'})`, true);
+      else setWifiStatus('Not connected');
+    } catch {}
+  };
+
+  const renderWifiList = (nets=[]) => {
+    const wrap = $('wifiList'); if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!nets.length) {
+      const span = document.createElement('span'); span.className='muted'; span.textContent='No networks found'; wrap.appendChild(span); return;
+    }
+    nets.forEach(n => {
+      const btn = document.createElement('button');
+      btn.className = 'video-fit-box';
+      const lock = n.secure ? '🔒' : '🔓';
+      const level = n.rssi;
+      btn.textContent = `${lock} ${n.ssid} (${level}dBm)`;
+      btn.title = 'Click to connect';
+      btn.addEventListener('click', async () => {
+        const pass = n.secure ? prompt(`Enter password for \"${n.ssid}\"`) : '';
+        if (pass === null) return;
+        await connectWifi(n.ssid, pass);
+      });
+      wrap.appendChild(btn);
+    });
+  };
+
+  const scanWifi = async () => {
+    setWifiStatus('Scanning...');
+    try {
+      const r = await fetch(apiBase + '/wifi_scan');
+      if (!r.ok) { setWifiStatus('Scan failed'); return; }
+      const list = await r.json();
+      renderWifiList(list);
+      setWifiStatus('Scan complete');
+    } catch (e) {
+      setWifiStatus('Scan error');
+    }
+  };
+
+  const connectWifi = async (ssid, pass) => {
+    try {
+      setWifiStatus(`Connecting to ${ssid}...`);
+      const fd = new FormData();
+      fd.append('ssid', ssid);
+      fd.append('pass', pass || '');
+      const r = await fetch(apiBase + '/wifi_connect', { method: 'POST', body: fd });
+      const t = await r.text();
+      try { const j = JSON.parse(t); if (j.status === 'connected') { setWifiStatus(`Connected to ${j.ssid} (${j.ip})`, true); return; } }
+      catch {}
+      setWifiStatus('Failed to connect');
+    } catch {
+      setWifiStatus('Failed to connect');
+    }
+  };
+
+  const initWifiControls = () => {
+    const btnScan = $('btnWifiScan');
+    if (btnScan) btnScan.addEventListener('click', scanWifi);
+    fetchWifiStatus();
+  };
+
+  // ========= YouTube =========
+  const setYtStatus = (txt, good=false) => { const el=$('ytStatus'); if(!el)return; el.textContent=txt; el.style.color= good?'#00ff90':'var(--muted)'; };
+  const drawYTIcon = (g, cx, cy, h) => {
+    const r = Math.round(h/5);
+    const w = Math.round(h*1.6);
+    const x = Math.round(cx - w/2);
+    const y = Math.round(cy - h/2);
+    // red rounded rect
+    g.save();
+    g.beginPath();
+    g.moveTo(x+r, y);
+    g.lineTo(x+w-r, y);
+    g.quadraticCurveTo(x+w, y, x+w, y+r);
+    g.lineTo(x+w, y+h-r);
+    g.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+    g.lineTo(x+r, y+h);
+    g.quadraticCurveTo(x, y+h, x, y+h-r);
+    g.lineTo(x, y+r);
+    g.quadraticCurveTo(x, y, x+r, y);
+    g.closePath();
+    g.fillStyle = '#FF0000';
+    g.fill();
+    // white play triangle
+    const triW = Math.round(h*0.6);
+    const triH = Math.round(h*0.5);
+    g.beginPath();
+    g.moveTo(cx - Math.round(triW*0.35), cy - Math.round(triH/2));
+    g.lineTo(cx - Math.round(triW*0.35), cy + Math.round(triH/2));
+    g.lineTo(cx + Math.round(triW*0.65), cy);
+    g.closePath();
+    g.fillStyle = '#FFFFFF';
+    g.fill();
+    g.restore();
+    return { w, h };
+  };
+
+  const drawYoutubePreviewFrame = () => {
+    const pw=128, ph=64; const bg=$('youtubeBgColor')?$('youtubeBgColor').value:'#000000'; const col=$('youtubeTextColor')?$('youtubeTextColor').value:'#FFFFFF';
+    c.width=pw; c.height=ph; ctx.clearRect(0,0,pw,ph); ctx.fillStyle=bg; ctx.fillRect(0,0,pw,ph);
+    const txt = (youtubeLastCount!==null)? String(youtubeLastCount): '—';
+    // Prepare text size based on available space after icon
+    const uiSize = $('youtubeIconSize') ? parseInt($('youtubeIconSize').value, 10) : 25;
+    const iconH = Math.max(10, Math.min(uiSize, Math.round(ph*0.9)));
+    const iconW = Math.round(iconH*1.6);
+    const gap = 6;
+    let size = 28; const fam = getFontFamily(); let font = `bold ${size}px ${fam}`; ctx.font=font; ctx.textBaseline='middle';
+    // Measure text width with current size
+    let tw = ctx.measureText(txt).width;
+    // Total group width for centering
+    while ((iconW + gap + tw) > (pw - 8) && size > 10) {
+      size -= 2; font = `bold ${size}px ${fam}`; ctx.font=font; tw = ctx.measureText(txt).width;
+    }
+    const groupW = iconW + gap + tw;
+    const x0 = Math.round((pw - groupW)/2);
+    const cy = Math.round(ph/2);
+    // Preview icon: use overlay <img> to ensure GIF animation & avoid canvas taint
+    const overlay = document.getElementById('ytPreviewImg');
+    if (!overlay || overlay.style.display === 'none') {
+      drawYTIcon(ctx, x0 + Math.round(iconW/2), cy, iconH);
+    }
+    // Draw text
+    ctx.fillStyle = col; ctx.textAlign='left';
+    ctx.fillText(txt, x0 + iconW + gap, cy);
+    // Position overlay image if visible
+    if (overlay && overlay.style.display !== 'none') {
+      const scale = c.clientWidth / pw;
+      const canvasRect = c.getBoundingClientRect();
+      const parentRect = document.getElementById('previewInner').getBoundingClientRect();
+      const leftPx = (canvasRect.left - parentRect.left) + x0 * scale;
+      const topPx  = (canvasRect.top - parentRect.top) + (cy - Math.round(iconH/2)) * scale;
+      overlay.style.left = `${leftPx}px`;
+      overlay.style.top  = `${topPx}px`;
+      overlay.style.width = `${iconW * scale}px`;
+      overlay.style.height = `${iconH * scale}px`;
+    }
+  };
+  const renderAndUploadYoutube = async () => {
+    const pw=128, ph=64; const bg=$('youtubeBgColor').value; const col=$('youtubeTextColor').value;
+    const canvas=document.createElement('canvas'); canvas.width=pw; canvas.height=ph; const tctx=canvas.getContext('2d');
+    tctx.fillStyle=bg; tctx.fillRect(0,0,pw,ph);
+    const txt = (youtubeLastCount!==null)? String(youtubeLastCount): '—';
+    const uiSize = $('youtubeIconSize') ? parseInt($('youtubeIconSize').value, 10) : 25;
+    const iconH = Math.max(10, Math.min(uiSize, Math.round(ph*0.9)));
+    const iconW = Math.round(iconH*1.6);
+    const gap = 6;
+    let size=28; const fam=getFontFamily(); let font=`bold ${size}px ${fam}`; tctx.font=font; tctx.textBaseline='middle';
+    let tw=tctx.measureText(txt).width;
+    while ((iconW + gap + tw) > (pw - 8) && size>10) { size -= 2; font=`bold ${size}px ${fam}`; tctx.font=font; tw=tctx.measureText(txt).width; }
+    const groupW = iconW + gap + tw; const x0 = Math.round((pw - groupW)/2); const cy = Math.round(ph/2);
+    const mode = $('youtubeIconMode') ? $('youtubeIconMode').value : 'classic';
+    if (mode !== 'classic' && ytIconImgReady && ytIconImg) {
+      try {
+        tctx.drawImage(ytIconImg, x0, cy - Math.round(iconH/2), iconW, iconH);
+      } catch (e) {
+        // fallback to vector
+        drawYTIcon(tctx, x0 + Math.round(iconW/2), cy, iconH);
+      }
+    } else {
+      drawYTIcon(tctx, x0 + Math.round(iconW/2), cy, iconH);
+    }
+    tctx.fillStyle = col; tctx.textAlign='left'; tctx.fillText(txt, x0 + iconW + gap, cy);
+    let out;
+    try {
+      out=tctx.getImageData(0,0,pw,ph);
+    } catch (e) {
+      console.warn('Canvas read blocked (CORS). Falling back to classic icon.');
+      // recreate canvas to clear taint and redraw vector-only
+      const clean=document.createElement('canvas'); clean.width=pw; clean.height=ph; const cctx=clean.getContext('2d');
+      cctx.fillStyle=bg; cctx.fillRect(0,0,pw,ph);
+      drawYTIcon(cctx, x0 + Math.round(iconW/2), cy, iconH);
+      cctx.fillStyle = col; cctx.textAlign='left'; cctx.textBaseline='middle'; cctx.font = `${size}px ${fam}`;
+      cctx.fillText(txt, x0 + iconW + gap, cy);
+      out=cctx.getImageData(0,0,pw,ph);
+    }
+    const buf=new Uint8Array(4+pw*ph*2); buf[0]=pw&255; buf[1]=(pw>>8)&255; buf[2]=ph&255; buf[3]=(ph>>8)&255;
+    let p=4, d=out.data; for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=(y*pw+x)*4; const r=d[i],g=d[i+1],b=d[i+2]; const v=rgb565(r,g,b); buf[p++]=v&255; buf[p++]=(v>>8)&255; }
+    const fd=new FormData(); fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565'); fd.append('bg', bg); fd.append('bgMode','color'); fd.append('animate',0); fd.append('dir','none'); fd.append('speed',0); fd.append('interval',0);
+    try { await fetch(apiBase + '/upload', { method:'POST', body:fd }); } catch {}
+  };
+  const fetchYoutubeStats = async () => {
+    try {
+      // Safety: only fetch when YouTube tab is visible
+      if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
+      const channelId = $('youtubeChannelId') ? $('youtubeChannelId').value.trim() : 'UCaPOzWiPWJFJr9dXzkkvUOw';
+      setYtStatus(`Updating ${channelId}...`);
+      const r = await fetch(apiBase + '/yt_stats?id=' + encodeURIComponent(channelId), { cache: 'no-store' });
+      if (!r.ok) { setYtStatus('Fetch failed'); return; }
+      const j = await r.json();
+      if (j && j.subscriberCount) {
+        youtubeLastCount = j.subscriberCount;
+        setYtStatus(`Live: ${channelId}`, true);
+        drawYoutubePreviewFrame();
+        // Do not push here; LED streaming handled by GIF loop
+      } else {
+        setYtStatus('No data');
+      }
+    } catch { setYtStatus('Error'); }
+  };
+  const startYoutubeUpdater = async () => {
+    if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
+    if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
+    await fetchYoutubeStats();
+    youtubeTimer = setInterval(fetchYoutubeStats, 5000);
+    // LED animation for local/blob themes at ~2 FPS
+    const mode = $('youtubeIconMode') ? $('youtubeIconMode').value : 'classic';
+    if (mode === 'local' || mode === 'blob') {
+      youtubeAnimTimer = setInterval(async () => {
+        if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
+        await renderAndUploadYoutube();
+      }, 500);
+    }
   };
 
   // ========= Theme Controls / Upload =========
@@ -1501,7 +1772,7 @@
     });
   };
 
-  const initEventListeners = () => {
+  const initEventListeners = async () => {
     // Apply (tab-aware)
     $('btn').addEventListener('click', async (e) => {
       e.preventDefault();
@@ -1509,6 +1780,7 @@
       const clockMode = !$('clockConfig').classList.contains('hidden');
       const videoMode = !$('videoConfig').classList.contains('hidden');
       const themeMode = !$('themeConfig').classList.contains('hidden');
+      const youtubeMode = !$('youtubeConfig').classList.contains('hidden');
 
       // Stop all modes first before starting any new mode
       await stopAllModes();
@@ -1526,6 +1798,10 @@
       } else if (themeMode) {
         console.log('Theme: starting streaming to ESP32');
         await startThemeStreaming();
+      } else if (youtubeMode) {
+        console.log('YouTube: starting live counter');
+        // If we have a local or blob image, LED can render it; otherwise selection triggers ESP download on click
+        await startYoutubeUpdater();
       }
     });
 
@@ -1536,11 +1812,26 @@
 
       // Check if theme tab is active and has a loaded theme
       const isThemeTab = !$('themeConfig').classList.contains('hidden');
+      const isYoutubeTab = !$('youtubeConfig').classList.contains('hidden');
       const hasTheme = window.__theme && window.__theme.render;
 
       console.log('Preview button clicked - Theme tab:', isThemeTab, 'Has theme:', hasTheme);
 
-      if (isThemeTab && hasTheme) {
+      if (isYoutubeTab) {
+        // Download via ESP, then preview using overlay <img> sourced from ESP
+        if (!selectedThemeId) { setYtStatus('Select a theme first'); }
+        else {
+          await downloadAndSetIcon(selectedThemeId, true);
+          const overlay = document.getElementById('ytPreviewImg');
+          if (overlay) {
+            overlay.style.display = 'block';
+            overlay.src = apiBase + '/yt_icon_current?nocache=' + Date.now();
+          }
+          // Keep redrawing canvas text/positions at ~15 FPS
+          if (youtubePreviewTimer) clearInterval(youtubePreviewTimer);
+          youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67);
+        }
+      } else if (isThemeTab && hasTheme) {
         console.log('Starting theme preview...');
         // Preview theme in browser canvas AND stream to LED panel (same as Apply)
         const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
@@ -1575,6 +1866,215 @@
         if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
       });
     });
+
+    // YouTube color pickers
+    document.querySelectorAll('#youtubeConfig .clock-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#youtubeConfig .clock-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('youtubeTextColor').value = this.getAttribute('data-color');
+        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+      });
+    });
+    document.querySelectorAll('#youtubeConfig .clock-bg-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#youtubeConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('youtubeBgColor').value = this.getAttribute('data-color');
+        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+      });
+    });
+    // YouTube icon size selectors
+    document.querySelectorAll('#youtubeConfig .font-size-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#youtubeConfig .font-size-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('youtubeIconSize').value = this.getAttribute('data-size');
+        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+      });
+    });
+    // YouTube theme selection
+    const downloadAndSetIcon = async (idOrUrl, isId=true) => {
+      try {
+        setYtStatus('Downloading icon...');
+        const body = new URLSearchParams();
+        let r;
+        if (isId) {
+          body.set('id', idOrUrl);
+          r = await fetch(apiBase + '/theme_download', { method: 'POST', body });
+        } else {
+          body.set('url', idOrUrl);
+          r = await fetch(apiBase + '/yt_icon_download', { method: 'POST', body });
+        }
+        if (!r.ok) throw new Error('download failed');
+        const j = await r.json();
+        if (!j.ok || !j.path) throw new Error('bad response');
+        // Fetch the saved icon back from ESP with CORS and create a blob URL for same-origin drawing
+        const iconResp = await fetch(apiBase + '/yt_icon_current', { cache: 'no-store' });
+        if (!iconResp.ok) throw new Error('icon fetch failed');
+        const blob = await iconResp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        $('youtubeIconMode').value = 'blob';
+        $('youtubeIconUrl').value = objUrl;
+        ytIconImgReady = false;
+        ytIconImg = new Image();
+        ytIconImg.onload = async () => { ytIconImgReady = true; setYtStatus('Icon ready', true); drawYoutubePreviewFrame(); await renderAndUploadYoutube(); };
+        ytIconImg.onerror = () => { ytIconImgReady = false; setYtStatus('Icon load failed'); drawYoutubePreviewFrame(); };
+        ytIconImg.src = objUrl;
+      } catch (e) {
+        console.warn('Icon download failed', e);
+        setYtStatus('Icon download failed');
+      }
+    };
+
+    const attachThemeHandlers = () => document.querySelectorAll('.yt-theme-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.yt-theme-item').forEach(b=>b.classList.remove('active'));
+        item.classList.add('active');
+        const id = item.getAttribute('data-id');
+        selectedThemeId = id;
+        // Do not auto-download on selection; user can Preview to fetch via public API or Apply to drive LED with ESP download
+        setYtStatus('Selected: ' + id);
+      });
+    });
+
+    // Client-side fetch for preview only (uses public API). Produces a blob URL safe for canvas reads.
+    const fetchThemeBlobById = async (id) => {
+      try {
+        setYtStatus('Fetching preview...');
+        const resp = await fetch(`https://api.ikhode.com/themes/${encodeURIComponent(id)}/file`, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('http ' + resp.status);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        $('youtubeIconMode').value = 'blob';
+        $('youtubeIconUrl').value = objUrl;
+        ytIconImgReady = false;
+        ytIconImg = new Image();
+        ytIconImg.onload = () => { ytIconImgReady = true; setYtStatus('Preview ready', true); drawYoutubePreviewFrame(); };
+        ytIconImg.onerror = () => { ytIconImgReady = false; setYtStatus('Preview failed'); drawYoutubePreviewFrame(); };
+        ytIconImg.src = objUrl;
+      } catch (e) {
+        console.warn('Preview fetch failed', e);
+        setYtStatus('Preview fetch failed');
+      }
+    };
+
+    // Decode the saved icon GIF on browser using gifuct-js (bytes served from ESP), then animate
+    const decodeGifFromESP = async () => {
+      try {
+        // Fetch raw bytes from ESP with CORS allowed
+        const resp = await fetch(apiBase + '/yt_icon_current', { cache: 'no-store' });
+        if (!resp.ok) throw new Error('icon not found');
+        const buf = await resp.arrayBuffer();
+        const gif = window.gifuct ? window.gifuct.parseGIF(buf) : (window.parseGIF && window.parseGIF(buf));
+        const frames = window.gifuct ? window.gifuct.decompressFrames(gif, true) : window.decompressFrames(gif, true);
+        gifLogicalW = gif.lsd.width; gifLogicalH = gif.lsd.height;
+        gifFrames = frames.map(f => ({ patch: f.patch, dims: f.dims }));
+        gifDelays = frames.map(f => Math.max(67, (f.delay || 10) * 10)); // respect delays, min ~15 FPS
+        gifFrameIndex = 0;
+        $('youtubeIconMode').value = 'gifdec';
+        // Prepare offscreen canvases
+        if (!gifOffscreen) { gifOffscreen = document.createElement('canvas'); }
+        gifOffscreen.width = gifLogicalW; gifOffscreen.height = gifLogicalH;
+        if (!ledOffscreen) { ledOffscreen = document.createElement('canvas'); }
+        ledOffscreen.width = 128; ledOffscreen.height = 64;
+        setYtStatus('GIF decoded', true);
+      } catch (e) {
+        console.warn('GIF decode failed', e);
+        setYtStatus('GIF decode failed');
+      }
+    };
+
+    // moved stopGifAnimation earlier to allow use before definition
+
+    const composeYTFrame = (ctx, iconSourceCanvas) => {
+      const pw = 128, ph = 64; const bg = $('youtubeBgColor').value; const col = $('youtubeTextColor').value;
+      ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+      // Fill background on target
+      if (ctx.canvas.width === 128 && ctx.canvas.height === 64) {
+        ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
+      } else {
+        ctx.fillStyle = bg; ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+      }
+      const txt = (youtubeLastCount!==null)? String(youtubeLastCount): '—';
+      const uiSize = $('youtubeIconSize') ? parseInt($('youtubeIconSize').value, 10) : 25;
+      const iconH = Math.max(10, Math.min(uiSize, Math.round(64*0.9)));
+      const iconW = Math.round(iconH*1.6);
+      const gap = 6;
+      let size=28; const fam=getFontFamily(); let font=`bold ${size}px ${fam}`; ctx.font=font; ctx.textBaseline='middle';
+      let tw=ctx.measureText(txt).width;
+      while ((iconW + gap + tw) > (128 - 8) && size>10) { size -= 2; font=`bold ${size}px ${fam}`; ctx.font=font; tw=ctx.measureText(txt).width; }
+      const groupW = iconW + gap + tw; const x0 = Math.round((128 - groupW)/2); const cy = Math.round(64/2);
+      // Draw icon
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(iconSourceCanvas, x0, cy - Math.round(iconH/2), iconW, iconH);
+      // Text
+      ctx.fillStyle = col; ctx.textAlign='left'; ctx.fillText(txt, x0 + iconW + gap, cy);
+    };
+
+    const playGifLoop = () => {
+      stopGifAnimation();
+      if (!gifFrames.length || !gifOffscreen) return;
+      const frame = gifFrames[gifFrameIndex];
+      const delay = 100; // 10 FPS fixed for LED smoothness
+      // build current frame image into offscreen
+      const gctx = gifOffscreen.getContext('2d');
+      const imgData = new ImageData(new Uint8ClampedArray(frame.patch), gifLogicalW, gifLogicalH);
+      gctx.putImageData(imgData, 0, 0);
+      // Draw to preview canvas text and re-position overlay image
+      if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+      // If LED is active (apply pressed), push the frame
+      if (youtubeTimer) {
+        const lctx = ledOffscreen.getContext('2d');
+        composeYTFrame(lctx, gifOffscreen);
+        // Convert to RGB565 and upload
+        const out = lctx.getImageData(0,0,128,64);
+        const buf = new Uint8Array(4 + 128*64*2);
+        buf[0]=128&255; buf[1]=(128>>8)&255; buf[2]=64&255; buf[3]=(64>>8)&255;
+        let p=4, d=out.data; for(let y=0;y<64;y++){ for(let x=0;x<128;x++){ const i=(y*128+x)*4; const r=d[i],g=d[i+1],b=d[i+2]; const v=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3); buf[p++]=v&255; buf[p++]=(v>>8)&255; }}
+        const fd = new FormData(); fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565'); fd.append('bg', $('youtubeBgColor').value); fd.append('bgMode','color'); fd.append('animate',0); fd.append('dir','none'); fd.append('speed',0); fd.append('interval',0);
+        fetch(apiBase + '/upload', { method:'POST', body:fd }).catch(()=>{});
+      }
+      // next frame
+      gifFrameIndex = (gifFrameIndex + 1) % gifFrames.length;
+      gifAnimTimer = setTimeout(playGifLoop, delay);
+    };
+
+    attachThemeHandlers();
+
+    // Load theme IDs (prefer direct API, fallback to ESP proxy if needed)
+    // Theme list removed; we only support Icon Upload now.
+
+    // Upload icon (local file) — bypass API and use ESP storage directly
+    const btnUploadIcon = document.getElementById('btnUploadIcon');
+    const ytIconFile = document.getElementById('ytIconFile');
+    if (btnUploadIcon && ytIconFile) {
+      btnUploadIcon.addEventListener('click', () => ytIconFile.click());
+      ytIconFile.addEventListener('change', async () => {
+        const f = ytIconFile.files && ytIconFile.files[0];
+        if (!f) return;
+        try {
+          setYtStatus('Uploading icon...');
+          const fd = new FormData();
+          fd.append('file', f, f.name || 'icon.gif');
+          const r = await fetch(apiBase + '/upload_icon', { method: 'POST', body: fd });
+          if (!r.ok) throw new Error('upload failed');
+          const j = await r.json();
+          if (!j.ok) throw new Error('upload failed');
+          // Show in preview and start LED streaming decode loop
+          const overlay = document.getElementById('ytPreviewImg');
+          if (overlay) { overlay.style.display='block'; overlay.src = apiBase + '/yt_icon_current?nocache=' + Date.now(); }
+          selectedThemeId = 'uploaded';
+          // decode & animate to LED
+          await decodeGifFromESP();
+          playGifLoop();
+          setYtStatus('Icon uploaded', true);
+        } catch (e) {
+          console.warn('Icon upload failed', e);
+          setYtStatus('Upload failed');
+        }
+      });
+    }
 
     // Image file
     $('imageFile').addEventListener('change', (e)=>{
@@ -2022,6 +2522,7 @@
     initTabs();
     initEventListeners();
     initThemeControls();
+    initWifiControls();
     initPanelConfig();
     hideThemeControls(); // hidden until a theme is loaded
     drawPreview();

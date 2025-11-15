@@ -1,13 +1,14 @@
 <!doctype html>
 <html lang="en">
 
-<head>
+  <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:," />
   <title>LED Configuration</title>
+  <script src="https://unpkg.com/gifuct-js/dist/gifuct.min.js"></script>
   <link rel="stylesheet" href="style.css" />
-</head>
+  </head>
 
 <body>
   <header style="background-color: #332e2d;">
@@ -23,6 +24,7 @@
     <div id="previewBar">
       <div id="previewInner">
         <canvas id="preview" width="128" height="64"></canvas>
+        <img id="ytPreviewImg" alt="YT Preview" style="display:none; position:absolute; z-index:5; pointer-events:none;" />
       </div>
     </div>
 
@@ -36,6 +38,8 @@
             <button id="tabClock" class="tab" title="Clock">⏰</button>
             <button id="tabVideo" class="tab" title="Video">📸</button>
             <button id="tabTheme" class="tab" title="Theme">🎨</button>
+            <button id="tabWifi" class="tab" title="WiFi">📶</button>
+            <button id="tabYoutube" class="tab" title="YouTube">▶️</button>
           </div>
 
           <!-- Right side - Action buttons -->
@@ -374,6 +378,95 @@
         <div class="spacer-400"></div>
       </div>
       <!-- END VIDEO CONFIG -->
+
+      <!-- YOUTUBE CONFIG -->
+      <div id="youtubeConfig" class="card hidden">
+        <div class="row">
+          <label for="youtubeChannelId">Channel</label>
+          <div class="inline gap-12" style="width:100%">
+            <input id="youtubeChannelId" type="text" value="UCaPOzWiPWJFJr9dXzkkvUOw" style="flex:1" />
+            <span id="ytStatus" class="muted">Idle</span>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="youtubeTextColor">Text Color</label>
+          <div class="clock-color-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="clock-color-box active" data-color="#FFFFFF" style="background:#FFFFFF"></button>
+              <button class="clock-color-box" data-color="#FF0000" style="background:#FF0000"></button>
+              <button class="clock-color-box" data-color="#00FF00" style="background:#00FF00"></button>
+              <button class="clock-color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
+              <button class="clock-color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
+              <button class="clock-color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
+            </div>
+          </div>
+          <input type="hidden" id="youtubeTextColor" value="#FFFFFF" />
+        </div>
+
+        <div class="row">
+          <label for="youtubeBgColor">Background</label>
+          <div class="clock-bg-color-selection-wrapper">
+            <div class="clock-bg-color-boxes inline gap-12 center">
+              <button class="clock-bg-color-box active" data-color="#000000" style="background:#000000"></button>
+              <button class="clock-bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
+              <button class="clock-bg-color-box" data-color="#827C75" style="background:#827C75"></button>
+              <button class="clock-bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
+            </div>
+          </div>
+          <input type="hidden" id="youtubeBgColor" value="#000000" />
+        </div>
+
+        <div class="row">
+          <label for="youtubeIconSize">Icon Size</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box" data-size="15">15</button>
+              <button class="font-size-box" data-size="20">20</button>
+              <button class="font-size-box active" data-size="25">25</button>
+              <button class="font-size-box" data-size="30">30</button>
+              <button class="font-size-box" data-size="35">35</button>
+              <button class="font-size-box" data-size="40">40</button>
+            </div>
+            <input type="hidden" id="youtubeIconSize" value="25" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Icon</label>
+          <div style="width:100%">
+            <div class="inline gap-12" style="margin-top:0;">
+              <input id="ytIconFile" type="file" accept="image/gif,image/png,image/jpeg" style="display:none" />
+              <button id="btnUploadIcon" class="upload-btn">📤 Upload GIF/PNG/JPG</button>
+              <span class="muted" style="font-size:12px;">Upload a GIF to animate</span>
+            </div>
+            <input type="hidden" id="youtubeIconMode" value="classic" />
+            <input type="hidden" id="youtubeIconUrl" value="" />
+          </div>
+        </div>
+
+        <div class="spacer-200"></div>
+      </div>
+      <!-- END YOUTUBE CONFIG -->
+
+      <!-- WIFI CONFIG -->
+      <div id="wifiConfig" class="card hidden">
+        <div class="row">
+          <label>WiFi Networks</label>
+          <div class="inline wrap gap-12">
+            <button id="btnWifiScan" class="upload-btn">🔍 Scan</button>
+            <span id="wifiStatus" class="muted">Not connected</span>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Available</label>
+          <div id="wifiList" class="inline wrap" style="gap:8px;">
+            <!-- filled by script -->
+          </div>
+        </div>
+      </div>
+      <!-- END WIFI CONFIG -->
     </div>
 
     <footer></footer>

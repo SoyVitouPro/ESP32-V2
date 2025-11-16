@@ -37,7 +37,6 @@
             <button id="tabText" class="tab active" title="Text">🏡</button>
             <button id="tabClock" class="tab" title="Clock">⏰</button>
             <button id="tabVideo" class="tab" title="Video">📸</button>
-            <button id="tabTheme" class="tab" title="Theme">🎨</button>
             <button id="tabWifi" class="tab" title="WiFi">📶</button>
             <button id="tabYoutube" class="tab" title="YouTube">▶️</button>
           </div>
@@ -58,7 +57,19 @@
       <div id="textConfig" class="card">
         <div class="row">
           <label for="text">Text Input</label>
-          <input id="text" type="text" value="GENZ-LED-25" />
+          <input id="text" type="text" value="GENZ-LED" />
+        </div>
+
+        <div class="row" id="fontFamilyRow">
+          <label for="fontFamilySelect">Font</label>
+          <div class="inline">
+            <select id="fontFamilySelect" class="w-120">
+              <option value="default">Default</option>
+              <option value="Battambang">Battambang</option>
+              <option value="Bokor">Bokor</option>
+            </select>
+            <input type="hidden" id="fontFamily" value="default" />
+          </div>
         </div>
 
         <div class="row group-text">
@@ -137,6 +148,19 @@
               <button class="font-size-box" data-size="35">35</button>
             </div>
             <input type="hidden" id="fontSize" value="17" />
+          </div>
+        </div>
+
+        <div class="row" id="thicknessRow">
+          <label for="fontThickness">Text Thickness</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="thickness-box active" data-thick="0">0</button>
+              <button class="thickness-box" data-thick="1">1</button>
+              <button class="thickness-box" data-thick="2">2</button>
+              <button class="thickness-box" data-thick="3">3</button>
+            </div>
+            <input type="hidden" id="fontThickness" value="0" />
           </div>
         </div>
 
@@ -225,80 +249,7 @@
       </div>
       <!-- END TEXT CONFIG -->
 
-      <!-- THEME CONFIG -->
-      <div id="themeConfig" class="card hidden">
-        <div class="row">
-          <div class="inline gap-12">
-            <input id="themeFile" type="file" accept=".html" style="display: none;" />
-            <button id="btnSelectThemeFile" class="upload-btn">📁 Choose Theme</button>
-          </div>
-        </div>
-
-
-        <!-- Theme Controls Section -->
-        <div class="row hidden" id="themeControlsSection">
-          <label>Theme Controls</label>
-
-          <div class="theme-controls">
-            <!-- Font Size Control -->
-            <div class="control">
-              <div class="control-label">🔠 Font Size</div>
-              <div class="theme-font-size-selection-wrapper">
-                <div class="inline gap-12">
-                  <button class="theme-font-size-box" data-size="15">15</button>
-                  <button class="theme-font-size-box active" data-size="20">20</button>
-                  <button class="theme-font-size-box" data-size="35">35</button>
-                  <button class="theme-font-size-box" data-size="60">60</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Text Color Control -->
-            <div class="control">
-              <div class="control-label">🎨 Text Color</div>
-              <div class="inline gap-12 center">
-                <input id="themeTextColor" type="color" value="#00ff00" class="color-input" />
-                <span id="textColorHex" class="muted mono">#00ff00</span>
-              </div>
-            </div>
-
-            <!-- Background Color Control -->
-            <div class="control">
-              <div class="control-label">🖼️ Background</div>
-              <div class="inline gap-12 center">
-                <input id="themeBgColor" type="color" value="#000000" class="color-input" />
-                <span id="bgColorHex" class="muted mono">#000000</span>
-              </div>
-            </div>
-
-            <!-- Time Format -->
-            <div class="control">
-              <div class="control-label">🕐 Time Format</div>
-              <div class="inline gap-12 center">
-                <select id="themeTimeFormat" class="w-120">
-                  <option value="24">24-hour</option>
-                  <option value="12">12-hour</option>
-                </select>
-                <label class="muted inline gap-12">
-                  <input type="checkbox" id="themeShowSeconds" checked /> Show Seconds
-                </label>
-              </div>
-            </div>
-
-            <!-- Effects -->
-            <div class="control">
-              <div class="control-label">✨ Effects</div>
-              <label class="muted inline gap-12">
-                <input type="checkbox" id="themePulseAnimation" /> Pulse
-              </label>
-            </div>
-          </div>
-        </div>
-
-
-        <div class="spacer-400"></div>
-      </div>
-      <!-- END THEME CONFIG -->
+      
 
       <!-- CLOCK CONFIG -->
       <div id="clockConfig" class="card hidden">

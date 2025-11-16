@@ -57,6 +57,18 @@
       pv.style.border = '1px solid #243241';
       holder.appendChild(pv);
     }
+
+    // Replace with crisp text bitmap (binary alpha + thickness)
+    if ($('text').value.trim().length > 0) {
+      const fam = getTextFontFamily();
+      const size = parseInt($('fontSize').value, 10);
+      const xGap = parseInt($('xGap').value, 10) || 0;
+      const color = $('color').value;
+      const gradientSpec = $('textGradient').value;
+      const thickness = getThickness();
+      outCanvas = buildTextBitmap($('text').value, fam, size, xGap, color, gradientSpec, thickness);
+      console.log(`Crisp text bitmap ready: ${outCanvas.width}x${outCanvas.height}, thickness=${thickness}`);
+    }
     return pv;
   };
 
@@ -84,8 +96,209 @@
     return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
   };
 
-  const getFontFamily = () =>
-    `'Noto Sans Khmer', 'Khmer OS Content', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', system-ui, Arial, sans-serif`;
+  // Base fallback fonts
+  const fallbackFonts = `'Noto Sans Khmer', 'Khmer OS Content', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', system-ui, Arial, sans-serif`;
+
+  // Existing usage in non-Text features (YouTube/others) keeps fallback
+  const getFontFamily = () => fallbackFonts;
+
+  // Text tab font selection
+  const getTextFontFamily = () => {
+    const sel = document.getElementById('fontFamilySelect');
+    const choice = sel ? sel.value : 'default';
+    if (choice && choice !== 'default') return `'${choice}', ${fallbackFonts}`;
+    return fallbackFonts;
+  };
+
+  // Fonts bundled under data/fonts
+  const availableFonts = [
+    { name: 'Battambang', file: 'fonts/Battambang-Regular.ttf' },
+    { name: 'Bokor', file: 'fonts/Bokor-Regular.ttf' },
+    { name: 'Moul', file: 'fonts/Moul-Regular.ttf' },
+    { name: 'Dangrek', file: 'fonts/Dangrek-Regular.ttf' }
+  ];
+
+  const registerWebFonts = () => {
+    const style = document.createElement('style');
+    style.type = 'text/css';
+    style.textContent = availableFonts.map(f => `@font-face { font-family: '${f.name}'; src: url('${f.file}') format('truetype'); font-weight: normal; font-style: normal; font-display: swap; }`).join('\n');
+    document.head.appendChild(style);
+  };
+
+  // ========= Crisp Text Rendering (Binary mask + dilation) =========
+  const TEXT_ALPHA_THRESHOLD = 128; // 0-255
+  let textBitmapCanvas = null;
+  let textBitmapKey = '';
+
+  const getThickness = () => parseInt(($('fontThickness') && $('fontThickness').value) || '0', 10) || 0;
+
+  const hexToRgb = (hex) => {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : { r:255,g:255,b:255 };
+  };
+
+  const isComplexKhmer = (text) => /[\u1780-\u17FF\u19E0-\u19FF]/.test(text);
+  const isKhmerFontSelected = () => {
+    const sel = document.getElementById('fontFamilySelect');
+    const v = sel ? (sel.value || '').toLowerCase() : '';
+    return v.includes('battambang') || v.includes('bokor') || v.includes('moul') || v.includes('dangrek');
+  };
+
+  const drawTextLineToCanvas = (canvas, text, fam, size, color, xGap, gradientSpec) => {
+    const tctx = canvas.getContext('2d');
+    const font = `normal ${size}px ${fam}`;
+    tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
+
+    // Determine rendering mode: per-character (Latin) vs per-token (Khmer)
+    const complex = isComplexKhmer(text) || isKhmerFontSelected();
+
+    // Measure width
+    let textWidth = 0;
+    if (!complex) {
+      textWidth = measureTextWithGap(tctx, text, xGap);
+    } else {
+      // Only add extra spacing between whitespace tokens to preserve shaping
+      const parts = text.split(/(\s+)/);
+      for (const part of parts) {
+        if (part.length === 0) continue;
+        if (/^\s+$/.test(part)) {
+          textWidth += tctx.measureText(part).width + xGap; // apply xGap on spaces only
+        } else {
+          textWidth += tctx.measureText(part).width;
+        }
+      }
+    }
+    const th = Math.max(1, Math.ceil(size * 1.2 + 8));
+    const tw = Math.max(1, Math.ceil(textWidth) + 8);
+    canvas.width = tw; canvas.height = th;
+    tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
+
+    // Prepare fill style (solid or gradient)
+    if (gradientSpec && gradientSpec !== 'none') {
+      const grad = tctx.createLinearGradient(0, 0, textWidth, 0);
+      const gradients = {
+        rainbow: ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD'],
+        sunset: ['#FF512F','#F09819'],
+        ocean: ['#2E3192','#1BFFFF'],
+        forest: ['#134E5E','#71B280'],
+        fire: ['#FF416C','#FF4B2B'],
+        purple: ['#667eea','#764ba2']
+      };
+      const arr = gradients[gradientSpec] || [color];
+      for (let i = 0; i < arr.length; i++) grad.addColorStop(i/(arr.length-1 || 1), arr[i]);
+      tctx.fillStyle = grad;
+    } else {
+      tctx.fillStyle = color;
+    }
+
+    // Draw text
+    let currentX = 4; // small left pad
+    const baseY = Math.floor(size * 1.0);
+    if (!complex) {
+      // per-character with integer snapping
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        tctx.fillText(ch, Math.round(currentX), baseY);
+        const cw = tctx.measureText(ch).width;
+        currentX += cw + (i < text.length - 1 ? xGap : 0);
+        if (ch === ' ' && xGap < 3) currentX += (3 - xGap);
+      }
+    } else {
+      // per-token (whitespace separated) to preserve complex shaping
+      const parts = text.split(/(\s+)/);
+      for (const part of parts) {
+        if (part.length === 0) continue;
+        if (/^\s+$/.test(part)) {
+          currentX += Math.round(tctx.measureText(part).width + xGap);
+        } else {
+          tctx.fillText(part, Math.round(currentX), baseY);
+          currentX += Math.round(tctx.measureText(part).width);
+        }
+      }
+    }
+  };
+
+  const buildTextBitmap = (text, fam, size, xGap, color, gradientSpec, thickness) => {
+    // Step 1: draw smooth text to temp canvas
+    const src = document.createElement('canvas');
+    drawTextLineToCanvas(src, text, fam, size, color, xGap, gradientSpec);
+
+    // Step 2: threshold alpha to binary mask
+    const sctx = src.getContext('2d');
+    const sdata = sctx.getImageData(0, 0, src.width, src.height);
+    const d = sdata.data; // RGBA
+    const w = src.width, h = src.height;
+    const mask = new Uint8Array(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      mask[p] = d[i+3] >= TEXT_ALPHA_THRESHOLD ? 1 : 0;
+    }
+
+    // Step 3: morphological dilation for thickness
+    const dilateOnce = (input) => {
+      const out = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          let on = 0;
+          for (let dy = -1; dy <= 1 && !on; dy++) {
+            const yy = y + dy; if (yy < 0 || yy >= h) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+              const xx = x + dx; if (xx < 0 || xx >= w) continue;
+              if (input[yy * w + xx]) { on = 1; break; }
+            }
+          }
+          out[y * w + x] = on;
+        }
+      }
+      return out;
+    };
+    let thickMask = mask;
+    for (let k = 0; k < Math.max(0, thickness); k++) thickMask = dilateOnce(thickMask);
+
+    // Step 4: crop bounding box
+    let minX = w, minY = h, maxX = -1, maxY = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (thickMask[y * w + x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    }
+    if (maxX < minX || maxY < minY) { const empty = document.createElement('canvas'); empty.width=1; empty.height=1; return empty; }
+    const outW = Math.max(1, maxX - minX + 1);
+    const outH = Math.max(1, maxY - minY + 1);
+
+    // Step 5: build colored output with binary alpha
+    const out = document.createElement('canvas'); out.width = outW; out.height = outH;
+    const octx = out.getContext('2d');
+
+    // Fill color/gradient on output, then apply alpha mask
+    if (gradientSpec && gradientSpec !== 'none') {
+      const grad = octx.createLinearGradient(0, 0, outW, 0);
+      const gradients = {
+        rainbow: ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD'],
+        sunset: ['#FF512F','#F09819'],
+        ocean: ['#2E3192','#1BFFFF'],
+        forest: ['#134E5E','#71B280'],
+        fire: ['#FF416C','#FF4B2B'],
+        purple: ['#667eea','#764ba2']
+      };
+      const arr = gradients[gradientSpec] || [color];
+      for (let i = 0; i < arr.length; i++) grad.addColorStop(i/(arr.length-1 || 1), arr[i]);
+      octx.fillStyle = grad;
+    } else {
+      octx.fillStyle = color;
+    }
+    octx.fillRect(0, 0, outW, outH);
+
+    const odata = octx.getImageData(0, 0, outW, outH);
+    const od = odata.data;
+    for (let y = 0; y < outH; y++) {
+      for (let x = 0; x < outW; x++) {
+        const srcOn = thickMask[(y + minY) * w + (x + minX)];
+        const idx = (y * outW + x) * 4;
+        od[idx + 3] = srcOn ? 255 : 0; // force binary alpha
+      }
+    }
+    octx.putImageData(odata, 0, 0);
+
+    return out;
+  };
 
   // ========= Stop / Cleanup =========
   const stopPreviewAnim = () => { if (rafId) cancelAnimationFrame(rafId); rafId = 0; };
@@ -139,14 +352,20 @@
     const size = parseInt($('fontSize').value, 10);
     const text = $('text').value;
     const xGap = parseInt($('xGap').value, 10) || 0;
-    const fam = getFontFamily();
-    const font = `bold ${size}px ${fam}`;
+    const fam = getTextFontFamily();
+    const color = $('color').value;
+    const gradientSpec = $('textGradient').value;
+    const thickness = getThickness();
 
-    ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    // Build crisp text bitmap for animation
+    const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
+    if (textBitmapKey !== key) {
+      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness);
+      textBitmapKey = key;
+    }
 
-    // Calculate text width including character gaps
-    textW = Math.ceil(measureTextWithGap(ctx, text, xGap));
-    textH = Math.ceil(size * 1.2);
+    textW = textBitmapCanvas ? textBitmapCanvas.width : 0;
+    textH = textBitmapCanvas ? textBitmapCanvas.height : 0;
     const gap = parseInt($('interval').value, 10) || 1;
     spacing = Math.max(1, textW + gap);
 
@@ -160,7 +379,7 @@
     }
     lastTs = 0; accMs = 0;
 
-    console.log(`Text animation initialized: "${text}" width=${textW}px, height=${textH}px, spacing=${spacing}, copies=${minCopies}, xGap=${xGap}`);
+    console.log(`Text animation initialized: "${text}" width=${textW}px, height=${textH}px, spacing=${spacing}, copies=${minCopies}, xGap=${xGap}, thickness=${thickness}`);
   };
 
   const drawTextWithGap = (ctx, text, x, y, gap) => {
@@ -207,10 +426,7 @@
 
   const drawPreviewFrame = (animated) => {
     const text = $('text').value;
-    const fam = getFontFamily();
     const size = parseInt($('fontSize').value, 10);
-    const xGap = parseInt($('xGap').value, 10) || 0;
-    const font = `bold ${size}px ${fam}`;
     const color = $('color').value;
     const bg = $('bg').value;
     const pw = 128, ph = 64;
@@ -235,95 +451,35 @@
     }
 
     const cy = Math.floor(ph * 0.5) + 2;
-    ctx.font = font; ctx.textBaseline = 'middle';
-
-    // Check if text gradient is selected for preview
-    const selectedGradient = $('textGradient').value;
-    if (selectedGradient !== 'none') {
-      // Apply gradient to text for preview
-      let gradient;
-      // Calculate text width for gradient
-      const previewTextWidth = Math.ceil(measureTextWithGap(ctx, text, xGap));
-
-      // Create gradient based on selection
-      switch(selectedGradient) {
-        case 'rainbow':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#FF6B6B');
-          gradient.addColorStop(0.2, '#4ECDC4');
-          gradient.addColorStop(0.4, '#45B7D1');
-          gradient.addColorStop(0.6, '#96CEB4');
-          gradient.addColorStop(0.8, '#FFEAA7');
-          gradient.addColorStop(1, '#DDA0DD');
-          break;
-        case 'sunset':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#FF512F');
-          gradient.addColorStop(1, '#F09819');
-          break;
-        case 'ocean':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#2E3192');
-          gradient.addColorStop(1, '#1BFFFF');
-          break;
-        case 'forest':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#134E5E');
-          gradient.addColorStop(1, '#71B280');
-          break;
-        case 'fire':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#FF416C');
-          gradient.addColorStop(1, '#FF4B2B');
-          break;
-        case 'purple':
-          gradient = ctx.createLinearGradient(0, cy - size/2, previewTextWidth, cy - size/2);
-          gradient.addColorStop(0, '#667eea');
-          gradient.addColorStop(1, '#764ba2');
-          break;
-        default:
-          gradient = color;
-      }
-      ctx.fillStyle = gradient;
-    } else {
-      // Use solid color
-      ctx.fillStyle = color;
+    const fam = getTextFontFamily();
+    const xGap = parseInt($('xGap').value, 10) || 0;
+    const gradientSpec = $('textGradient').value;
+    const thickness = getThickness();
+    const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
+    if (textBitmapKey !== key) {
+      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness);
+      textBitmapKey = key;
     }
-
-    // Update textW to include character gaps
-    textW = Math.ceil(measureTextWithGap(ctx, text, xGap));
+    textW = textBitmapCanvas ? textBitmapCanvas.width : 0;
 
     if (animated && text.length > 0) {
-      ctx.textAlign = 'left';
-      heads.forEach(headX => {
-        const xLeft = Math.floor(headX);
-        // Only draw if text is visible within canvas bounds (with some buffer)
-        if (xLeft >= -textW && xLeft <= pw) {
-          // Clip text to canvas bounds for performance
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(0, 0, pw, ph);
-          ctx.clip();
-          drawTextWithGap(ctx, text, xLeft, cy, xGap);
-          ctx.restore();
-        }
-      });
+      if (textBitmapCanvas) {
+        heads.forEach(headX => {
+          const xLeft = Math.floor(headX);
+          if (xLeft >= -textW && xLeft <= pw) {
+            ctx.drawImage(textBitmapCanvas, xLeft, Math.floor(cy - Math.floor(textBitmapCanvas.height/2)));
+          }
+        });
+      }
     } else {
-      ctx.textAlign = 'left'; // Use left alignment for consistent gap rendering
-      // For static display, ensure text fits within bounds
-      if (textW <= pw) {
-        drawTextWithGap(ctx, text, Math.floor((pw - textW) / 2), cy, xGap);
-      } else {
-        // If text is too long for static display, truncate it
-        const maxWidth = pw - 4; // 2px margin on each side
-        let truncated = text;
-        while (measureTextWithGap(ctx, truncated + '...', xGap) > maxWidth && truncated.length > 0) {
-          truncated = truncated.slice(0, -1);
-        }
-        if (truncated.length > 0) {
-          truncated += '...';
-          const truncatedWidth = measureTextWithGap(ctx, truncated, xGap);
-          drawTextWithGap(ctx, truncated, Math.floor((pw - truncatedWidth) / 2), cy, xGap);
+      if (textBitmapCanvas) {
+        if (textW <= pw) {
+          ctx.drawImage(textBitmapCanvas, Math.floor((pw - textW)/2), Math.floor(cy - Math.floor(textBitmapCanvas.height/2)));
+        } else {
+          // simple center crop for preview
+          const sx = Math.max(0, Math.floor(textW/2 - pw/2));
+          ctx.drawImage(textBitmapCanvas, sx, 0, Math.min(pw, textW - sx), textBitmapCanvas.height,
+            0, Math.floor(cy - Math.floor(textBitmapCanvas.height/2)), Math.min(pw, textW - sx), textBitmapCanvas.height);
         }
       }
     }
@@ -391,8 +547,8 @@
     const pw = 128, ph = 64;
     const fmt = '24';
     const size = parseInt($('clockSize').value, 10);
-    const fam = getFontFamily();
-    const font = `bold ${size}px ${fam}`;
+    const fam = getTextFontFamily();
+    const font = `normal ${size}px ${fam}`;
     const col = $('clockColor').value;
     const clockBg = $('clockBgColor').value;
 
@@ -649,32 +805,26 @@
     const tabText = $('tabText');
     const tabClock = $('tabClock');
     const tabVideo = $('tabVideo');
-    const tabTheme = $('tabTheme');
     const tabWifi = $('tabWifi');
     const tabYoutube = $('tabYoutube');
 
     const textCfg = $('textConfig');
     const clockCfg = $('clockConfig');
     const videoCfg = $('videoConfig');
-    const themeCfg = $('themeConfig');
     const wifiCfg = $('wifiConfig');
     const youtubeCfg = $('youtubeConfig');
 
     const activate = (which) => {
       // Tabs visual
-      [tabText, tabClock, tabVideo, tabTheme, tabWifi, tabYoutube].forEach(btn => btn && btn.classList.remove('active'));
+      [tabText, tabClock, tabVideo, tabWifi, tabYoutube].forEach(btn => btn && btn.classList.remove('active'));
       // Sections hide/show
-      [textCfg, clockCfg, videoCfg, themeCfg, wifiCfg, youtubeCfg].forEach(el => el && el.classList.add('hidden'));
+      [textCfg, clockCfg, videoCfg, wifiCfg, youtubeCfg].forEach(el => el && el.classList.add('hidden'));
 
-      if (which === 'text') { tabText.classList.add('active'); textCfg.classList.remove('hidden'); hideThemeControls(); }
-      if (which === 'clock') { tabClock.classList.add('active'); clockCfg.classList.remove('hidden'); hideThemeControls(); }
-      if (which === 'video') { tabVideo.classList.add('active'); videoCfg.classList.remove('hidden'); hideThemeControls(); }
-      if (which === 'theme') {
-        tabTheme.classList.add('active'); themeCfg.classList.remove('hidden');
-        if (window.__theme) showThemeControls();
-      }
-      if (which === 'wifi') { tabWifi.classList.add('active'); wifiCfg.classList.remove('hidden'); hideThemeControls(); }
-      if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); hideThemeControls(); drawYoutubePreviewFrame(); if (youtubePreviewTimer) clearInterval(youtubePreviewTimer); youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67); }
+      if (which === 'text') { tabText.classList.add('active'); textCfg.classList.remove('hidden'); }
+      if (which === 'clock') { tabClock.classList.add('active'); clockCfg.classList.remove('hidden'); }
+      if (which === 'video') { tabVideo.classList.add('active'); videoCfg.classList.remove('hidden'); }
+      if (which === 'wifi') { tabWifi.classList.add('active'); wifiCfg.classList.remove('hidden'); }
+      if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); drawYoutubePreviewFrame(); if (youtubePreviewTimer) clearInterval(youtubePreviewTimer); youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67); }
     };
 
     tabText.addEventListener('click', () => {
@@ -704,14 +854,13 @@
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
     });
-    tabTheme.addEventListener('click', () => { if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('theme'); });
     if (tabWifi) tabWifi.addEventListener('click', () => { if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
     if (tabYoutube) tabYoutube.addEventListener('click', () => activate('youtube'));
 
     // default
     activate('text');
 
-    // Theme upload / start / reapply wiring is in initThemeControls()
+    // Theme feature removed
   };
 
   // ========= WiFi =========
@@ -943,8 +1092,8 @@
   };
 
   // ========= Theme Controls / Upload =========
-  const showThemeControls = () => { $('themeControlsSection').classList.remove('hidden'); };
-  const hideThemeControls = () => { $('themeControlsSection').classList.add('hidden'); };
+  const showThemeControls = () => { const el = $('themeControlsSection'); if (el) el.classList.remove('hidden'); };
+  const hideThemeControls = () => { const el = $('themeControlsSection'); if (el) el.classList.add('hidden'); };
 
   // Setup theme control event handlers after theme is loaded
   const setupThemeControlHandlers = () => {
@@ -1779,7 +1928,8 @@
       const textMode = !$('textConfig').classList.contains('hidden');
       const clockMode = !$('clockConfig').classList.contains('hidden');
       const videoMode = !$('videoConfig').classList.contains('hidden');
-      const themeMode = !$('themeConfig').classList.contains('hidden');
+      const themeEl = $('themeConfig');
+      const themeMode = themeEl ? !themeEl.classList.contains('hidden') : false; // removed feature
       const youtubeMode = !$('youtubeConfig').classList.contains('hidden');
 
       // Stop all modes first before starting any new mode
@@ -1795,9 +1945,6 @@
       } else if (videoMode) {
         console.log('Video: use Start/Stop buttons');
         // Note: Video mode has its own Start/Stop buttons
-      } else if (themeMode) {
-        console.log('Theme: starting streaming to ESP32');
-        await startThemeStreaming();
       } else if (youtubeMode) {
         console.log('YouTube: starting live counter');
         // If we have a local or blob image, LED can render it; otherwise selection triggers ESP download on click
@@ -1810,12 +1957,9 @@
       e.preventDefault();
       stopContentForPreview();
 
-      // Check if theme tab is active and has a loaded theme
-      const isThemeTab = !$('themeConfig').classList.contains('hidden');
+      // Theme feature removed
       const isYoutubeTab = !$('youtubeConfig').classList.contains('hidden');
-      const hasTheme = window.__theme && window.__theme.render;
-
-      console.log('Preview button clicked - Theme tab:', isThemeTab, 'Has theme:', hasTheme);
+      console.log('Preview button clicked');
 
       if (isYoutubeTab) {
         // Download via ESP, then preview using overlay <img> sourced from ESP
@@ -1831,24 +1975,6 @@
           if (youtubePreviewTimer) clearInterval(youtubePreviewTimer);
           youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67);
         }
-      } else if (isThemeTab && hasTheme) {
-        console.log('Starting theme preview...');
-        // Preview theme in browser canvas AND stream to LED panel (same as Apply)
-        const pv = getPreviewCanvas(), pctx = pv.getContext('2d');
-        const state = window.__theme.init ? window.__theme.init() : {};
-
-        if (window.__themeTimer) clearInterval(window.__themeTimer);
-        const step = () => {
-          pctx.clearRect(0,0,pv.width,pv.height);
-          window.__theme.render(pctx, pv.width, pv.height, state, Date.now());
-          console.log('Theme frame rendered');
-        };
-        window.__themeTimer = setInterval(step, 1000); // 1 FPS for theme preview
-        step(); // Render first frame immediately
-
-        // Also start streaming to LED panel (same behavior as Apply)
-        console.log('Theme: starting streaming to ESP32 from Preview button');
-        await startThemeStreaming();
       } else {
         console.log('Previewing text instead of theme');
         // Preview text
@@ -2124,6 +2250,18 @@
       });
     });
 
+    // Thickness boxes
+    document.querySelectorAll('.thickness-box').forEach(box=>{
+      box.addEventListener('click', () => {
+        document.querySelectorAll('.thickness-box').forEach(b=>b.classList.remove('active'));
+        box.classList.add('active');
+        const v = parseInt(box.getAttribute('data-thick'), 10) || 0;
+        $('fontThickness').value = String(v);
+        // Recompute text bitmap and refresh preview
+        drawPreview();
+      });
+    });
+
     // Brightness boxes
     document.querySelectorAll('.brightness-box').forEach(box=>{
       box.addEventListener('click', () => {
@@ -2342,6 +2480,39 @@
     $('videoLoop').addEventListener('change', ()=>{ if (videoEl) videoEl.loop = $('videoLoop').checked; });
   };
 
+  const initFontControls = () => {
+    try { registerWebFonts(); } catch (e) { console.warn('Font registration failed', e); }
+    const sel = $('fontFamilySelect');
+    if (!sel) return;
+
+    // Populate options from available fonts
+    sel.innerHTML = '';
+    const def = document.createElement('option'); def.value = 'default'; def.textContent = 'Default'; sel.appendChild(def);
+    availableFonts.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.name; opt.textContent = f.name; sel.appendChild(opt);
+    });
+
+    // Set initial value from hidden field if present
+    const hidden = $('fontFamily');
+    if (hidden && hidden.value) sel.value = hidden.value;
+
+    const triggerPreview = () => {
+      if (hidden) hidden.value = sel.value;
+      const choice = sel.value;
+      if (choice && choice !== 'default' && document.fonts && document.fonts.load) {
+        // Try to load font before rendering for accurate metrics
+        document.fonts.load(`normal 20px '${choice}'`).then(() => drawPreview()).catch(() => drawPreview());
+      } else {
+        drawPreview();
+      }
+    };
+
+    sel.addEventListener('change', triggerPreview);
+    // Initial preview in case non-default is preselected
+    triggerPreview();
+  };
+
   // ========= Upload Text =========
   const renderAndUpload = async () => {
     stopPreviewAnim(); stopVideoPreview(); stopThemeTimers();
@@ -2390,9 +2561,9 @@
     // Text layer
     let outCanvas = document.createElement('canvas');
     if ($('text').value.trim().length > 0) {
-      const fam = getFontFamily(); const size = parseInt($('fontSize').value, 10);
+      const fam = getTextFontFamily(); const size = parseInt($('fontSize').value, 10);
       const xGap = parseInt($('xGap').value, 10) || 0;
-      const font = `bold ${size}px ${fam}`;
+      const font = `normal ${size}px ${fam}`;
       const text = $('text').value;
       const t = document.createElement('canvas');
       const tctx = t.getContext('2d');
@@ -2494,7 +2665,8 @@
         const i=(y*outW+x)*4;
         const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
         const v=rgb565(r,g,b);
-        buf[p++]=a; buf[p++]=v&255; buf[p++]=(v>>8)&255;
+        const A = a >= TEXT_ALPHA_THRESHOLD ? 255 : 0;
+        buf[p++]=A; buf[p++]=v&255; buf[p++]=(v>>8)&255;
       }
     }
 
@@ -2521,10 +2693,9 @@
 
     initTabs();
     initEventListeners();
-    initThemeControls();
+    initFontControls();
     initWifiControls();
     initPanelConfig();
-    hideThemeControls(); // hidden until a theme is loaded
     drawPreview();
   };
 

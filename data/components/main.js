@@ -149,7 +149,9 @@
 
   const drawTextLineToCanvas = (canvas, text, fam, size, color, xGap, gradientSpec) => {
     const tctx = canvas.getContext('2d');
-    const font = `normal ${size}px ${fam}`;
+    let px = parseInt(size, 10);
+    if (!Number.isFinite(px) || px <= 0) px = 17;
+    const font = `normal ${px}px ${fam}`;
     tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
 
     // Determine rendering mode: per-character (Latin) vs per-token (Khmer)
@@ -171,8 +173,10 @@
         }
       }
     }
-    const th = Math.max(1, Math.ceil(size * 1.2 + 8));
-    const tw = Math.max(1, Math.ceil(textWidth) + 8);
+    const thRaw = Math.ceil(px * 1.2 + 8);
+    const th = Number.isFinite(thRaw) && thRaw > 0 ? thRaw : 1;
+    const twRaw = Math.ceil(textWidth) + 8;
+    const tw = Number.isFinite(twRaw) && twRaw > 0 ? twRaw : 1;
     canvas.width = tw; canvas.height = th;
     tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
 
@@ -196,7 +200,7 @@
 
     // Draw text
     let currentX = 4; // small left pad
-    const baseY = Math.floor(size * 1.0);
+    const baseY = Math.floor(px * 1.0);
     if (!complex) {
       // per-character without snapping X to keep anti-alias smooth
       for (let i = 0; i < text.length; i++) {
@@ -291,6 +295,7 @@
 
     const odata = octx.getImageData(0, 0, outW, outH);
     const od = odata.data;
+    // No outline coloring here; text color/gradient already filled; we only set alpha
     if (forPreview) {
       const remapAlpha = (a) => {
         const x = Math.max(0, Math.min(1, a / 255));
@@ -300,9 +305,9 @@
       };
       for (let y = 0; y < outH; y++) {
         for (let x = 0; x < outW; x++) {
-          const a = thickAlpha[(y + minY) * w + (x + minX)];
+          const aBase = thickAlpha[(y + minY) * w + (x + minX)];
           const idx = (y * outW + x) * 4;
-          od[idx + 3] = remapAlpha(a);
+          od[idx + 3] = remapAlpha(aBase);
         }
       }
     } else {
@@ -391,7 +396,6 @@
     const color = $('color').value;
     const gradientSpec = $('textGradient').value;
     const thickness = getThickness();
-
     // Build crisp text bitmap for animation
     const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
     if (textBitmapKey !== key) {
@@ -490,12 +494,18 @@
     const xGap = parseInt($('xGap').value, 10) || 0;
     const gradientSpec = $('textGradient').value;
     const thickness = getThickness();
+    const frameStyle = ($('outlineStyle') && $('outlineStyle').value) || 'none';
     const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
     if (textBitmapKey !== key) {
       textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness, true);
       textBitmapKey = key;
     }
     textW = textBitmapCanvas ? textBitmapCanvas.width : 0;
+
+    // Draw frame on top of background but below text
+    if (frameStyle && frameStyle !== 'none') {
+      drawFrameOnCanvas(ctx, frameStyle, color, pw, ph);
+    }
 
     if (animated && text.length > 0) {
       if (textBitmapCanvas) {
@@ -517,6 +527,38 @@
             0, Math.floor(cy - Math.floor(textBitmapCanvas.height/2)), Math.min(pw, textW - sx), textBitmapCanvas.height);
         }
       }
+    }
+  };
+
+  // Draw a frame around the panel edges
+  const drawFrameOnCanvas = (ctx, style, color, pw=128, ph=64) => {
+    const { r, g, b } = hexToRgb(color || '#FFFFFF');
+    const base = `rgb(${r},${g},${b})`;
+    if (style === 'border') {
+      ctx.save();
+      ctx.strokeStyle = base;
+      ctx.lineWidth = 1;
+      // Draw slightly inset to avoid clashing with canvas CSS border and clipping
+      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
+      ctx.restore();
+    } else if (style === 'neon') {
+      ctx.save();
+      // Inner bright line
+      ctx.strokeStyle = base;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
+      // Inset glow rings for visibility (stay inside canvas)
+      const rings = [
+        { inset: 2, a: 0.35 },
+        { inset: 3, a: 0.20 },
+        { inset: 4, a: 0.10 }
+      ];
+      rings.forEach(({ inset, a }) => {
+        ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect( inset + 0.5, inset + 0.5, pw - 2*inset - 1, ph - 2*inset - 1 );
+      });
+      ctx.restore();
     }
   };
 
@@ -1116,14 +1158,13 @@
     if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
     await fetchYoutubeStats();
     youtubeTimer = setInterval(fetchYoutubeStats, 5000);
-    // LED animation for local/blob themes at ~2 FPS
+    // Push frames to LED at a steady cadence
     const mode = $('youtubeIconMode') ? $('youtubeIconMode').value : 'classic';
-    if (mode === 'local' || mode === 'blob') {
-      youtubeAnimTimer = setInterval(async () => {
-        if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
-        await renderAndUploadYoutube();
-      }, 500);
-    }
+    const period = (mode === 'local' || mode === 'blob') ? 500 : 1000;
+    youtubeAnimTimer = setInterval(async () => {
+      if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
+      await renderAndUploadYoutube();
+    }, period);
   };
 
   // ========= Theme Controls / Upload =========
@@ -1982,7 +2023,8 @@
         // Note: Video mode has its own Start/Stop buttons
       } else if (youtubeMode) {
         console.log('YouTube: starting live counter');
-        // If we have a local or blob image, LED can render it; otherwise selection triggers ESP download on click
+        // Push an initial frame to LED, then start periodic updates
+        await renderAndUploadYoutube();
         await startYoutubeUpdater();
       }
     });
@@ -2206,36 +2248,7 @@
     // Load theme IDs (prefer direct API, fallback to ESP proxy if needed)
     // Theme list removed; we only support Icon Upload now.
 
-    // Upload icon (local file) — bypass API and use ESP storage directly
-    const btnUploadIcon = document.getElementById('btnUploadIcon');
-    const ytIconFile = document.getElementById('ytIconFile');
-    if (btnUploadIcon && ytIconFile) {
-      btnUploadIcon.addEventListener('click', () => ytIconFile.click());
-      ytIconFile.addEventListener('change', async () => {
-        const f = ytIconFile.files && ytIconFile.files[0];
-        if (!f) return;
-        try {
-          setYtStatus('Uploading icon...');
-          const fd = new FormData();
-          fd.append('file', f, f.name || 'icon.gif');
-          const r = await fetch(apiBase + '/upload_icon', { method: 'POST', body: fd });
-          if (!r.ok) throw new Error('upload failed');
-          const j = await r.json();
-          if (!j.ok) throw new Error('upload failed');
-          // Show in preview and start LED streaming decode loop
-          const overlay = document.getElementById('ytPreviewImg');
-          if (overlay) { overlay.style.display='block'; overlay.src = apiBase + '/yt_icon_current?nocache=' + Date.now(); }
-          selectedThemeId = 'uploaded';
-          // decode & animate to LED
-          await decodeGifFromESP();
-          playGifLoop();
-          setYtStatus('Icon uploaded', true);
-        } catch (e) {
-          console.warn('Icon upload failed', e);
-          setYtStatus('Upload failed');
-        }
-      });
-    }
+    // Custom icon upload feature removed
 
     // Image file
     $('imageFile').addEventListener('change', (e)=>{
@@ -2285,14 +2298,13 @@
       });
     });
 
-    // Thickness boxes
-    document.querySelectorAll('.thickness-box').forEach(box=>{
+    // Outline boxes (None / Border / Neon)
+    document.querySelectorAll('.outline-box').forEach(box=>{
       box.addEventListener('click', () => {
-        document.querySelectorAll('.thickness-box').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('.outline-box').forEach(b=>b.classList.remove('active'));
         box.classList.add('active');
-        const v = parseInt(box.getAttribute('data-thick'), 10) || 0;
-        $('fontThickness').value = String(v);
-        // Recompute text bitmap and refresh preview
+        const v = box.getAttribute('data-outline') || 'none';
+        $('outlineStyle').value = v;
         drawPreview();
       });
     });
@@ -2561,24 +2573,31 @@
     const speed = parseInt($('speed').value, 10);
     const interval = parseInt($('interval').value, 10);
 
-    // If bg image — upload bg first
-    if ($('bgMode').value === 'image' && loadedImg) {
+    // Prepare background with optional frame; upload as bg image when needed
+    const frameStyle = ($('outlineStyle') && $('outlineStyle').value) || 'none';
+    const wantFrame = frameStyle !== 'none';
+    const bgModeVal = $('bgMode').value;
+    if ((bgModeVal === 'image' && loadedImg) || wantFrame) {
       const outCanvas = document.createElement('canvas');
       outCanvas.width = pw; outCanvas.height = ph;
       const octx = outCanvas.getContext('2d'); octx.imageSmoothingEnabled = false;
-      const fit = $('imageFit').value;
-      let dw = loadedImg.width, dh = loadedImg.height;
-      if (fit === 'fill') { dw = pw; dh = ph; }
-      else if (fit === 'fit') {
-        const s = Math.min(pw/loadedImg.width, ph/loadedImg.height);
-        dw = Math.max(1, Math.floor(loadedImg.width * s));
-        dh = Math.max(1, Math.floor(loadedImg.height * s));
-      } else { dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height); }
-      const dx = Math.floor(pw*0.5 - dw/2);
-      const dy = Math.floor(ph*0.5 - dh/2);
-
+      // Base background
       octx.fillStyle = $('bg').value; octx.fillRect(0,0,pw,ph);
-      octx.drawImage(loadedImg, dx, dy, dw, dh);
+      if (bgModeVal === 'image' && loadedImg) {
+        const fit = $('imageFit').value;
+        let dw = loadedImg.width, dh = loadedImg.height;
+        if (fit === 'fill') { dw = pw; dh = ph; }
+        else if (fit === 'fit') {
+          const s = Math.min(pw/loadedImg.width, ph/loadedImg.height);
+          dw = Math.max(1, Math.floor(loadedImg.width * s));
+          dh = Math.max(1, Math.floor(loadedImg.height * s));
+        } else { dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height); }
+        const dx = Math.floor(pw*0.5 - dw/2);
+        const dy = Math.floor(ph*0.5 - dh/2);
+        octx.drawImage(loadedImg, dx, dy, dw, dh);
+      }
+      // Frame overlay
+      if (wantFrame) drawFrameOnCanvas(octx, frameStyle, $('color').value, pw, ph);
 
       const outBg = octx.getImageData(0,0,pw,ph);
       const bufBg = new Uint8Array(4 + pw*ph*2);
@@ -2593,96 +2612,16 @@
       await fetch(apiBase + '/upload_bg', { method:'POST', body: fdBg });
     }
 
-    // Text layer
+    // Text layer using crisp bitmap builder (supports outline)
     let outCanvas = document.createElement('canvas');
     if ($('text').value.trim().length > 0) {
       const fam = getTextFontFamily(); const size = parseInt($('fontSize').value, 10);
       const xGap = parseInt($('xGap').value, 10) || 0;
-      const font = `normal ${size}px ${fam}`;
-      const text = $('text').value;
-      const t = document.createElement('canvas');
-      const tctx = t.getContext('2d');
-      tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
-
-      // Calculate text width including character gaps
-      const textWidth = measureTextWithGap(tctx, text, xGap);
-
-      // Ensure canvas is large enough to hold the full text with gaps
-      let tw = Math.max(1, Math.ceil(textWidth) + 8); // Add extra padding
-      let th = Math.max(1, Math.ceil(size * 1.2 + 8));
-
-      // Log text dimensions for debugging
-      console.log(`Rendering text "${text}": width=${tw}px, height=${th}px, measured with gaps=${textWidth}px, xGap=${xGap}`);
-
-      t.width = tw; t.height = th;
-      tctx.font = font; tctx.textBaseline = 'alphabetic'; tctx.textAlign = 'left';
-      // Check if text gradient is selected
-      const selectedGradient = $('textGradient').value;
-      if (selectedGradient !== 'none') {
-        // Apply gradient to text
-        let gradient;
-        // Use the calculated text width including gaps for gradient
-        const gradientWidth = textWidth;
-
-        // Create gradient based on selection
-        switch(selectedGradient) {
-          case 'rainbow':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#FF6B6B');
-            gradient.addColorStop(0.2, '#4ECDC4');
-            gradient.addColorStop(0.4, '#45B7D1');
-            gradient.addColorStop(0.6, '#96CEB4');
-            gradient.addColorStop(0.8, '#FFEAA7');
-            gradient.addColorStop(1, '#DDA0DD');
-            break;
-          case 'sunset':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#FF512F');
-            gradient.addColorStop(1, '#F09819');
-            break;
-          case 'ocean':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#2E3192');
-            gradient.addColorStop(1, '#1BFFFF');
-            break;
-          case 'forest':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#134E5E');
-            gradient.addColorStop(1, '#71B280');
-            break;
-          case 'fire':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#FF416C');
-            gradient.addColorStop(1, '#FF4B2B');
-            break;
-          case 'purple':
-            gradient = tctx.createLinearGradient(0, 0, gradientWidth, 0);
-            gradient.addColorStop(0, '#667eea');
-            gradient.addColorStop(1, '#764ba2');
-            break;
-          default:
-            gradient = $('color').value;
-        }
-
-        tctx.fillStyle = gradient;
-      } else {
-        // Use solid color
-        tctx.fillStyle = $('color').value;
-      }
-
-      const baseY = Math.floor(size * 1.0); // Adjust baseline for better positioning
-      drawTextWithGap(tctx, text, 4, baseY, xGap); // Add small left margin
-
-      const img = tctx.getImageData(0,0,t.width,t.height);
-      const bb = cropImageData(img.data, t.width, t.height);
-      let outW = Math.max(1, bb.w), outH = Math.max(1, bb.h);
-      outCanvas.width = outW; outCanvas.height = outH;
-      outCanvas.getContext('2d').putImageData(new ImageData(img.data, t.width, t.height), -bb.x, -bb.y);
-
-      console.log(`Cropped text: width=${outW}px, height=${outH}px, crop bounds={x:${bb.x}, y:${bb.y}, w:${bb.w}, h:${bb.h}}`);
-    } else {
-      outCanvas.width = 1; outCanvas.height = 1;
-    }
+      const color = $('color').value;
+      const gradientSpec = $('textGradient').value;
+      const thickness = getThickness();
+      outCanvas = buildTextBitmap($('text').value, fam, size, xGap, color, gradientSpec, thickness, false);
+    } else { outCanvas.width = 1; outCanvas.height = 1; }
 
     // Pack A8 + RGB565
     const out = outCanvas.getContext('2d').getImageData(0,0,outCanvas.width,outCanvas.height);
@@ -2707,7 +2646,8 @@
     const fd = new FormData();
     fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'img.rgb565');
     fd.append('bg', $('bg').value);
-    fd.append('bgMode', $('bgMode').value);
+    const effectiveBgMode = wantFrame ? 'image' : $('bgMode').value;
+    fd.append('bgMode', effectiveBgMode);
     fd.append('offx', 0);
     fd.append('offy', 0);
     fd.append('animate', ( $('text').value.trim().length>0 && animate)?1:0);

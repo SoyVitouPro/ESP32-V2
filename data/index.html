@@ -24,7 +24,6 @@
     <div id="previewBar">
       <div id="previewInner">
         <canvas id="preview" width="128" height="64"></canvas>
-        <img id="ytPreviewImg" alt="YT Preview" style="display:none; position:absolute; z-index:5; pointer-events:none;" />
       </div>
     </div>
 
@@ -151,18 +150,19 @@
           </div>
         </div>
 
-        <div class="row" id="thicknessRow">
-          <label for="fontThickness">Text Thickness</label>
+        <div class="row" id="outlineRow">
+          <label for="outlineStyle">Frame</label>
           <div class="font-size-selection-wrapper">
             <div class="inline gap-12">
-              <button class="thickness-box active" data-thick="0">0</button>
-              <button class="thickness-box" data-thick="1">1</button>
-              <button class="thickness-box" data-thick="2">2</button>
-              <button class="thickness-box" data-thick="3">3</button>
+              <button class="font-size-box outline-box active" data-outline="none">None</button>
+              <button class="font-size-box outline-box" data-outline="border">Border</button>
+              <button class="font-size-box outline-box" data-outline="neon">Neon</button>
             </div>
-            <input type="hidden" id="fontThickness" value="0" />
+            <input type="hidden" id="outlineStyle" value="none" />
           </div>
         </div>
+
+        
 
         <div class="row" id="xGapRow">
           <label for="xGap">Character Gap</label>
@@ -383,18 +383,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <label>Icon</label>
-          <div style="width:100%">
-            <div class="inline gap-12" style="margin-top:0;">
-              <input id="ytIconFile" type="file" accept="image/gif,image/png,image/jpeg" style="display:none" />
-              <button id="btnUploadIcon" class="upload-btn">📤 Upload GIF/PNG/JPG</button>
-              <span class="muted" style="font-size:12px;">Upload a GIF to animate</span>
-            </div>
-            <input type="hidden" id="youtubeIconMode" value="classic" />
-            <input type="hidden" id="youtubeIconUrl" value="" />
-          </div>
-        </div>
+        
 
         <div class="spacer-200"></div>
       </div>
@@ -451,7 +440,7 @@
     </div>
   </main>
 
-  <script src="script.js"></script>
+  <script src="components/main.js"></script>
 </body>
 
 </html>

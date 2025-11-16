@@ -311,27 +311,19 @@
         }
       }
     } else {
-      // LED upload: tri-level alpha (interior 255, edge 128, outside 0)
-      const T = TEXT_ALPHA_THRESHOLD;
-      const isEdge = (yy, xx) => {
-        const a0 = thickAlpha[yy * w + xx];
-        if (a0 < T) return false;
-        for (let dy = -1; dy <= 1; dy++) {
-          const y2 = yy + dy; if (y2 < 0 || y2 >= h) continue;
-          for (let dx = -1; dx <= 1; dx++) {
-            const x2 = xx + dx; if (x2 < 0 || x2 >= w) continue;
-            if (thickAlpha[y2 * w + x2] < T) return true;
-          }
-        }
-        return false;
+      // LED upload: preserve smooth alpha for beautiful rendering on device
+      const remapAlpha = (a) => {
+        const x = Math.max(0, Math.min(1, a / 255));
+        let y = Math.pow(x, ALPHA_GAMMA) * 255 * ALPHA_MULT;
+        if (y < TEXT_ALPHA_THRESHOLD) y = 0; // remove tiny speckles
+        return y > 255 ? 255 : y;
       };
       for (let y = 0; y < outH; y++) {
         for (let x = 0; x < outW; x++) {
           const yy = y + minY, xx = x + minX;
           const idx = (y * outW + x) * 4;
           const a0 = thickAlpha[yy * w + xx];
-          if (a0 < T) { od[idx + 3] = 0; continue; }
-          od[idx + 3] = isEdge(yy, xx) ? 128 : 255;
+          od[idx + 3] = remapAlpha(a0);
         }
       }
     }
@@ -538,20 +530,20 @@
       ctx.save();
       ctx.strokeStyle = base;
       ctx.lineWidth = 1;
-      // Draw slightly inset to avoid clashing with canvas CSS border and clipping
-      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
+      // Draw on the last pixel (outermost edge): 0.5 aligns the 1px stroke on device pixels
+      ctx.strokeRect(0.5, 0.5, pw-1, ph-1);
       ctx.restore();
     } else if (style === 'neon') {
       ctx.save();
-      // Inner bright line
+      // Outer bright edge on last pixel
       ctx.strokeStyle = base;
       ctx.lineWidth = 1;
-      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
-      // Inset glow rings for visibility (stay inside canvas)
+      ctx.strokeRect(0.5, 0.5, pw-1, ph-1);
+      // Inset glow rings (inside the edge): 1.5, 2.5, 3.5
       const rings = [
-        { inset: 2, a: 0.35 },
-        { inset: 3, a: 0.20 },
-        { inset: 4, a: 0.10 }
+        { inset: 1, a: 0.35 },
+        { inset: 2, a: 0.20 },
+        { inset: 3, a: 0.10 }
       ];
       rings.forEach(({ inset, a }) => {
         ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;

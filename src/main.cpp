@@ -118,6 +118,26 @@ static uint32_t restartAt = 0;              // time to restart next cycle
 static bool waitingRestart = false;
 static std::vector<int16_t> heads;         // multi-head array for continuous text stream
 
+// ================= Alpha Blending Helpers (RGB565) =================
+static inline uint16_t blend565(uint16_t src565, uint16_t dst565, uint8_t a) {
+  if (a == 0) return dst565;
+  if (a == 255) return src565;
+  // Extract to 8-bit components
+  uint8_t sr = (src565 >> 8) & 0xF8; sr |= sr >> 5;
+  uint8_t sg = (src565 >> 3) & 0xFC; sg |= sg >> 6;
+  uint8_t sb = (src565 << 3) & 0xF8; sb |= sb >> 5;
+  uint8_t dr = (dst565 >> 8) & 0xF8; dr |= dr >> 5;
+  uint8_t dg = (dst565 >> 3) & 0xFC; dg |= dg >> 6;
+  uint8_t db = (dst565 << 3) & 0xF8; db |= db >> 5;
+  // Alpha blend: out = (src*a + dst*(255-a)) / 255
+  uint16_t ia = 255 - a;
+  uint8_t r = (uint8_t)((sr * a + dr * ia + 127) / 255);
+  uint8_t g = (uint8_t)((sg * a + dg * ia + 127) / 255);
+  uint8_t b = (uint8_t)((sb * a + db * ia + 127) / 255);
+  // Pack back to 565
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
 // Display mode tracking
 enum DisplayMode { MODE_NONE, MODE_CLOCK, MODE_THEME };
 static DisplayMode currentMode = MODE_NONE;
@@ -881,7 +901,11 @@ void handleUploadDone() {
               if (pidx >= 0 && pidx < (int)g_panel_active.size() && g_panel_active[pidx] == 0) continue;
             }
             if (!textAlpha.empty()) {
-              if (textAlpha[si]) frameBuffer[di] = textPixels[si];
+              uint8_t a = textAlpha[si];
+              if (a == 0) continue;
+              uint16_t dst = frameBuffer[di];
+              uint16_t src = textPixels[si];
+              frameBuffer[di] = blend565(src, dst, a);
             } else {
               frameBuffer[di] = textPixels[si];
             }
@@ -918,7 +942,11 @@ void handleUploadDone() {
             if (pidx >= 0 && pidx < (int)g_panel_active.size() && g_panel_active[pidx] == 0) continue;
           }
           if (!textAlpha.empty()) {
-            if (textAlpha[si]) frameBuffer[di] = textPixels[si];
+            uint8_t a = textAlpha[si];
+            if (a == 0) continue;
+            uint16_t dst = frameBuffer[di];
+            uint16_t src = textPixels[si];
+            frameBuffer[di] = blend565(src, dst, a);
           } else {
             frameBuffer[di] = textPixels[si];
           }
@@ -1674,9 +1702,13 @@ void loop() {
             size_t si = (size_t)srcRow + (size_t)x2;
             size_t frameIdx = frameRow + (size_t)dstX;
 
-            // Optimized alpha checking
-            if (!hasAlpha || textAlpha[si]) {
+            // Optimized alpha blending
+            if (!hasAlpha) {
               frameBuffer[frameIdx] = textPixels[si];
+            } else {
+              uint8_t a = textAlpha[si];
+              if (a == 0) continue;
+              frameBuffer[frameIdx] = blend565(textPixels[si], frameBuffer[frameIdx], a);
             }
           }
         }

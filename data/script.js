@@ -66,7 +66,7 @@
       const color = $('color').value;
       const gradientSpec = $('textGradient').value;
       const thickness = getThickness();
-      outCanvas = buildTextBitmap($('text').value, fam, size, xGap, color, gradientSpec, thickness);
+      outCanvas = buildTextBitmap($('text').value, fam, size, xGap, color, gradientSpec, thickness, false);
       console.log(`Crisp text bitmap ready: ${outCanvas.width}x${outCanvas.height}, thickness=${thickness}`);
     }
     return pv;
@@ -126,7 +126,10 @@
   };
 
   // ========= Crisp Text Rendering (Binary mask + dilation) =========
-  const TEXT_ALPHA_THRESHOLD = 128; // 0-255
+  // Edge smoothing configuration
+  const TEXT_ALPHA_THRESHOLD = 16; // floor (removes speckles) but keeps anti-alias
+  const ALPHA_GAMMA = 1.3;        // <1 brightens edges, >1 darkens
+  const ALPHA_MULT = 1.0;         // overall scale
   let textBitmapCanvas = null;
   let textBitmapKey = '';
 
@@ -195,10 +198,10 @@
     let currentX = 4; // small left pad
     const baseY = Math.floor(size * 1.0);
     if (!complex) {
-      // per-character with integer snapping
+      // per-character without snapping X to keep anti-alias smooth
       for (let i = 0; i < text.length; i++) {
         const ch = text[i];
-        tctx.fillText(ch, Math.round(currentX), baseY);
+        tctx.fillText(ch, currentX, baseY);
         const cw = tctx.measureText(ch).width;
         currentX += cw + (i < text.length - 1 ? xGap : 0);
         if (ch === ' ' && xGap < 3) currentX += (3 - xGap);
@@ -209,55 +212,55 @@
       for (const part of parts) {
         if (part.length === 0) continue;
         if (/^\s+$/.test(part)) {
-          currentX += Math.round(tctx.measureText(part).width + xGap);
+          currentX += (tctx.measureText(part).width + xGap);
         } else {
-          tctx.fillText(part, Math.round(currentX), baseY);
-          currentX += Math.round(tctx.measureText(part).width);
+          tctx.fillText(part, currentX, baseY);
+          currentX += tctx.measureText(part).width;
         }
       }
     }
   };
 
-  const buildTextBitmap = (text, fam, size, xGap, color, gradientSpec, thickness) => {
+  const buildTextBitmap = (text, fam, size, xGap, color, gradientSpec, thickness, forPreview=false) => {
     // Step 1: draw smooth text to temp canvas
     const src = document.createElement('canvas');
     drawTextLineToCanvas(src, text, fam, size, color, xGap, gradientSpec);
 
-    // Step 2: threshold alpha to binary mask
+    // Step 2: read alpha channel for smoothing pipeline
     const sctx = src.getContext('2d');
     const sdata = sctx.getImageData(0, 0, src.width, src.height);
     const d = sdata.data; // RGBA
     const w = src.width, h = src.height;
-    const mask = new Uint8Array(w * h);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-      mask[p] = d[i+3] >= TEXT_ALPHA_THRESHOLD ? 1 : 0;
-    }
+    let alpha = new Uint8Array(w * h);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) alpha[p] = d[i+3];
 
-    // Step 3: morphological dilation for thickness
-    const dilateOnce = (input) => {
+    // Step 3: thicken by max filter in alpha space (preserves anti-aliased edges)
+    const maxFilterOnce = (input) => {
       const out = new Uint8Array(w * h);
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
-          let on = 0;
-          for (let dy = -1; dy <= 1 && !on; dy++) {
+          let m = 0;
+          for (let dy = -1; dy <= 1; dy++) {
             const yy = y + dy; if (yy < 0 || yy >= h) continue;
             for (let dx = -1; dx <= 1; dx++) {
               const xx = x + dx; if (xx < 0 || xx >= w) continue;
-              if (input[yy * w + xx]) { on = 1; break; }
+              const v = input[yy * w + xx]; if (v > m) m = v;
             }
           }
-          out[y * w + x] = on;
+          out[y * w + x] = m;
         }
       }
       return out;
     };
-    let thickMask = mask;
-    for (let k = 0; k < Math.max(0, thickness); k++) thickMask = dilateOnce(thickMask);
+    let thickAlpha = alpha;
+    for (let k = 0; k < Math.max(0, thickness); k++) thickAlpha = maxFilterOnce(thickAlpha);
+
+    // Note: no blur; we will produce crisp interior + controlled edge alpha
 
     // Step 4: crop bounding box
     let minX = w, minY = h, maxX = -1, maxY = -1;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if (thickMask[y * w + x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+      if (thickAlpha[y * w + x] >= TEXT_ALPHA_THRESHOLD) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
     }
     if (maxX < minX || maxY < minY) { const empty = document.createElement('canvas'); empty.width=1; empty.height=1; return empty; }
     const outW = Math.max(1, maxX - minX + 1);
@@ -288,11 +291,43 @@
 
     const odata = octx.getImageData(0, 0, outW, outH);
     const od = odata.data;
-    for (let y = 0; y < outH; y++) {
-      for (let x = 0; x < outW; x++) {
-        const srcOn = thickMask[(y + minY) * w + (x + minX)];
-        const idx = (y * outW + x) * 4;
-        od[idx + 3] = srcOn ? 255 : 0; // force binary alpha
+    if (forPreview) {
+      const remapAlpha = (a) => {
+        const x = Math.max(0, Math.min(1, a / 255));
+        let y = Math.pow(x, ALPHA_GAMMA) * 255 * ALPHA_MULT;
+        if (y < TEXT_ALPHA_THRESHOLD) y = 0; // remove tiny speckles
+        return y > 255 ? 255 : y;
+      };
+      for (let y = 0; y < outH; y++) {
+        for (let x = 0; x < outW; x++) {
+          const a = thickAlpha[(y + minY) * w + (x + minX)];
+          const idx = (y * outW + x) * 4;
+          od[idx + 3] = remapAlpha(a);
+        }
+      }
+    } else {
+      // LED upload: tri-level alpha (interior 255, edge 128, outside 0)
+      const T = TEXT_ALPHA_THRESHOLD;
+      const isEdge = (yy, xx) => {
+        const a0 = thickAlpha[yy * w + xx];
+        if (a0 < T) return false;
+        for (let dy = -1; dy <= 1; dy++) {
+          const y2 = yy + dy; if (y2 < 0 || y2 >= h) continue;
+          for (let dx = -1; dx <= 1; dx++) {
+            const x2 = xx + dx; if (x2 < 0 || x2 >= w) continue;
+            if (thickAlpha[y2 * w + x2] < T) return true;
+          }
+        }
+        return false;
+      };
+      for (let y = 0; y < outH; y++) {
+        for (let x = 0; x < outW; x++) {
+          const yy = y + minY, xx = x + minX;
+          const idx = (y * outW + x) * 4;
+          const a0 = thickAlpha[yy * w + xx];
+          if (a0 < T) { od[idx + 3] = 0; continue; }
+          od[idx + 3] = isEdge(yy, xx) ? 128 : 255;
+        }
       }
     }
     octx.putImageData(odata, 0, 0);
@@ -360,7 +395,7 @@
     // Build crisp text bitmap for animation
     const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
     if (textBitmapKey !== key) {
-      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness);
+      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness, true);
       textBitmapKey = key;
     }
 
@@ -457,7 +492,7 @@
     const thickness = getThickness();
     const key = [text, fam, size, xGap, color, gradientSpec, thickness].join('|');
     if (textBitmapKey !== key) {
-      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness);
+      textBitmapCanvas = buildTextBitmap(text, fam, size, xGap, color, gradientSpec, thickness, true);
       textBitmapKey = key;
     }
     textW = textBitmapCanvas ? textBitmapCanvas.width : 0;
@@ -2665,8 +2700,7 @@
         const i=(y*outW+x)*4;
         const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
         const v=rgb565(r,g,b);
-        const A = a >= TEXT_ALPHA_THRESHOLD ? 255 : 0;
-        buf[p++]=A; buf[p++]=v&255; buf[p++]=(v>>8)&255;
+        buf[p++]=a; buf[p++]=v&255; buf[p++]=(v>>8)&255;
       }
     }
 

@@ -370,7 +370,14 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 .sr-only { position:absolute; left:-9999px; }
 
 .panel-overlay {
-  position:fixed; left:0; right:0; top:var(--header-h); bottom:0; background: rgba(11,15,20,0.96); z-index:30;
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  /* Light translucent backdrop to enable blur */
+  background: rgba(11, 15, 20, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
 }
 .panel {
   max-width:820px; margin:16px auto; padding:16px; border:1px solid #1f2a35; background:#121820;
@@ -381,6 +388,16 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 @media (max-width: 640px) {
   .row { grid-template-columns: 1fr; }
 }
+
+/* Larger channel modal */
+#editChannelModal .panel {
+  width: min(90vw, 960px);
+  max-width: 960px;
+  padding: 24px;
+}
+#editChannelModal .panel-head h2 { font-size: 18px; }
+#editChannelModal input[type="text"] { font-size: 16px; padding: 12px 14px; }
+#editChannelModal .btns button { padding: 10px 16px; }
 
 /* YouTube theme grid */
 .yt-theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

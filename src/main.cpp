@@ -81,6 +81,7 @@ void sendCORSHeaders() {
 // YouTube config
 static const char* YT_API_KEY = "AIzaSyCAKj7eDgmQm4B2b9OFyKFLvgiLEjrOoNo";
 static const char* YT_CHANNEL_ID = "UCaPOzWiPWJFJr9dXzkkvUOw";
+static String gYTChannelId; // override from NVS
 static unsigned long yt_last_fetch = 0;
 static String yt_cached_json;
 static String yt_cached_subs;
@@ -414,6 +415,18 @@ static void loadLastSettings() {
 
   nvs_close(nvs_handle);
   Serial.println("Settings loaded from NVS");
+
+  // Load saved YouTube channel ID
+  if (nvs_open("storage", NVS_READONLY, &nvs_handle) == ESP_OK) {
+    size_t len = 0; if (nvs_get_str(nvs_handle, "yt_channel", NULL, &len) == ESP_OK && len > 1) {
+      std::unique_ptr<char[]> buf(new char[len]);
+      if (nvs_get_str(nvs_handle, "yt_channel", buf.get(), &len) == ESP_OK) {
+        gYTChannelId = String(buf.get());
+        Serial.printf("Loaded YT channel ID from NVS: %s\n", gYTChannelId.c_str());
+      }
+    }
+    nvs_close(nvs_handle);
+  }
 
   // Animation restoration will be done after text is loaded in loadLastFrame
   Serial.println("Animation settings loaded - will restore after text data is loaded");
@@ -1231,6 +1244,25 @@ void setup() {
     sendCORSHeaders();
     server.send(200, "text/plain", "");
   });
+  // Channel ID save/load
+  server.on("/yt_channel", HTTP_OPTIONS, [](){ sendCORSHeaders(); server.send(200, "text/plain", ""); });
+  server.on("/yt_channel", HTTP_GET, [](){
+    sendCORSHeaders();
+    String id = gYTChannelId.length() ? gYTChannelId : String(YT_CHANNEL_ID);
+    server.send(200, "application/json", String("{\"id\":\"") + id + "\"}");
+  });
+  server.on("/yt_channel", HTTP_POST, [](){
+    sendCORSHeaders();
+    if (!server.hasArg("id")) { server.send(400, "text/plain", "missing id"); return; }
+    String id = server.arg("id"); id.trim();
+    if (id.length() == 0) { server.send(400, "text/plain", "empty id"); return; }
+    nvs_handle_t nvs_handle; esp_err_t err = nvs_open("storage", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) { server.send(500, "text/plain", "nvs open failed"); return; }
+    nvs_set_str(nvs_handle, "yt_channel", id.c_str());
+    nvs_commit(nvs_handle); nvs_close(nvs_handle);
+    gYTChannelId = id;
+    server.send(200, "application/json", String("{\"ok\":true,\"id\":\"") + id + "\"}");
+  });
   server.on("/stop_clock", HTTP_OPTIONS, [](){
     sendCORSHeaders();
     server.send(200, "text/plain", "");
@@ -1356,7 +1388,7 @@ void setup() {
     sendCORSHeaders();
     // Return cache if fetched within last 10 seconds
     unsigned long now = millis();
-    String id = server.hasArg("id") ? server.arg("id") : String(YT_CHANNEL_ID);
+    String id = server.hasArg("id") ? server.arg("id") : (gYTChannelId.length() ? gYTChannelId : String(YT_CHANNEL_ID));
     if (yt_cached_json.length() && id == yt_last_id && (now - yt_last_fetch) < 5000UL) {
       server.send(200, "application/json", yt_cached_json);
       return;

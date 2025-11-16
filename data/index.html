@@ -258,14 +258,14 @@
           <div class="clock-size-selection-wrapper">
             <div class="inline gap-12">
               <button class="clock-size-box" data-size="10">10</button>
-              <button class="clock-size-box" data-size="15">15</button>
+              <button class="clock-size-box active" data-size="15">15</button>
               <button class="clock-size-box" data-size="17">17</button>
-              <button class="clock-size-box active" data-size="20">20</button>
+              <button class="clock-size-box" data-size="20">20</button>
               <button class="clock-size-box" data-size="22">22</button>
               <button class="clock-size-box" data-size="25">25</button>
               <button class="clock-size-box" data-size="30">30</button>
             </div>
-            <input type="hidden" id="clockSize" value="20" />
+            <input type="hidden" id="clockSize" value="15" />
           </div>
         </div>
         <div class="row">
@@ -293,6 +293,32 @@
             </div>
           </div>
           <input type="hidden" id="clockBgColor" value="#000000" />
+        </div>
+
+        <div class="row" id="clockGapRow">
+          <label for="clockXGap">Character Gap</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box clock-gap-box active" data-gap="0">🚫</button>
+              <button class="font-size-box clock-gap-box" data-gap="2">2</button>
+              <button class="font-size-box clock-gap-box" data-gap="4">4</button>
+              <button class="font-size-box clock-gap-box" data-gap="6">6</button>
+              <button class="font-size-box clock-gap-box" data-gap="8">8</button>
+            </div>
+            <input type="hidden" id="clockXGap" value="0" />
+          </div>
+        </div>
+
+        <div class="row" id="clockFrameRow">
+          <label for="clockFrameStyle">Frame</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box clock-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box clock-frame-box" data-frame="border">Border</button>
+              <button class="font-size-box clock-frame-box" data-frame="neon">Neon</button>
+            </div>
+            <input type="hidden" id="clockFrameStyle" value="none" />
+          </div>
         </div>
 
         <div class="spacer-200"></div>
@@ -335,7 +361,8 @@
         <div class="row">
           <label for="youtubeChannelId">Channel</label>
           <div class="inline gap-12" style="width:100%">
-            <input id="youtubeChannelId" type="text" value="UCaPOzWiPWJFJr9dXzkkvUOw" style="flex:1" />
+            <input id="youtubeChannelId" type="text" value="UCaPOzWiPWJFJr9dXzkkvUOw" style="flex:1" readonly />
+            <button id="btnEditChannel" class="icon-btn">✏️ Edit</button>
             <span id="ytStatus" class="muted">Idle</span>
           </div>
         </div>
@@ -366,6 +393,18 @@
             </div>
           </div>
           <input type="hidden" id="youtubeBgColor" value="#000000" />
+        </div>
+
+        <div class="row">
+          <label for="youtubeFrameStyle">Frame</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box youtube-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box youtube-frame-box" data-frame="border">Border</button>
+              <button class="font-size-box youtube-frame-box" data-frame="neon">Neon</button>
+            </div>
+            <input type="hidden" id="youtubeFrameStyle" value="none" />
+          </div>
         </div>
 
         <div class="row">
@@ -435,6 +474,27 @@
         <div class="btns">
           <button id="btnPanelApply">Apply</button>
           <button id="btnPanelCancel" class="icon-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Channel Modal -->
+    <div id="editChannelModal" class="panel-overlay hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Edit YouTube Channel</h2>
+          <button id="btnChanClose" class="icon-btn">✖️</button>
+        </div>
+        <div class="row">
+          <label for="modalYoutubeChannel">Channel ID</label>
+          <div class="inline gap-12" style="width:100%">
+            <input id="modalYoutubeChannel" type="text" value="" style="flex:1" />
+          </div>
+        </div>
+        <div class="btns">
+          <button id="btnChanCancel" class="icon-btn">Cancel</button>
+          <button id="btnChanPaste" class="icon-btn" title="Paste from clipboard">📋 Paste</button>
+          <button id="btnChanSave">Save</button>
         </div>
       </div>
     </div>

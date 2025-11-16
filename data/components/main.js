@@ -455,6 +455,27 @@
     return totalWidth;
   };
 
+  // Clock-specific: flat measurement without extra word spacing; allows negative gap
+  const measureTextWithGapFlat = (ctx, text, gap) => {
+    let total = 0;
+    for (let i = 0; i < text.length; i++) {
+      total += ctx.measureText(text[i]).width;
+      if (i < text.length - 1) total += gap;
+    }
+    return total;
+  };
+
+  // Clock-specific: draw each character with fixed gap (can be negative), no special space boost
+  const drawTextWithGapFlat = (ctx, text, x, y, gap) => {
+    let cx = x;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      ctx.fillText(ch, cx, y);
+      const w = ctx.measureText(ch).width;
+      cx += w + (i < text.length - 1 ? gap : 0);
+    }
+  };
+
   const drawPreviewFrame = (animated) => {
     const text = $('text').value;
     const size = parseInt($('fontSize').value, 10);
@@ -640,16 +661,25 @@
       ctx.drawImage(loadedImg, dx, dy, dw, dh);
     }
 
-    ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillStyle = col;
+    // Optional frame under text
+    const clockFrame = ($('clockFrameStyle') && $('clockFrameStyle').value) || 'none';
+    if (clockFrame !== 'none') {
+      drawFrameOnCanvas(ctx, clockFrame, col, pw, ph);
+    }
+    ctx.font = font; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = col;
     const txt = formatTime(fmt);
-      // Adjust vertical position based on font size for better centering
+    // Adjust vertical position based on font size for better centering
     let yOffset = Math.floor(ph * 0.5);
     if (size <= 15) {
       yOffset -= 2; // Shift up for very small text
     } else if (size <= 20) {
       yOffset -= 1; // Shift up slightly for small text
     }
-    ctx.fillText(txt, Math.floor(pw * 0.5), yOffset);
+    const gap = parseInt(($('clockXGap') && $('clockXGap').value) || '0', 10) || 0;
+    // Center horizontally with selected gap
+    const totalW = measureTextWithGapFlat(ctx, txt, gap);
+    const x0 = Math.floor((pw - totalW) / 2);
+    drawTextWithGapFlat(ctx, txt, x0, yOffset, gap);
   };
 
   const startClockPreview = () => {
@@ -665,15 +695,19 @@
     const pw = 128, ph = 64;
     const fmt = '24';
     const size = parseInt($('clockSize').value, 10);
-    const fam = getFontFamily();
-    const font = `bold ${size}px ${fam}`;
+    const fam = getTextFontFamily();
+    const font = `normal ${size}px ${fam}`;
     const col = $('clockColor').value;
     const clockBg = $('clockBgColor').value;
 
     const t = document.createElement('canvas'); t.width = pw; t.height = ph;
     const tctx = t.getContext('2d');
     tctx.fillStyle = clockBg; tctx.fillRect(0, 0, pw, ph);
-    tctx.font = font; tctx.textBaseline = 'middle'; tctx.textAlign = 'center'; tctx.fillStyle = col;
+    const clockFrame = ($('clockFrameStyle') && $('clockFrameStyle').value) || 'none';
+    if (clockFrame !== 'none') {
+      drawFrameOnCanvas(tctx, clockFrame, col, pw, ph);
+    }
+    tctx.font = font; tctx.textBaseline = 'middle'; tctx.textAlign = 'left'; tctx.fillStyle = col;
 
     // Get precise current time once to avoid timing drift
     const now = new Date();
@@ -687,7 +721,11 @@
     } else if (size <= 20) {
       yOffset -= 1; // Shift up slightly for small text
     }
-    tctx.fillText(txt, Math.floor(pw * 0.5), yOffset);
+    const gap = parseInt(($('clockXGap') && $('clockXGap').value) || '0', 10) || 0;
+    // Center horizontally with selected gap (match preview)
+    const totalW = measureTextWithGapFlat(tctx, txt, gap);
+    const cx = Math.floor((pw - totalW) / 2);
+    drawTextWithGapFlat(tctx, txt, cx, yOffset, gap);
 
     const out = tctx.getImageData(0, 0, pw, ph);
     const buf = new Uint8Array(4 + pw * ph * 2);
@@ -1046,6 +1084,7 @@
   const drawYoutubePreviewFrame = () => {
     const pw=128, ph=64; const bg=$('youtubeBgColor')?$('youtubeBgColor').value:'#000000'; const col=$('youtubeTextColor')?$('youtubeTextColor').value:'#FFFFFF';
     c.width=pw; c.height=ph; ctx.clearRect(0,0,pw,ph); ctx.fillStyle=bg; ctx.fillRect(0,0,pw,ph);
+    // Frame is drawn last, after logo and text
     const txt = (youtubeLastCount!==null)? String(youtubeLastCount): '—';
     // Prepare text size based on available space after icon
     const uiSize = $('youtubeIconSize') ? parseInt($('youtubeIconSize').value, 10) : 25;
@@ -1062,26 +1101,12 @@
     const groupW = iconW + gap + tw;
     const x0 = Math.round((pw - groupW)/2);
     const cy = Math.round(ph/2);
-    // Preview icon: use overlay <img> to ensure GIF animation & avoid canvas taint
-    const overlay = document.getElementById('ytPreviewImg');
-    if (!overlay || overlay.style.display === 'none') {
-      drawYTIcon(ctx, x0 + Math.round(iconW/2), cy, iconH);
-    }
-    // Draw text
-    ctx.fillStyle = col; ctx.textAlign='left';
-    ctx.fillText(txt, x0 + iconW + gap, cy);
-    // Position overlay image if visible
-    if (overlay && overlay.style.display !== 'none') {
-      const scale = c.clientWidth / pw;
-      const canvasRect = c.getBoundingClientRect();
-      const parentRect = document.getElementById('previewInner').getBoundingClientRect();
-      const leftPx = (canvasRect.left - parentRect.left) + x0 * scale;
-      const topPx  = (canvasRect.top - parentRect.top) + (cy - Math.round(iconH/2)) * scale;
-      overlay.style.left = `${leftPx}px`;
-      overlay.style.top  = `${topPx}px`;
-      overlay.style.width = `${iconW * scale}px`;
-      overlay.style.height = `${iconH * scale}px`;
-    }
+    // 1) Draw logo + text
+    drawYTIcon(ctx, x0 + Math.round(iconW/2), cy, iconH);
+    ctx.fillStyle = col; ctx.textAlign='left'; ctx.fillText(txt, x0 + iconW + gap, cy);
+    // 2) Draw frame LAST
+    const ytFrame = ($('youtubeFrameStyle') && $('youtubeFrameStyle').value) || 'none';
+    if (ytFrame !== 'none') drawFrameOnCanvas(ctx, ytFrame, col, pw, ph);
   };
   const renderAndUploadYoutube = async () => {
     const pw=128, ph=64; const bg=$('youtubeBgColor').value; const col=$('youtubeTextColor').value;
@@ -1096,18 +1121,12 @@
     let tw=tctx.measureText(txt).width;
     while ((iconW + gap + tw) > (pw - 8) && size>10) { size -= 2; font=`bold ${size}px ${fam}`; tctx.font=font; tw=tctx.measureText(txt).width; }
     const groupW = iconW + gap + tw; const x0 = Math.round((pw - groupW)/2); const cy = Math.round(ph/2);
-    const mode = $('youtubeIconMode') ? $('youtubeIconMode').value : 'classic';
-    if (mode !== 'classic' && ytIconImgReady && ytIconImg) {
-      try {
-        tctx.drawImage(ytIconImg, x0, cy - Math.round(iconH/2), iconW, iconH);
-      } catch (e) {
-        // fallback to vector
-        drawYTIcon(tctx, x0 + Math.round(iconW/2), cy, iconH);
-      }
-    } else {
-      drawYTIcon(tctx, x0 + Math.round(iconW/2), cy, iconH);
-    }
+    // 1) Draw logo + text
+    drawYTIcon(tctx, x0 + Math.round(iconW/2), cy, iconH);
     tctx.fillStyle = col; tctx.textAlign='left'; tctx.fillText(txt, x0 + iconW + gap, cy);
+    // 2) Draw frame LAST
+    const ytFrame = ($('youtubeFrameStyle') && $('youtubeFrameStyle').value) || 'none';
+    if (ytFrame !== 'none') drawFrameOnCanvas(tctx, ytFrame, col, pw, ph);
     let out;
     try {
       out=tctx.getImageData(0,0,pw,ph);
@@ -1119,11 +1138,22 @@
       drawYTIcon(cctx, x0 + Math.round(iconW/2), cy, iconH);
       cctx.fillStyle = col; cctx.textAlign='left'; cctx.textBaseline='middle'; cctx.font = `${size}px ${fam}`;
       cctx.fillText(txt, x0 + iconW + gap, cy);
+      const ytFrame2 = ($('youtubeFrameStyle') && $('youtubeFrameStyle').value) || 'none';
+      if (ytFrame2 !== 'none') drawFrameOnCanvas(cctx, ytFrame2, col, pw, ph);
       out=cctx.getImageData(0,0,pw,ph);
     }
     const buf=new Uint8Array(4+pw*ph*2); buf[0]=pw&255; buf[1]=(pw>>8)&255; buf[2]=ph&255; buf[3]=(ph>>8)&255;
     let p=4, d=out.data; for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){ const i=(y*pw+x)*4; const r=d[i],g=d[i+1],b=d[i+2]; const v=rgb565(r,g,b); buf[p++]=v&255; buf[p++]=(v>>8)&255; }
-    const fd=new FormData(); fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565'); fd.append('bg', bg); fd.append('bgMode','color'); fd.append('animate',0); fd.append('dir','none'); fd.append('speed',0); fd.append('interval',0);
+    const fd=new FormData();
+    fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565');
+    fd.append('bg', bg);
+    fd.append('bgMode','image');
+    fd.append('offx', 0);
+    fd.append('offy', 0);
+    fd.append('animate',0);
+    fd.append('dir','none');
+    fd.append('speed',0);
+    fd.append('interval',0);
     try { await fetch(apiBase + '/upload', { method:'POST', body:fd }); } catch {}
   };
   const fetchYoutubeStats = async () => {
@@ -1131,13 +1161,13 @@
       // Safety: only fetch when YouTube tab is visible
       if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
       const channelId = $('youtubeChannelId') ? $('youtubeChannelId').value.trim() : 'UCaPOzWiPWJFJr9dXzkkvUOw';
-      setYtStatus(`Updating ${channelId}...`);
+      setYtStatus('Updating…');
       const r = await fetch(apiBase + '/yt_stats?id=' + encodeURIComponent(channelId), { cache: 'no-store' });
       if (!r.ok) { setYtStatus('Fetch failed'); return; }
       const j = await r.json();
       if (j && j.subscriberCount) {
         youtubeLastCount = j.subscriberCount;
-        setYtStatus(`Live: ${channelId}`, true);
+        setYtStatus('🟢', true);
         drawYoutubePreviewFrame();
         // Do not push here; LED streaming handled by GIF loop
       } else {
@@ -1148,15 +1178,13 @@
   const startYoutubeUpdater = async () => {
     if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
     if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
+    // Initial fetch, then fetch every 5s; upload the static image after each successful fetch
     await fetchYoutubeStats();
-    youtubeTimer = setInterval(fetchYoutubeStats, 5000);
-    // Push frames to LED at a steady cadence
-    const mode = $('youtubeIconMode') ? $('youtubeIconMode').value : 'classic';
-    const period = (mode === 'local' || mode === 'blob') ? 500 : 1000;
-    youtubeAnimTimer = setInterval(async () => {
-      if ($('youtubeConfig') && $('youtubeConfig').classList.contains('hidden')) return;
-      await renderAndUploadYoutube();
-    }, period);
+    try { await renderAndUploadYoutube(); } catch {}
+    youtubeTimer = setInterval(async () => {
+      await fetchYoutubeStats();
+      try { await renderAndUploadYoutube(); } catch {}
+    }, 5000);
   };
 
   // ========= Theme Controls / Upload =========
@@ -2052,9 +2080,13 @@
       }
     });
 
-    // Config inputs (no auto preview except clock)
-    ['text','fontSize','color','bg','brightness','animate','dir','speed','interval','xGap'].forEach(id=>{
-      $(id) && $(id).addEventListener('input', () => {});
+    // Config inputs — redraw preview for immediate feedback
+    ['text','fontSize','color','bg','xGap'].forEach(id=>{
+      $(id) && $(id).addEventListener('input', () => { drawPreview(); });
+    });
+    // Animation/brightness controls — update on change
+    ['brightness','animate','dir','speed','interval'].forEach(id=>{
+      $(id) && $(id).addEventListener('change', () => { drawPreview(); });
     });
     ['clockSize','clockColor','clockBgColor'].forEach(id=>{
       $(id) && $(id).addEventListener('input', () => {
@@ -2064,28 +2096,76 @@
 
     // YouTube color pickers
     document.querySelectorAll('#youtubeConfig .clock-color-box').forEach(box=>{
-      box.addEventListener('click', function(){
+      box.addEventListener('click', async function(){
         document.querySelectorAll('#youtubeConfig .clock-color-box').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('youtubeTextColor').value = this.getAttribute('data-color');
-        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+        if (!$('youtubeConfig').classList.contains('hidden')) { drawYoutubePreviewFrame(); try { await renderAndUploadYoutube(); } catch {} }
+      });
+    });
+
+    // Clock color pickers
+    document.querySelectorAll('#clockConfig .clock-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#clockConfig .clock-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockColor').value = this.getAttribute('data-color');
+        if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+      });
+    });
+    document.querySelectorAll('#clockConfig .clock-bg-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#clockConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockBgColor').value = this.getAttribute('data-color');
+        if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+      });
+    });
+
+    // Clock character gap selectors
+    document.querySelectorAll('#clockConfig .clock-gap-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#clockConfig .clock-gap-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockXGap').value = this.getAttribute('data-gap') || '0';
+        if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+      });
+    });
+
+    // Clock frame selector
+    document.querySelectorAll('#clockConfig .clock-frame-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#clockConfig .clock-frame-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('clockFrameStyle').value = this.getAttribute('data-frame') || 'none';
+        if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
       });
     });
     document.querySelectorAll('#youtubeConfig .clock-bg-color-box').forEach(box=>{
-      box.addEventListener('click', function(){
+      box.addEventListener('click', async function(){
         document.querySelectorAll('#youtubeConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('youtubeBgColor').value = this.getAttribute('data-color');
-        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+        if (!$('youtubeConfig').classList.contains('hidden')) { drawYoutubePreviewFrame(); try { await renderAndUploadYoutube(); } catch {} }
       });
     });
-    // YouTube icon size selectors
-    document.querySelectorAll('#youtubeConfig .font-size-box').forEach(box=>{
-      box.addEventListener('click', function(){
-        document.querySelectorAll('#youtubeConfig .font-size-box').forEach(b=>b.classList.remove('active'));
+    // YouTube frame selector
+    document.querySelectorAll('#youtubeConfig .youtube-frame-box').forEach(box=>{
+      box.addEventListener('click', async function(){
+        document.querySelectorAll('#youtubeConfig .youtube-frame-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('youtubeFrameStyle').value = this.getAttribute('data-frame') || 'none';
+        if (!$('youtubeConfig').classList.contains('hidden')) { drawYoutubePreviewFrame(); try { await renderAndUploadYoutube(); } catch {} }
+      });
+    });
+    // YouTube icon size selectors (exclude frame buttons)
+    document.querySelectorAll('#youtubeConfig .font-size-box:not(.youtube-frame-box)').forEach(box=>{
+      box.addEventListener('click', async function(){
+        document.querySelectorAll('#youtubeConfig .font-size-box:not(.youtube-frame-box)')
+          .forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('youtubeIconSize').value = this.getAttribute('data-size');
-        if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame();
+        if (!$('youtubeConfig').classList.contains('hidden')) { drawYoutubePreviewFrame(); try { await renderAndUploadYoutube(); } catch {} }
       });
     });
     // YouTube theme selection
@@ -2200,11 +2280,14 @@
       let tw=ctx.measureText(txt).width;
       while ((iconW + gap + tw) > (128 - 8) && size>10) { size -= 2; font=`bold ${size}px ${fam}`; ctx.font=font; tw=ctx.measureText(txt).width; }
       const groupW = iconW + gap + tw; const x0 = Math.round((128 - groupW)/2); const cy = Math.round(64/2);
-      // Draw icon
+      // Frame will be drawn after icon and text
+      // 1) Icon + text
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(iconSourceCanvas, x0, cy - Math.round(iconH/2), iconW, iconH);
-      // Text
       ctx.fillStyle = col; ctx.textAlign='left'; ctx.fillText(txt, x0 + iconW + gap, cy);
+      // 2) Frame LAST
+      const ytFrame = ($('youtubeFrameStyle') && $('youtubeFrameStyle').value) || 'none';
+      if (ytFrame !== 'none') drawFrameOnCanvas(ctx, ytFrame, col, pw, ph);
     };
 
     const playGifLoop = () => {
@@ -2227,7 +2310,16 @@
         const buf = new Uint8Array(4 + 128*64*2);
         buf[0]=128&255; buf[1]=(128>>8)&255; buf[2]=64&255; buf[3]=(64>>8)&255;
         let p=4, d=out.data; for(let y=0;y<64;y++){ for(let x=0;x<128;x++){ const i=(y*128+x)*4; const r=d[i],g=d[i+1],b=d[i+2]; const v=((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3); buf[p++]=v&255; buf[p++]=(v>>8)&255; }}
-        const fd = new FormData(); fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565'); fd.append('bg', $('youtubeBgColor').value); fd.append('bgMode','color'); fd.append('animate',0); fd.append('dir','none'); fd.append('speed',0); fd.append('interval',0);
+        const fd = new FormData();
+        fd.append('image', new Blob([buf], {type:'application/octet-stream'}), 'yt.rgb565');
+        fd.append('bg', $('youtubeBgColor').value);
+        fd.append('bgMode','image');
+        fd.append('offx', 0);
+        fd.append('offy', 0);
+        fd.append('animate',0);
+        fd.append('dir','none');
+        fd.append('speed',0);
+        fd.append('interval',0);
         fetch(apiBase + '/upload', { method:'POST', body:fd }).catch(()=>{});
       }
       // next frame
@@ -2281,10 +2373,10 @@
     Object.defineProperty($('animate'), 'checked', { get: () => isToggled, configurable: true });
     updateToggleVisual();
 
-    // Font size boxes
-    document.querySelectorAll('.font-size-box').forEach(box=>{
+    // Text tab font size boxes (scope to text config only)
+    document.querySelectorAll('#textConfig .font-size-box').forEach(box=>{
       box.addEventListener('click', () => {
-        document.querySelectorAll('.font-size-box').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('#textConfig .font-size-box').forEach(b=>b.classList.remove('active'));
         box.classList.add('active');
         $('fontSize').value = box.getAttribute('data-size');
       });
@@ -2476,6 +2568,7 @@
         document.querySelectorAll('.clock-size-box').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('clockSize').value = this.getAttribute('data-size');
+        if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
       });
     });
 
@@ -2662,7 +2755,54 @@
     initFontControls();
     initWifiControls();
     initPanelConfig();
+    initChannelModal();
     drawPreview();
+  };
+
+  const initChannelModal = () => {
+    const btn = $('btnEditChannel');
+    const modal = $('editChannelModal');
+    const btnClose = $('btnChanClose');
+    const btnCancel = $('btnChanCancel');
+    const btnSave = $('btnChanSave');
+    const btnPaste = $('btnChanPaste');
+    const input = $('modalYoutubeChannel');
+    const mainInput = $('youtubeChannelId');
+    const open = () => { input.value = (mainInput && mainInput.value) || ''; modal.classList.remove('hidden'); };
+    const close = () => modal.classList.add('hidden');
+    if (btn) btn.addEventListener('click', open);
+    if (btnClose) btnClose.addEventListener('click', close);
+    if (btnCancel) btnCancel.addEventListener('click', close);
+    if (btnPaste) btnPaste.addEventListener('click', async () => {
+      try {
+        let txt = '';
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          txt = (await navigator.clipboard.readText()) || '';
+        } else {
+          txt = window.prompt('Paste channel ID:', input.value || '') || '';
+        }
+        txt = txt.trim();
+        if (txt) {
+          input.value = txt;
+          try { if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(txt); } catch {}
+        }
+      } catch {}
+    });
+    if (btnSave) btnSave.addEventListener('click', async () => {
+      const id = (input.value || '').trim();
+      if (!id) { alert('Please enter a channel ID'); return; }
+      const body = new URLSearchParams(); body.set('id', id);
+      try { await fetch(apiBase + '/yt_channel', { method: 'POST', body }); } catch {}
+      if (mainInput) mainInput.value = id;
+      setYtStatus('🟢', true);
+      close();
+      await fetchYoutubeStats();
+      await renderAndUploadYoutube();
+    });
+    // Load saved channel from ESP on startup
+    fetch(apiBase + '/yt_channel').then(r=>r.ok?r.json():null).then(j=>{
+      if (j && j.id && mainInput) mainInput.value = j.id;
+    }).catch(()=>{});
   };
 
   

@@ -107,6 +107,10 @@ button { background: var(--accent); color: #093a39; border: 0; border-radius: 10
 .tab { background:#233040; color: var(--fg); border:0; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:14px; height: 30px; display: inline-flex; align-items: center; justify-content: center; }
 .tab.active { background: #4a5568; color: #ffffff; }
 
+/* Subtabs (for clock) */
+.subtab { background:#233040; color: var(--fg); border:0; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; height: 30px; display:inline-flex; align-items:center; justify-content:center; border: 1px solid #2a3a4a; }
+.subtab.active { background:#4a5568; color:#fff; border-color:#58667a; }
+
 #previewBar { position: sticky; top: calc(var(--header-h) - 35px); z-index: 10; background: #0b0f14; padding: 0; border-bottom: 1px solid #1f2a35; }
 #previewInner { display:flex; justify-content:center; position: relative; }
 canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius: 0; background: #000; image-rendering: pixelated; margin-top: -5px; }
@@ -368,6 +372,19 @@ canvas { width: 100%; max-width: 520px; border: 1px solid #1f2a35; border-radius
 .spacer-200 { flex: 1 1 auto; min-height: 200px; }
 .hidden { display: none !important; }
 .sr-only { position:absolute; left:-9999px; }
+
+/* Template grid */
+.template-grid { display: grid; gap: 12px; width: 100%; }
+.template-grid.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 720px) { .template-grid.grid-2 { grid-template-columns: 1fr; } }
+
+.template-card { border: 1px solid #2a3a4a; background: rgba(35,48,64,0.3); border-radius: 8px; padding: 10px; display: grid; grid-template-columns: 120px 1fr auto; gap: 12px; align-items: center; }
+.template-card .template-thumb { width: 100%; height: 64px; background: #0e141b; border: 1px solid #1f2a35; border-radius: 6px; }
+.template-card.placeholder .template-thumb { background: repeating-linear-gradient(45deg, #0e141b, #0e141b 6px, #101824 6px, #101824 12px); }
+.template-card .template-info { display: flex; flex-direction: column; gap: 4px; }
+.template-card .template-title { font-weight: 600; }
+.template-card .template-desc { color: var(--muted); font-size: 12px; }
+.template-card .template-actions { display:flex; align-items:center; gap: 8px; }
 
 .panel-overlay {
   position: fixed;

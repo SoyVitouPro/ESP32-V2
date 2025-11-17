@@ -683,6 +683,12 @@ static String contentTypeFor(const String& path) {
   if (path.endsWith(".js")) return "application/javascript";
   if (path.endsWith(".png")) return "image/png";
   if (path.endsWith(".ico")) return "image/x-icon";
+  if (path.endsWith(".ttf")) return "font/ttf";
+  if (path.endsWith(".otf")) return "font/otf";
+  if (path.endsWith(".woff")) return "font/woff";
+  if (path.endsWith(".woff2")) return "font/woff2";
+  if (path.endsWith(".eot")) return "application/vnd.ms-fontobject";
+  if (path.endsWith(".json")) return "application/json";
   return "text/plain";
 }
 

@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Basic Digital Clock Template</title>
+  <style>
+    html, body { margin:0; background:#000; color:#fff; font-family: system-ui, Arial, sans-serif; }
+    .wrap { display:grid; place-items:center; width:100%; height:100vh; }
+    .clock { font-size: 48px; letter-spacing: 2px; }
+  </style>
+  <script>
+    function themeInit(){
+      return { settings: { color:'#FFFFFF', bg:'#000000', fontSize:20, showSeconds:true, timeFormat:'24' } };
+    }
+    function themeRender(ctx, w, h, state, now){
+      ctx.fillStyle = state.settings.bg; ctx.fillRect(0,0,w,h);
+      const d = new Date(now);
+      let hr = d.getHours(); let mn = d.getMinutes(); let sc = d.getSeconds();
+      if (state.settings.timeFormat === '12') hr = (hr % 12) || 12;
+      const txt = state.settings.showSeconds ? `${String(hr).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(sc).padStart(2,'0')}` : `${String(hr).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      ctx.fillStyle = state.settings.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      let size = state.settings.fontSize || 20; ctx.font = `bold ${size}px system-ui, Arial`;
+      // Simple center
+      ctx.fillText(txt, Math.round(w/2), Math.round(h/2));
+    }
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="clock">HH:MM:SS</div>
+  </div>
+</body>
+</html>
+

@@ -19,6 +19,8 @@
   let heads = [];
   let clockPreviewTimer = 0;
   let clockTimer = 0;
+  let clockTemplateTimer = 0; // streaming for clock templates
+  let activeClockTemplate = null; // current active template id
   let youtubeTimer = 0;
   let youtubeLastCount = null;
   let ytIconImg = null;
@@ -74,6 +76,201 @@
 
   const rgb565 = (r, g, b) => ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | ((b) >> 3);
 
+  // Preview state for clock templates
+  let clockTemplatePreview = null; // { text, color, bg }
+
+  const drawTemplatePreviewText = (text, color = '#FFFFFF', bg = '#000000') => {
+    const pw = 128, ph = 64;
+    c.width = pw; c.height = ph;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, pw, ph);
+    // Auto-fit font size and center
+    let size = 28; const fam = getFontFamily();
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    let font = `bold ${size}px ${fam}`; ctx.font = font;
+    let tw = ctx.measureText(text).width;
+    while ((tw > pw - 8 || size > ph) && size > 8) {
+      size -= 2; font = `bold ${size}px ${fam}`; ctx.font = font; tw = ctx.measureText(text).width;
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(text, Math.round(pw / 2), Math.round(ph / 2));
+  };
+
+  // Render Template 1 (days left, time top-right, date under time)
+  const renderTemplate1 = (ctx, w, h, nowMs) => {
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, w, h);
+
+    const now = new Date(nowMs);
+    const leftW = 44; // smaller first column
+    const sep = 0;    // no gap at the separator line
+    const pad = 3;    // inner padding for content
+    const vOffsetLeft = 3; // shift left column down a bit
+    const rightX = leftW + sep;
+    const rightW = w - rightX - pad;
+
+    // Left column contents: three rows with equal and smaller sizes
+    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const idx = (now.getDay() + 6) % 7; // Sunday->6, Monday->0
+    const dayTxt = (days[idx] || '').toUpperCase();
+    const dNum = now.getDate();
+    const mNum = now.getMonth() + 1;
+    const yNum = now.getFullYear();
+    const dd = String(dNum).padStart(2, '0');
+    const mo = String(mNum).padStart(2, '0');
+    const yy = String(yNum);
+    const leftRows = [dayTxt, `${dd}/${mo}`, yy];
+    const topY = pad + vOffsetLeft;
+    const availH = Math.max(1, h - topY - pad);
+    const perH = availH / leftRows.length;
+    // Choose a uniform size that fits width for all rows
+    let baseSize = Math.min(14, Math.max(9, Math.floor(perH) - 1));
+    const measureWithGap = (t, font) => {
+      ctx.font = font; let wsum = 0; const gap = 1;
+      for (let i = 0; i < t.length; i++) { wsum += ctx.measureText(t[i]).width; if (i < t.length - 1) wsum += gap; }
+      return Math.ceil(wsum);
+    };
+    while (baseSize > 9) {
+      const font = `bold ${baseSize}px ${getFontFamily()}`;
+      const need = Math.max(
+        measureWithGap(leftRows[0], font),
+        measureWithGap(leftRows[1], font),
+        measureWithGap(leftRows[2], font)
+      );
+      if (need <= (leftW - pad * 2)) break;
+      baseSize -= 1;
+    }
+    ctx.fillStyle = '#FFFFFF';
+    for (let i = 0; i < leftRows.length; i++) {
+      const text = leftRows[i];
+      ctx.font = `bold ${baseSize}px ${getFontFamily()}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      let x = pad + 2; const yRow = Math.floor(topY + i * perH);
+      const gap = 1;
+      for (let k = 0; k < text.length; k++) {
+        const ch = text[k];
+        ctx.fillText(ch, x, yRow);
+        x += Math.ceil(ctx.measureText(ch).width) + gap;
+        if (x > (leftW - pad)) break;
+      }
+    }
+
+    // Draw unified outer border and single middle separator
+    ctx.save();
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 1;
+    // Outer frame on last pixels
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    // Middle separator at the exact column boundary (no double lines)
+    ctx.beginPath();
+    ctx.moveTo(rightX - 0.5, 0.5);
+    ctx.lineTo(rightX - 0.5, h - 0.5);
+    ctx.stroke();
+    ctx.restore();
+
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const timeTxt = `${hh}:${mm}:${ss}`;
+    let timeSize = 26; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.font = `bold ${timeSize}px ${getFontFamily()}`;
+    let tw = ctx.measureText(timeTxt).width;
+    while (tw > rightW && timeSize > 12) { timeSize -= 1; ctx.font = `bold ${timeSize}px ${getFontFamily()}`; tw = ctx.measureText(timeTxt).width; }
+    const timeY = 5; // shift clock down a bit
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(timeTxt, rightX + rightW, timeY);
+
+    // Equalizer bars under the time
+    const eqHeight = 14; // make bars a bit longer
+    const eqTop = Math.max(0, h - eqHeight - 1); // near bottom (1px margin)
+    const bars = 8;
+    const eqOffsetX = 2;     // margin from middle line
+    const eqRightMargin = 2; // margin from right border
+    const usableW = Math.max(1, rightW - eqOffsetX - eqRightMargin);
+    // Enforce equal bar widths and equal gaps by treating both as the same unit size 's'
+    const s = usableW / (2 * bars - 1); // bar width = s, gap width = s
+    const t = Math.floor(nowMs / 500);
+    for (let i = 0; i < bars; i++) {
+      const bx = rightX + eqOffsetX + i * 2 * s;
+      const phase = (t + i * 3) * 0.9;
+      const v = Math.abs(Math.sin(phase));
+      const scale = 0.2 + 0.8 * v; // keep some minimum height
+      const bh = Math.max(2, Math.floor(eqHeight * scale));
+      const by = eqTop + (eqHeight - bh);
+      ctx.fillStyle = '#00FF90';
+      // Single bar with width 's' and equal gap 's' (bars and gaps are identical)
+      ctx.fillRect(bx, by, s, bh);
+    }
+
+    // Note: outer frame and middle separator are already drawn above
+  };
+
+  const uploadCanvasRGB565 = async (canvas, bg = '#000000') => {
+    const pw = canvas.width, ph = canvas.height;
+    const tctx = canvas.getContext('2d');
+    let out; try { out = tctx.getImageData(0, 0, pw, ph); } catch { return; }
+    const buf = new Uint8Array(4 + pw * ph * 2);
+    buf[0] = pw & 255; buf[1] = (pw >> 8) & 255; buf[2] = ph & 255; buf[3] = (ph >> 8) & 255;
+    let p = 4, d = out.data;
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const i = (y * pw + x) * 4; const r = d[i], g = d[i + 1], b = d[i + 2];
+      const v = rgb565(r, g, b); buf[p++] = v & 255; buf[p++] = (v >> 8) & 255;
+    }
+    const fd = new FormData();
+    fd.append('image', new Blob([buf], { type: 'application/octet-stream' }), 'template.rgb565');
+    fd.append('bg', bg);
+    fd.append('bgMode', 'color');
+    fd.append('offx', 0); fd.append('offy', 0);
+    fd.append('animate', 0); fd.append('dir', 'none'); fd.append('speed', 0); fd.append('interval', 0);
+    try { await fetch(apiBase + '/upload', { method: 'POST', body: fd }); } catch {}
+  };
+
+  // Upload a simple centered text to LED (RGB565)
+  const uploadSimpleText = async (text, color = '#FFFFFF', bg = '#000000') => {
+    try {
+      // Stop other modes for a clean switch
+      await stopAllModes();
+    } catch {}
+
+    const pw = 128, ph = 64;
+    const canvas = document.createElement('canvas'); canvas.width = pw; canvas.height = ph;
+    const tctx = canvas.getContext('2d');
+    tctx.fillStyle = bg; tctx.fillRect(0, 0, pw, ph);
+
+    // Auto-fit font size
+    let size = 28; const fam = getFontFamily();
+    tctx.textBaseline = 'middle'; tctx.textAlign = 'center';
+    let font = `bold ${size}px ${fam}`; tctx.font = font;
+    let tw = tctx.measureText(text).width;
+    while ((tw > pw - 8 || size > ph) && size > 8) {
+      size -= 2; font = `bold ${size}px ${fam}`; tctx.font = font; tw = tctx.measureText(text).width;
+    }
+    tctx.fillStyle = color;
+    tctx.fillText(text, Math.round(pw / 2), Math.round(ph / 2));
+
+    // Pack RGB565
+    let out;
+    try { out = tctx.getImageData(0, 0, pw, ph); } catch { return; }
+    const buf = new Uint8Array(4 + pw * ph * 2);
+    buf[0] = pw & 255; buf[1] = (pw >> 8) & 255; buf[2] = ph & 255; buf[3] = (ph >> 8) & 255;
+    let p = 4, d = out.data;
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const i = (y * pw + x) * 4; const r = d[i], g = d[i + 1], b = d[i + 2];
+      const v = rgb565(r, g, b); buf[p++] = v & 255; buf[p++] = (v >> 8) & 255;
+    }
+    const fd = new FormData();
+    fd.append('image', new Blob([buf], { type: 'application/octet-stream' }), 'template.rgb565');
+    fd.append('bg', bg);
+    fd.append('bgMode', 'color');
+    fd.append('offx', 0);
+    fd.append('offy', 0);
+    fd.append('animate', 0);
+    fd.append('dir', 'none');
+    fd.append('speed', 0);
+    fd.append('interval', 0);
+    try { await fetch(apiBase + '/upload', { method: 'POST', body: fd }); } catch {}
+  };
+
   // Arduino-style map function for JavaScript
   const map = (value, inMin, inMax, outMin, outMax) => {
     return (value - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
@@ -100,7 +297,8 @@
   const fallbackFonts = `'Noto Sans Khmer', 'Khmer OS Content', 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', system-ui, Arial, sans-serif`;
 
   // Existing usage in non-Text features (YouTube/others) keeps fallback
-  const getFontFamily = () => fallbackFonts;
+  // Use a bundled font first for consistent metrics across environments
+  const getFontFamily = () => `'Battambang', ${fallbackFonts}`;
 
   // Text tab font selection
   const getTextFontFamily = () => {
@@ -118,11 +316,33 @@
     { name: 'Dangrek', file: 'fonts/Dangrek-Regular.ttf' }
   ];
 
+  let fontsLoadedPromise = null;
+  let fontsReady = false;
+
+  const ensureFontsLoaded = () => {
+    if (fontsReady) return Promise.resolve();
+    if (!('fonts' in document)) { fontsReady = true; return Promise.resolve(); }
+    if (!fontsLoadedPromise) {
+      const loads = [];
+      // Preload all available fonts at a representative size/weight
+      availableFonts.forEach(f => {
+        loads.push(document.fonts.load(`normal 20px '${f.name}'`));
+        loads.push(document.fonts.load(`bold 20px '${f.name}'`));
+      });
+      // Also attempt common system fallback used by templates
+      loads.push(document.fonts.ready);
+      fontsLoadedPromise = Promise.all(loads).then(() => { fontsReady = true; }).catch(() => { fontsReady = true; });
+    }
+    return fontsLoadedPromise;
+  };
+
   const registerWebFonts = () => {
     const style = document.createElement('style');
     style.type = 'text/css';
     style.textContent = availableFonts.map(f => `@font-face { font-family: '${f.name}'; src: url('${f.file}') format('truetype'); font-weight: normal; font-style: normal; font-display: swap; }`).join('\n');
     document.head.appendChild(style);
+    // Kick off loading eagerly
+    try { ensureFontsLoaded(); } catch {}
   };
 
   // ========= Crisp Text Rendering (Binary mask + dilation) =========
@@ -342,12 +562,18 @@
     if (window.__playTimer) { clearInterval(window.__playTimer); window.__playTimer = null; }
   };
 
+  const stopClockTemplate = () => {
+    if (clockTemplateTimer) { clearInterval(clockTemplateTimer); clockTemplateTimer = 0; }
+    activeClockTemplate = null;
+  };
+
   const stopAllRunningContent = () => {
     stopPreviewAnim();
     stopClockPreview();
     if (clockTimer) { cancelAnimationFrame(clockTimer); clockTimer = 0; }
     stopVideoPreview(); videoUploadActive = false; videoUploadInFlight = false;
     stopThemeTimers();
+    stopClockTemplate();
     if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
   };
 
@@ -634,6 +860,7 @@
   };
 
   const drawClockPreviewFrame = () => {
+    if (!fontsReady) return; // wait until fonts are ready for consistent metrics
     const pw = 128, ph = 64;
     const fmt = '24';
     const size = parseInt($('clockSize').value, 10);
@@ -690,6 +917,7 @@
   };
 
   const renderAndUploadClock = async () => {
+    await ensureFontsLoaded();
     stopPreviewAnim(); stopVideoPreview(); stopThemeTimers();
 
     const pw = 128, ph = 64;
@@ -895,9 +1123,23 @@
     if (videoMode) {
       stopPreviewAnim(); drawVideoPreviewFrame();
     } else if (clockMode) {
-      stopPreviewAnim(); drawClockPreviewFrame();
-      if (clockPreviewTimer) clearInterval(clockPreviewTimer);
-      clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+      const tplPanel = document.getElementById('clockTemplatePanel');
+      const usingTemplate = tplPanel && !tplPanel.classList.contains('hidden');
+      if (usingTemplate) {
+        stopPreviewAnim(); stopClockPreview();
+        if (activeClockTemplate === 'template1') {
+          const pw = 128, ph = 64; c.width = pw; c.height = ph;
+          renderTemplate1(ctx, pw, ph, Date.now());
+        } else if (clockTemplatePreview) {
+          drawTemplatePreviewText(clockTemplatePreview.text, clockTemplatePreview.color, clockTemplatePreview.bg);
+        } else {
+          drawTemplatePreviewText('Select a template', '#FFFFFF', '#000000');
+        }
+      } else {
+        stopPreviewAnim(); drawClockPreviewFrame();
+        if (clockPreviewTimer) clearInterval(clockPreviewTimer);
+        clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+      }
     } else if (youtubeMode) {
       stopPreviewAnim(); drawYoutubePreviewFrame();
     } else if (textMode && $('animate').checked && $('text').value.trim().length > 0) {
@@ -936,6 +1178,7 @@
 
     tabText.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      stopClockTemplate();
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
@@ -945,6 +1188,7 @@
     });
     tabClock.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      stopClockTemplate();
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
@@ -954,6 +1198,7 @@
     });
     tabVideo.addEventListener('click', () => {
       stopThemeStreaming(); // Auto-stop when switching away from theme
+      stopClockTemplate();
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
@@ -961,13 +1206,76 @@
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
     });
-    if (tabWifi) tabWifi.addEventListener('click', () => { if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
-    if (tabYoutube) tabYoutube.addEventListener('click', () => activate('youtube'));
+    if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
+    if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); activate('youtube'); });
 
     // default
     activate('text');
 
     // Theme feature removed
+  };
+
+  // ========= Clock Subtabs (Basic / Template) =========
+  const initClockSubtabs = () => {
+    const btnBasic = document.getElementById('clockSubtabBasic');
+    const btnTemplate = document.getElementById('clockSubtabTemplate');
+    const pnlBasic = document.getElementById('clockBasicPanel');
+    const pnlTemplate = document.getElementById('clockTemplatePanel');
+
+    if (!btnBasic || !btnTemplate || !pnlBasic || !pnlTemplate) return;
+
+    const setActive = (which) => {
+      [btnBasic, btnTemplate].forEach(b => b.classList.remove('active'));
+      pnlBasic.classList.add('hidden');
+      pnlTemplate.classList.add('hidden');
+      if (which === 'basic') { btnBasic.classList.add('active'); pnlBasic.classList.remove('hidden'); stopClockTemplate(); drawClockPreviewFrame(); }
+      if (which === 'template') { btnTemplate.classList.add('active'); pnlTemplate.classList.remove('hidden'); }
+    };
+
+    btnBasic.addEventListener('click', () => setActive('basic'));
+    btnTemplate.addEventListener('click', () => setActive('template'));
+
+    // Default state
+    setActive('basic');
+
+    // Handle template grid actions (starter)
+    document.querySelectorAll('.use-template-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-template-id') || 'basic';
+        console.log('Clock template selected:', id);
+        await ensureFontsLoaded();
+        if (id === 'template1') {
+          // Start streaming template 1 to preview and LED
+          stopAllRunningContent();
+          activeClockTemplate = 'template1';
+          const pw = 128, ph = 64;
+          const temp = document.createElement('canvas'); temp.width = pw; temp.height = ph;
+          const tctx = temp.getContext('2d');
+          renderTemplate1(tctx, pw, ph, Date.now());
+          // Draw preview immediately
+          c.width = pw; c.height = ph; ctx.drawImage(temp, 0, 0);
+          await uploadCanvasRGB565(temp, '#000000');
+          // Schedule every second updates
+          clockTemplateTimer = setInterval(async () => {
+            const now = Date.now();
+            renderTemplate1(tctx, pw, ph, now);
+            const tplPanel = document.getElementById('clockTemplatePanel');
+            if (tplPanel && !tplPanel.classList.contains('hidden')) ctx.drawImage(temp, 0, 0);
+            await uploadCanvasRGB565(temp, '#000000');
+          }, 1000);
+        } else if (id === 'template2') {
+          clockTemplatePreview = { text: 'Template 2', color: '#00FF00', bg: '#000000' };
+          stopClockPreview();
+          drawTemplatePreviewText(clockTemplatePreview.text, clockTemplatePreview.color, clockTemplatePreview.bg);
+          uploadSimpleText('Template 2', '#00FF00', '#000000');
+        } else {
+          clockTemplatePreview = { text: id, color: '#FFFFFF', bg: '#000000' };
+          stopClockPreview();
+          drawTemplatePreviewText(clockTemplatePreview.text, clockTemplatePreview.color, clockTemplatePreview.bg);
+          uploadSimpleText(id, '#FFFFFF', '#000000');
+        }
+      });
+    });
   };
 
   // ========= WiFi =========
@@ -2751,12 +3059,13 @@
     $('imageFitRow').classList.toggle('hidden', !showImg);
 
     initTabs();
+    initClockSubtabs();
     initEventListeners();
     initFontControls();
     initWifiControls();
     initPanelConfig();
     initChannelModal();
-    drawPreview();
+    ensureFontsLoaded().then(() => drawPreview());
   };
 
   const initChannelModal = () => {

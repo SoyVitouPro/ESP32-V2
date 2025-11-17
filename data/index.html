@@ -253,6 +253,17 @@
 
       <!-- CLOCK CONFIG -->
       <div id="clockConfig" class="card hidden">
+        <!-- Sub-tabs for Clock -->
+        <div class="row" style="margin-top: 0;">
+          <label>Mode</label>
+          <div class="inline gap-8">
+            <button id="clockSubtabBasic" class="subtab active">Basic</button>
+            <button id="clockSubtabTemplate" class="subtab">Template</button>
+          </div>
+        </div>
+
+        <!-- BASIC PANEL (existing features) -->
+        <div id="clockBasicPanel">
         <div class="row">
           <label for="clockSize">Clock Size</label>
           <div class="clock-size-selection-wrapper">
@@ -294,7 +305,6 @@
           </div>
           <input type="hidden" id="clockBgColor" value="#000000" />
         </div>
-
         <div class="row" id="clockGapRow">
           <label for="clockXGap">Character Gap</label>
           <div class="font-size-selection-wrapper">
@@ -308,7 +318,6 @@
             <input type="hidden" id="clockXGap" value="0" />
           </div>
         </div>
-
         <div class="row" id="clockFrameRow">
           <label for="clockFrameStyle">Frame</label>
           <div class="font-size-selection-wrapper">
@@ -320,8 +329,44 @@
             <input type="hidden" id="clockFrameStyle" value="none" />
           </div>
         </div>
-
         <div class="spacer-200"></div>
+        </div> <!-- /#clockBasicPanel -->
+
+        <!-- TEMPLATE PANEL -->
+        <div id="clockTemplatePanel" class="hidden">
+          <div class="row">
+            <label>Templates</label>
+            <div class="template-grid grid-2">
+              <!-- Template 1 -->
+              <div class="template-card clock-template-card" data-template-id="template1">
+                <div class="template-thumb"></div>
+                <div class="template-info">
+                  <div class="template-title">Template 1</div>
+                  <div class="template-desc">24h digital clock, seconds on</div>
+                </div>
+                <div class="template-actions">
+                  <button class="icon-btn use-template-btn" data-template-id="template1">Use</button>
+                </div>
+              </div>
+
+              <!-- Template 2 -->
+              <div class="template-card clock-template-card" data-template-id="template2">
+                <div class="template-thumb"></div>
+                <div class="template-info">
+                  <div class="template-title">Template 2</div>
+                  <div class="template-desc">12h clock, no seconds, bold</div>
+                </div>
+                <div class="template-actions">
+                  <button class="icon-btn use-template-btn" data-template-id="template2">Use</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Optional area for template controls injected later -->
+          <div id="clockTemplateControls" class="theme-controls hidden"></div>
+          <div class="spacer-200"></div>
+        </div> <!-- /#clockTemplatePanel -->
       </div>
       <!-- END CLOCK CONFIG -->
 

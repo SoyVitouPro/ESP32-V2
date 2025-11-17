@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Template 2</title>
+  <script>
+    function themeInit(){
+      return { settings: { color:'#00FF90', bg:'#000000', fontSize:24, showSeconds:false, timeFormat:'12' } };
+    }
+    function themeRender(ctx, w, h, state, now){
+      ctx.fillStyle = state.settings.bg; ctx.fillRect(0,0,w,h);
+      const d = new Date(now);
+      let hr = d.getHours(), mn = d.getMinutes();
+      if (state.settings.timeFormat === '12') hr = (hr % 12) || 12;
+      const txt = `${String(hr).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      ctx.fillStyle = state.settings.color; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const size = state.settings.fontSize || 24; ctx.font = `900 ${size}px system-ui, Arial`;
+      ctx.fillText(txt, Math.round(w/2), Math.round(h/2));
+    }
+  </script>
+</head>
+<body></body>
+</html>
+

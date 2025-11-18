@@ -78,6 +78,9 @@ input[type="range"] {
 
 .btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; margin-bottom: 0; }
 button { background: var(--accent); color: #093a39; border: 0; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+.action-group button[disabled], button[disabled], .preview-btn[disabled] {
+  opacity: 0.5; cursor: not-allowed; pointer-events: none;
+}
 .icon-btn { background:#233040; color:var(--fg); border:0; border-radius:8px; padding:6px 10px; cursor:pointer; }
 .icon-btn:hover { background:#2d3b4d; }
 .btn-green { background:#28a745; }
@@ -102,6 +105,15 @@ button { background: var(--accent); color: #093a39; border: 0; border-radius: 10
 .upload-btn:active {
   background: #4a5568;
   transform: none;
+}
+
+.tag {
+  background: #233040;
+  color: var(--fg);
+  border: 1px solid #3d4b5d;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .tab { background:#233040; color: var(--fg); border:0; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:14px; height: 30px; display: inline-flex; align-items: center; justify-content: center; }

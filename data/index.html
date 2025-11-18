@@ -35,9 +35,10 @@
           <div class="tab-group">
             <button id="tabText" class="tab active" title="Text">🏡</button>
             <button id="tabClock" class="tab" title="Clock">⏰</button>
-            <button id="tabVideo" class="tab" title="Video">📸</button>
+            <button id="tabVideo" class="tab" title="System Health">🩺</button>
             <button id="tabWifi" class="tab" title="WiFi">📶</button>
             <button id="tabYoutube" class="tab" title="YouTube">▶️</button>
+            <button id="tabTimer" class="tab" title="Timer">⏱️</button>
           </div>
 
           <!-- Right side - Action buttons -->
@@ -370,36 +371,38 @@
       </div>
       <!-- END CLOCK CONFIG -->
 
-      <!-- VIDEO CONFIG -->
+      <!-- SYSTEM HEALTH CONFIG (replaces Video) -->
       <div id="videoConfig" class="card hidden">
         <div class="row">
-          <label for="videoFile">Video</label>
-          <div class="inline">
-            <input id="videoFile" type="file" accept="video/*" />
-          </div>
-        </div>
-        <div class="row" id="videoFitRow">
-          <label>Fit & Options</label>
-          <div class="video-fit-selection-wrapper">
-            <div class="inline gap-12 justify-between">
-              <div class="inline gap-12">
-                <button class="video-fit-box active" data-fit="fill">Fill Panel</button>
-                <button class="video-fit-box" data-fit="fit">Fit Inside</button>
-              </div>
-              <div class="inline gap-12 center" style="margin-left: 80px;">
-                <label class="muted">Loop</label>
-                <div id="videoLoopToggle" class="toggle-switch checked" data-checked="true"></div>
-              </div>
+          <label>System Health</label>
+          <div class="inline wrap gap-12">
+            <button id="btnSysRefresh" class="upload-btn">🔄 Refresh</button>
+            <button id="btnSysLatency" class="icon-btn">⏱️ Latency Test</button>
+            <div class="inline gap-12 center" style="margin-left: 12px;">
+              <label class="muted">Auto-refresh</label>
+              <div id="sysAutoToggle" class="toggle-switch" data-checked="true"></div>
             </div>
+            <span id="sysStatus" class="muted">Idle</span>
           </div>
-          <input type="hidden" id="videoFit" value="fill" />
-          <input type="hidden" id="videoFps" value="15" />
-          <input type="hidden" id="videoLoop" checked />
         </div>
 
-        <div class="spacer-400"></div>
+        <div class="row">
+          <label>Overview</label>
+          <div id="sysInfoList" class="inline wrap" style="gap: 8px; align-items: flex-start;">
+            <!-- Filled by script: key-value chips -->
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Notes</label>
+          <div class="muted" id="sysNotes" style="max-width: 680px;">
+            Shows ESP32 health from /sys_info if available. Latency test helps diagnose slow Apply.
+          </div>
+        </div>
+
+        <div class="spacer-200"></div>
       </div>
-      <!-- END VIDEO CONFIG -->
+      <!-- END SYSTEM HEALTH CONFIG -->
 
       <!-- YOUTUBE CONFIG -->
       <div id="youtubeConfig" class="card hidden">
@@ -472,6 +475,79 @@
         <div class="spacer-200"></div>
       </div>
       <!-- END YOUTUBE CONFIG -->
+
+      <!-- TIMER CONFIG -->
+      <div id="timerConfig" class="card hidden">
+        <div class="row">
+          <label>Durations (minutes)</label>
+          <div class="inline gap-12">
+            <div class="inline gap-8 center">
+              <span class="muted">Study</span>
+              <input id="timerStudy" type="number" min="1" max="120" value="25" class="w-80" />
+            </div>
+            <div class="inline gap-8 center" style="margin-left: 16px;">
+              <span class="muted">Break</span>
+              <input id="timerBreak" type="number" min="1" max="60" value="5" class="w-80" />
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="timerTextColor">Text Color</label>
+          <div class="clock-color-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="clock-color-box active" data-color="#FFFFFF" style="background:#FFFFFF"></button>
+              <button class="clock-color-box" data-color="#FF0000" style="background:#FF0000"></button>
+              <button class="clock-color-box" data-color="#00FF00" style="background:#00FF00"></button>
+              <button class="clock-color-box" data-color="#FFFF00" style="background:#FFFF00"></button>
+              <button class="clock-color-box" data-color="#FF00FF" style="background:#FF00FF"></button>
+              <button class="clock-color-box" data-color="#00FFFF" style="background:#00FFFF"></button>
+            </div>
+          </div>
+          <input type="hidden" id="timerTextColor" value="#FFFFFF" />
+        </div>
+
+        <div class="row">
+          <label for="timerBgColor">Background</label>
+          <div class="clock-bg-color-selection-wrapper">
+            <div class="clock-bg-color-boxes inline gap-12 center">
+              <button class="clock-bg-color-box active" data-color="#000000" style="background:#000000"></button>
+              <button class="clock-bg-color-box" data-color="#FFF4E8" style="background:#FFF4E8"></button>
+              <button class="clock-bg-color-box" data-color="#827C75" style="background:#827C75"></button>
+              <button class="clock-bg-color-box" data-color="#6E8D99" style="background:#6E8D99"></button>
+            </div>
+          </div>
+          <input type="hidden" id="timerBgColor" value="#000000" />
+        </div>
+
+        <div class="row" id="timerFrameRow">
+          <label for="timerFrameStyle">Frame</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box clock-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box clock-frame-box" data-frame="border">Border</button>
+              <button class="font-size-box clock-frame-box" data-frame="neon">Neon</button>
+            </div>
+            <input type="hidden" id="timerFrameStyle" value="none" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Trees</label>
+          <div class="inline gap-12">
+            <button class="font-size-box timer-tree-box" data-mode="static">Static</button>
+            <button class="font-size-box timer-tree-box" data-mode="animated">Animated</button>
+          </div>
+          <input type="hidden" id="timerTreeMode" value="none" />
+        </div>
+
+        <div class="row">
+          <span class="muted">Preview and Apply show a live countdown on the LED.</span>
+        </div>
+
+        <div class="spacer-200"></div>
+      </div>
+      <!-- END TIMER CONFIG -->
 
       <!-- WIFI CONFIG -->
       <div id="wifiConfig" class="card hidden">

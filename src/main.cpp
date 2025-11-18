@@ -16,6 +16,8 @@
 #include <vector>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include "esp_system.h"
+#include "esp_heap_caps.h"
 
 // Panel configuration (defaults). Adjust via UI if needed.
 #ifndef PANEL_RES_X
@@ -1387,6 +1389,40 @@ void setup() {
       json += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
     }
     json += "\"ap_ip\":\"" + WiFi.softAPIP().toString() + "\"}";
+    server.send(200, "application/json", json);
+  });
+  // System info endpoint
+  server.on("/sys_info", HTTP_GET, [](){
+    sendCORSHeaders();
+    // Uptime
+    uint32_t up = millis();
+    // Heap/PSRAM
+    size_t heap_free = esp_get_free_heap_size();
+    size_t heap_total = heap_caps_get_total_size(MALLOC_CAP_DEFAULT);
+    size_t psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    size_t psram_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+    // FS
+    size_t fs_total = 0, fs_used = 0;
+    if (LittleFS.begin(true)) {
+      fs_total = LittleFS.totalBytes();
+      fs_used = LittleFS.usedBytes();
+    }
+    // CPU Freq
+    int cpu_mhz = getCpuFrequencyMhz();
+    // WiFi RSSI
+    int rssi = (WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0;
+
+    String json = "{";
+    json += "\"uptime_ms\":" + String(up) + ",";
+    json += "\"heap_free\":" + String(heap_free) + ",";
+    json += "\"heap_total\":" + String(heap_total) + ",";
+    json += "\"psram_free\":" + String(psram_free) + ",";
+    json += "\"psram_total\":" + String(psram_total) + ",";
+    json += "\"fs_total\":" + String(fs_total) + ",";
+    json += "\"fs_used\":" + String(fs_used) + ",";
+    json += "\"cpu_freq_mhz\":" + String(cpu_mhz) + ",";
+    json += "\"wifi_rssi\":" + String(rssi);
+    json += "}";
     server.send(200, "application/json", json);
   });
   // YouTube stats endpoint (cached ~5s)

@@ -28,6 +28,24 @@
   let youtubeAnimTimer = 0; // no longer used for URL themes (kept for compatibility)
   let youtubePreviewTimer = 0;
   let selectedThemeId = '';
+  let activeMode = null; // 'text'|'clock'|'timer'|'youtube'|'system'|null
+  // Timer (Pomodoro) state
+  let timerPreviewTimer = 0; // preview refresh interval
+  let timerRunning = false;
+  let timerState = 'study'; // 'study' | 'break'
+  let timerStudyMin = 25;
+  let timerBreakMin = 5;
+  let timerRemainingMs = 25 * 60 * 1000;
+  let timerLastTick = 0;
+  let timerTransitionStart = 0;
+  const TIMER_TRANSITION_MS = 800; // nice crossfade when switching
+  let timerPrevLabel = '';
+  let timerNextLabel = '';
+  let timerLedTimer = 0;
+  let timerShowTrees = false;
+  let timerUploadInFlight = false;
+  let timerPendingRefresh = false;
+  let timerImmediateId = 0;
   // GIF decode + animation state (gifuct-js)
   let gifFrames = [];
   let gifDelays = [];
@@ -44,6 +62,10 @@
   let videoUploadLastMs = 0;
   let videoUploadIntervalMs = 100;
   let videoUploadInFlight = false;
+
+  // System Health tab state
+  let sysTimer = 0; // interval id for auto-refresh
+  let sysAuto = true; // auto-refresh enabled by default
 
   // Theme file storage
   let originalThemeContent = '';
@@ -562,6 +584,8 @@
     if (window.__playTimer) { clearInterval(window.__playTimer); window.__playTimer = null; }
   };
 
+  const stopTimerPreview = () => { if (timerPreviewTimer) { clearInterval(timerPreviewTimer); timerPreviewTimer = 0; } };
+
   const stopClockTemplate = () => {
     if (clockTemplateTimer) { clearInterval(clockTemplateTimer); clockTemplateTimer = 0; }
     activeClockTemplate = null;
@@ -571,10 +595,16 @@
     stopPreviewAnim();
     stopClockPreview();
     if (clockTimer) { cancelAnimationFrame(clockTimer); clockTimer = 0; }
+    if (clockUploadTimerId) { clearTimeout(clockUploadTimerId); clockUploadTimerId = 0; }
     stopVideoPreview(); videoUploadActive = false; videoUploadInFlight = false;
     stopThemeTimers();
     stopClockTemplate();
     if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
+    stopTimerPreview(); timerRunning = false;
+    if (timerLedTimer) { clearInterval(timerLedTimer); timerLedTimer = 0; }
+    if (timerImmediateId) { clearTimeout(timerImmediateId); timerImmediateId = 0; }
+    timerPendingRefresh = false; timerUploadInFlight = false;
+    activeMode = null;
   };
 
   // Universal function to stop all modes on ESP32 and browser
@@ -917,6 +947,7 @@
   };
 
   const renderAndUploadClock = async () => {
+    if (activeMode !== 'clock') return;
     await ensureFontsLoaded();
     stopPreviewAnim(); stopVideoPreview(); stopThemeTimers();
 
@@ -976,50 +1007,48 @@
     fd.append('speed', 0);
     fd.append('interval', 0);
 
-    // Use smaller timeout to avoid blocking
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 500); // 500ms timeout
-
     try {
-      await fetch(apiBase + '/upload', {
-        method: 'POST',
-        body: fd,
-        signal: controller.signal
-      });
+      await fetch(apiBase + '/upload', { method: 'POST', body: fd });
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.log('Clock upload error:', error.message);
-      }
-    } finally {
-      clearTimeout(timeoutId);
+      console.log('Clock upload error:', error && error.message ? error.message : String(error));
     }
   };
 
+  // Precise upload scheduling aligned to wall-clock seconds
+  let clockUploadTimerId = 0;
+  const scheduleNextClockUpload = (immediate=false) => {
+    if (clockUploadTimerId) { clearTimeout(clockUploadTimerId); clockUploadTimerId = 0; }
+    if (immediate) {
+      // Fire one upload now, then schedule next at the next wall second
+      renderAndUploadClock().finally(() => scheduleNextClockUpload(false));
+      return;
+    }
+    const now = Date.now();
+    const delay = 1000 - (now % 1000) + 2; // align to next second boundary + small fudge
+    clockUploadTimerId = setTimeout(async () => {
+      if (activeMode !== 'clock') { clockUploadTimerId = 0; return; }
+      await renderAndUploadClock();
+      scheduleNextClockUpload(false);
+    }, delay);
+  };
+
+  // Low-FPS preview loop for clock tab only
   const startSmoothClockTimer = () => {
-    let lastUploadTime = 0;
-    const UPLOAD_INTERVAL = 1000; // Exact 1 second for perfect timing
-    let nextUploadTime = performance.now() + UPLOAD_INTERVAL;
-
-    const updateClock = async (timestamp) => {
+    let lastPreviewTime = 0;
+    const PREVIEW_INTERVAL = 250; // ~4 FPS
+    const loop = () => {
       const now = performance.now();
-
-      // Always update preview for smoothness
-      if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
-
-      // Use precise timing to avoid double-counting
-      if (now >= nextUploadTime) {
-        lastUploadTime = now;
-        nextUploadTime = now + UPLOAD_INTERVAL;
-        try {
-          await renderAndUploadClock();
-        } catch (error) {
-          console.log('Clock upload error:', error);
+      if (!$('clockConfig').classList.contains('hidden')) {
+        if (now - lastPreviewTime >= PREVIEW_INTERVAL) {
+          drawClockPreviewFrame();
+          lastPreviewTime = now;
         }
       }
-      if (clockTimer) clockTimer = requestAnimationFrame(updateClock);
+      if (clockTimer) clockTimer = requestAnimationFrame(loop);
     };
-
-    clockTimer = requestAnimationFrame(updateClock);
+    // Start upload aligned to next second and preview loop
+    scheduleNextClockUpload(true);
+    clockTimer = requestAnimationFrame(loop);
   };
 
   // ========= Video =========
@@ -1119,9 +1148,10 @@
     const clockMode = !$('clockConfig').classList.contains('hidden');
     const textMode = !$('textConfig').classList.contains('hidden');
     const youtubeMode = !$('youtubeConfig').classList.contains('hidden');
+    const timerMode = !$('timerConfig').classList.contains('hidden');
 
     if (videoMode) {
-      stopPreviewAnim(); drawVideoPreviewFrame();
+      stopPreviewAnim(); drawSystemPreviewFrame();
     } else if (clockMode) {
       const tplPanel = document.getElementById('clockTemplatePanel');
       const usingTemplate = tplPanel && !tplPanel.classList.contains('hidden');
@@ -1137,16 +1167,33 @@
         }
       } else {
         stopPreviewAnim(); drawClockPreviewFrame();
-        if (clockPreviewTimer) clearInterval(clockPreviewTimer);
-        clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+        // Start lightweight preview timer only if not already streaming
+        if (!clockTimer) {
+          if (clockPreviewTimer) clearInterval(clockPreviewTimer);
+          clockPreviewTimer = setInterval(drawClockPreviewFrame, 1000);
+        }
       }
     } else if (youtubeMode) {
       stopPreviewAnim(); drawYoutubePreviewFrame();
+    } else if (timerMode) {
+      stopPreviewAnim(); stopClockPreview(); stopGifAnimation();
+      drawTimerPreviewFrame();
+      if (timerRunning && !timerPreviewTimer) timerPreviewTimer = setInterval(drawTimerPreviewFrame, 200);
     } else if (textMode && $('animate').checked && $('text').value.trim().length > 0) {
       stopPreviewAnim(); initPreviewAnim(); drawPreviewFrame(true); rafId = requestAnimationFrame(animatePreview);
     } else {
       stopPreviewAnim(); drawPreviewFrame(false);
     }
+  };
+
+  const drawSystemPreviewFrame = () => {
+    const pw = 128, ph = 64;
+    c.width = pw; c.height = ph;
+    ctx.clearRect(0,0,pw,ph);
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,pw,ph);
+    ctx.fillStyle = '#00FF90'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font = `bold 16px ${getFontFamily()}`;
+    ctx.fillText('System Health', pw/2, ph/2);
   };
 
   // ========= Tabs =========
@@ -1156,24 +1203,36 @@
     const tabVideo = $('tabVideo');
     const tabWifi = $('tabWifi');
     const tabYoutube = $('tabYoutube');
+    const tabTimer = $('tabTimer');
 
     const textCfg = $('textConfig');
     const clockCfg = $('clockConfig');
     const videoCfg = $('videoConfig');
     const wifiCfg = $('wifiConfig');
     const youtubeCfg = $('youtubeConfig');
+    const timerCfg = $('timerConfig');
 
     const activate = (which) => {
       // Tabs visual
-      [tabText, tabClock, tabVideo, tabWifi, tabYoutube].forEach(btn => btn && btn.classList.remove('active'));
+      [tabText, tabClock, tabVideo, tabWifi, tabYoutube, tabTimer].forEach(btn => btn && btn.classList.remove('active'));
       // Sections hide/show
-      [textCfg, clockCfg, videoCfg, wifiCfg, youtubeCfg].forEach(el => el && el.classList.add('hidden'));
+      [textCfg, clockCfg, videoCfg, wifiCfg, youtubeCfg, timerCfg].forEach(el => el && el.classList.add('hidden'));
 
       if (which === 'text') { tabText.classList.add('active'); textCfg.classList.remove('hidden'); }
       if (which === 'clock') { tabClock.classList.add('active'); clockCfg.classList.remove('hidden'); }
       if (which === 'video') { tabVideo.classList.add('active'); videoCfg.classList.remove('hidden'); }
       if (which === 'wifi') { tabWifi.classList.add('active'); wifiCfg.classList.remove('hidden'); }
       if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); drawYoutubePreviewFrame(); if (youtubePreviewTimer) clearInterval(youtubePreviewTimer); youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67); }
+      if (which === 'timer') { tabTimer.classList.add('active'); timerCfg.classList.remove('hidden'); drawTimerPreviewFrame(); }
+
+      // Enable/disable Preview + Apply when on System tab
+      const prevBtn = $('btnTextPreview');
+      const applyBtn = $('btn');
+      const onSystem = which === 'video';
+      if (prevBtn) prevBtn.disabled = onSystem;
+      if (applyBtn) applyBtn.disabled = onSystem;
+      // If on system, stop any preview animation
+      if (onSystem) { stopPreviewAnim(); }
     };
 
     tabText.addEventListener('click', () => {
@@ -1182,6 +1241,7 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopTimerPreview(); timerRunning = false;
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('text');
@@ -1192,6 +1252,7 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopTimerPreview(); timerRunning = false;
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('clock');
@@ -1202,12 +1263,17 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
+      stopTimerPreview(); timerRunning = false;
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
+      // Refresh system info on entering tab and ensure auto-refresh is configured
+      try { refreshSystemInfo(); } catch {}
+      setupSysAutoRefresh();
     });
-    if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
-    if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); activate('youtube'); });
+    if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopTimerPreview(); timerRunning = false; stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
+    if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); stopTimerPreview(); timerRunning = false; activate('youtube'); });
+    if (tabTimer) tabTimer.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('timer'); });
 
     // default
     activate('text');
@@ -2329,31 +2395,47 @@
     // Apply (tab-aware)
     $('btn').addEventListener('click', async (e) => {
       e.preventDefault();
+      const applyBtn = $('btn');
+      if (applyBtn) applyBtn.disabled = true; // prevent spamming
       const textMode = !$('textConfig').classList.contains('hidden');
       const clockMode = !$('clockConfig').classList.contains('hidden');
       const videoMode = !$('videoConfig').classList.contains('hidden');
       const themeEl = $('themeConfig');
       const themeMode = themeEl ? !themeEl.classList.contains('hidden') : false; // removed feature
       const youtubeMode = !$('youtubeConfig').classList.contains('hidden');
+      const timerMode = !$('timerConfig').classList.contains('hidden');
 
       // Stop all modes first before starting any new mode
-      await stopAllModes();
+      try {
+        await stopAllModes();
 
       if (textMode) {
         console.log('Text: starting text display');
+        activeMode = 'text';
         await renderAndUpload();
       } else if (clockMode) {
         console.log('Clock: starting clock display');
+        activeMode = 'clock';
         await renderAndUploadClock();
         if (!clockTimer) startSmoothClockTimer();
       } else if (videoMode) {
-        console.log('Video: use Start/Stop buttons');
-        // Note: Video mode has its own Start/Stop buttons
+        console.log('System: refreshing system health');
+        activeMode = 'system';
+        await refreshSystemInfo();
       } else if (youtubeMode) {
         console.log('YouTube: starting live counter');
+        activeMode = 'youtube';
         // Push an initial frame to LED, then start periodic updates
         await renderAndUploadYoutube();
         await startYoutubeUpdater();
+      } else if (timerMode) {
+        console.log('Timer: starting live countdown to LED');
+        activeMode = 'timer';
+        startTimerPreview(true);
+        await startTimerStreaming();
+      }
+      } finally {
+        if (applyBtn) applyBtn.disabled = false;
       }
     });
 
@@ -2399,6 +2481,8 @@
     ['clockSize','clockColor','clockBgColor'].forEach(id=>{
       $(id) && $(id).addEventListener('input', () => {
         if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+        // If clock streaming is active, push an immediate LED update and keep alignment
+        if (clockTimer || clockUploadTimerId) scheduleNextClockUpload(true);
       });
     });
 
@@ -2437,6 +2521,7 @@
         this.classList.add('active');
         $('clockXGap').value = this.getAttribute('data-gap') || '0';
         if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+        if (clockTimer || clockUploadTimerId) scheduleNextClockUpload(true);
       });
     });
 
@@ -2447,6 +2532,7 @@
         this.classList.add('active');
         $('clockFrameStyle').value = this.getAttribute('data-frame') || 'none';
         if (!$('clockConfig').classList.contains('hidden')) drawClockPreviewFrame();
+        if (clockTimer || clockUploadTimerId) scheduleNextClockUpload(true);
       });
     });
     document.querySelectorAll('#youtubeConfig .clock-bg-color-box').forEach(box=>{
@@ -2889,15 +2975,17 @@
       });
     });
 
-    // Video loop toggle
+    // Video loop toggle (legacy, may not exist)
     const videoLoopToggle = $('videoLoopToggle');
-    videoLoopToggle.addEventListener('click', function(){
-      const isChecked = this.getAttribute('data-checked') === 'true';
-      const newState = !isChecked;
-      this.setAttribute('data-checked', newState);
-      this.classList.toggle('checked', newState);
-      $('videoLoop').checked = newState;
-    });
+    if (videoLoopToggle) {
+      videoLoopToggle.addEventListener('click', function(){
+        const isChecked = this.getAttribute('data-checked') === 'true';
+        const newState = !isChecked;
+        this.setAttribute('data-checked', newState);
+        this.classList.toggle('checked', newState);
+        if ($('videoLoop')) $('videoLoop').checked = newState;
+      });
+    }
 
     // Image fit
     $('imageFit').addEventListener('change', () => {});
@@ -2906,18 +2994,86 @@
 
     // Video file
     const vf = $('videoFile');
-    videoEl = document.createElement('video');
-    videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.crossOrigin = 'anonymous';
-    vf.addEventListener('change', async (e) => {
-      const f = e.target.files && e.target.files[0]; if (!f) return;
-      try {
-        const url = URL.createObjectURL(f); videoEl.src = url; await videoEl.play();
-        if (!$('videoConfig').classList.contains('hidden')) startVideoPreview();
-      } catch {}
-    });
+    if (vf) {
+      videoEl = document.createElement('video');
+      videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.crossOrigin = 'anonymous';
+      vf.addEventListener('change', async (e) => {
+        const f = e.target.files && e.target.files[0]; if (!f) return;
+        try {
+          const url = URL.createObjectURL(f); videoEl.src = url; await videoEl.play();
+          if (!$('videoConfig').classList.contains('hidden')) startVideoPreview();
+        } catch {}
+      });
+    }
 
     // Video loop
-    $('videoLoop').addEventListener('change', ()=>{ if (videoEl) videoEl.loop = $('videoLoop').checked; });
+    if ($('videoLoop')) $('videoLoop').addEventListener('change', ()=>{ if (videoEl) videoEl.loop = $('videoLoop').checked; });
+
+    // System Health wiring
+    const btnSysRefresh = $('btnSysRefresh');
+    const btnSysLatency = $('btnSysLatency');
+    const sysAutoToggle = $('sysAutoToggle');
+    if (btnSysRefresh) btnSysRefresh.addEventListener('click', refreshSystemInfo);
+    if (btnSysLatency) btnSysLatency.addEventListener('click', runLatencyTest);
+    if (sysAutoToggle) sysAutoToggle.addEventListener('click', () => {
+      const isChecked = sysAutoToggle.getAttribute('data-checked') === 'true';
+      const newState = !isChecked;
+      sysAutoToggle.setAttribute('data-checked', newState);
+      sysAutoToggle.classList.toggle('checked', newState);
+      sysAuto = newState;
+      setupSysAutoRefresh();
+    });
+
+    // Timer color pickers
+    document.querySelectorAll('#timerConfig .clock-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .clock-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('timerTextColor').value = this.getAttribute('data-color');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('timerBgColor').value = this.getAttribute('data-color');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    document.querySelectorAll('#timerConfig .clock-frame-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .clock-frame-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('timerFrameStyle').value = this.getAttribute('data-frame') || 'none';
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    // Timer duration inputs
+    const studyInput = $('timerStudy');
+    const breakInput = $('timerBreak');
+    if (studyInput) studyInput.addEventListener('input', () => { timerStudyMin = Math.max(1, parseInt(studyInput.value||'25',10)); if (!timerRunning) { timerState='study'; timerRemainingMs = timerStudyMin*60*1000; drawTimerPreviewFrame(); } });
+    if (breakInput) breakInput.addEventListener('input', () => { timerBreakMin = Math.max(1, parseInt(breakInput.value||'5',10)); if (!timerRunning && timerState==='break') { timerRemainingMs = timerBreakMin*60*1000; drawTimerPreviewFrame(); } });
+
+    // Timer tree mode buttons (static/animated with tri-state off)
+    document.querySelectorAll('#timerConfig .timer-tree-box').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-mode');
+        const current = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
+        // Toggle off if clicking the active one
+        const next = (current === mode) ? 'none' : mode;
+        if ($('timerTreeMode')) $('timerTreeMode').value = next;
+        // Update active visuals
+        document.querySelectorAll('#timerConfig .timer-tree-box').forEach(b => b.classList.remove('active'));
+        if (next !== 'none') btn.classList.add('active');
+        // Preview + LED update
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
   };
 
   const initFontControls = () => {
@@ -2966,16 +3122,16 @@
     const speed = parseInt($('speed').value, 10);
     const interval = parseInt($('interval').value, 10);
 
-    // Prepare background with optional frame; upload as bg image when needed
+    // Prepare background with optional frame
     const frameStyle = ($('outlineStyle') && $('outlineStyle').value) || 'none';
     const wantFrame = frameStyle !== 'none';
     const bgModeVal = $('bgMode').value;
-    if ((bgModeVal === 'image' && loadedImg) || wantFrame) {
-      const outCanvas = document.createElement('canvas');
-      outCanvas.width = pw; outCanvas.height = ph;
-      const octx = outCanvas.getContext('2d'); octx.imageSmoothingEnabled = false;
+    const buildBackgroundCanvas = () => {
+      const bgCanvas = document.createElement('canvas');
+      bgCanvas.width = pw; bgCanvas.height = ph;
+      const bctx = bgCanvas.getContext('2d'); bctx.imageSmoothingEnabled = false;
       // Base background
-      octx.fillStyle = $('bg').value; octx.fillRect(0,0,pw,ph);
+      bctx.fillStyle = $('bg').value; bctx.fillRect(0,0,pw,ph);
       if (bgModeVal === 'image' && loadedImg) {
         const fit = $('imageFit').value;
         let dw = loadedImg.width, dh = loadedImg.height;
@@ -2987,23 +3143,11 @@
         } else { dw = Math.min(pw, loadedImg.width); dh = Math.min(ph, loadedImg.height); }
         const dx = Math.floor(pw*0.5 - dw/2);
         const dy = Math.floor(ph*0.5 - dh/2);
-        octx.drawImage(loadedImg, dx, dy, dw, dh);
+        bctx.drawImage(loadedImg, dx, dy, dw, dh);
       }
-      // Frame overlay
-      if (wantFrame) drawFrameOnCanvas(octx, frameStyle, $('color').value, pw, ph);
-
-      const outBg = octx.getImageData(0,0,pw,ph);
-      const bufBg = new Uint8Array(4 + pw*ph*2);
-      bufBg[0]=pw&255; bufBg[1]=(pw>>8)&255; bufBg[2]=ph&255; bufBg[3]=(ph>>8)&255;
-      let pb=4, db=outBg.data;
-      for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){
-        const i=(y*pw+x)*4; const r=db[i], g=db[i+1], b=db[i+2];
-        const v=rgb565(r,g,b); bufBg[pb++]=v&255; bufBg[pb++]=(v>>8)&255;
-      }
-      const fdBg = new FormData();
-      fdBg.append('image', new Blob([bufBg], {type:'application/octet-stream'}), 'bg.rgb565');
-      await fetch(apiBase + '/upload_bg', { method:'POST', body: fdBg });
-    }
+      if (wantFrame) drawFrameOnCanvas(bctx, frameStyle, $('color').value, pw, ph);
+      return bgCanvas;
+    };
 
     // Text layer using crisp bitmap builder (supports outline)
     let outCanvas = document.createElement('canvas');
@@ -3048,8 +3192,66 @@
     fd.append('dir', dir);
     fd.append('speed', speed);
     fd.append('interval', interval);
-    const res = await fetch(apiBase + '/upload', { method:'POST', body: fd });
-    if(!res.ok){ alert('Upload failed: '+res.status); return; }
+    const sendOverlay = () => fetch(apiBase + '/upload', { method:'POST', body: fd });
+
+    // Strategy to make frame + text appear together:
+    // - If not animating: send a single combined RGB565 frame (bg+frame+text).
+    // - If animating: first push a combined frame for instant visual, then in parallel
+    //   upload bg (if needed) and the overlay with animate settings.
+    if (!animate) {
+      const bgCanvas = buildBackgroundCanvas();
+      const combined = document.createElement('canvas'); combined.width = pw; combined.height = ph;
+      const cctx = combined.getContext('2d');
+      cctx.drawImage(bgCanvas, 0, 0);
+      // center text
+      const cy = Math.floor(ph * 0.5) + 2;
+      if (textBitmapCanvas) {
+        if (textW <= pw) {
+          cctx.drawImage(textBitmapCanvas, Math.floor((pw - textW)/2), Math.floor(cy - Math.floor(textBitmapCanvas.height/2)));
+        } else {
+          const sx = Math.max(0, Math.floor(textW/2 - pw/2));
+          cctx.drawImage(textBitmapCanvas, sx, 0, Math.min(pw, textW - sx), textBitmapCanvas.height,
+            0, Math.floor(cy - Math.floor(textBitmapCanvas.height/2)), Math.min(pw, textW - sx), textBitmapCanvas.height);
+        }
+      }
+      await uploadCanvasRGB565(combined, $('bg').value);
+      return; // done
+    } else {
+      // Animate: push instant combined frame, then bg+overlay in parallel
+      const bgCanvas = buildBackgroundCanvas();
+      const combined = document.createElement('canvas'); combined.width = pw; combined.height = ph;
+      const cctx = combined.getContext('2d');
+      cctx.drawImage(bgCanvas, 0, 0);
+      const cy = Math.floor(ph * 0.5) + 2;
+      if (textBitmapCanvas) {
+        if (textW <= pw) {
+          cctx.drawImage(textBitmapCanvas, Math.floor((pw - textW)/2), Math.floor(cy - Math.floor(textBitmapCanvas.height/2)));
+        } else {
+          const sx = Math.max(0, Math.floor(textW/2 - pw/2));
+          cctx.drawImage(textBitmapCanvas, sx, 0, Math.min(pw, textW - sx), textBitmapCanvas.height,
+            0, Math.floor(cy - Math.floor(textBitmapCanvas.height/2)), Math.min(pw, textW - sx), textBitmapCanvas.height);
+        }
+      }
+      // Fire combined first (do not await background)
+      await uploadCanvasRGB565(combined, $('bg').value);
+
+      const promises = [];
+      if ((bgModeVal === 'image' && loadedImg) || wantFrame) {
+        const outBg = bgCanvas.getContext('2d').getImageData(0,0,pw,ph);
+        const bufBg = new Uint8Array(4 + pw*ph*2);
+        bufBg[0]=pw&255; bufBg[1]=(pw>>8)&255; bufBg[2]=ph&255; bufBg[3]=(ph>>8)&255;
+        let pb=4, db=outBg.data;
+        for(let y=0;y<ph;y++) for(let x=0;x<pw;x++){
+          const i=(y*pw+x)*4; const r=db[i], g=db[i+1], b=db[i+2];
+          const v=rgb565(r,g,b); bufBg[pb++]=v&255; bufBg[pb++]=(v>>8)&255;
+        }
+        const fdBg = new FormData();
+        fdBg.append('image', new Blob([bufBg], {type:'application/octet-stream'}), 'bg.rgb565');
+        promises.push(fetch(apiBase + '/upload_bg', { method:'POST', body: fdBg }));
+      }
+      promises.push(sendOverlay());
+      await Promise.allSettled(promises);
+    }
   };
 
   // ========= Init =========
@@ -3066,6 +3268,9 @@
     initPanelConfig();
     initChannelModal();
     ensureFontsLoaded().then(() => drawPreview());
+    // System: initial refresh and auto-refresh timer
+    setTimeout(() => { try { refreshSystemInfo(); } catch {} }, 200);
+    setupSysAutoRefresh();
   };
 
   const initChannelModal = () => {
@@ -3143,4 +3348,390 @@
   };
 
   document.addEventListener('DOMContentLoaded', initApp);
+  
+  // ======== System Health ========
+  async function fetchSystemInfo() {
+    // Try /sys_info; if unavailable, fallback to a compact summary from other endpoints
+    try {
+      const r = await fetch(apiBase + '/sys_info', { cache: 'no-store' });
+      if (r.ok) return await r.json();
+    } catch {}
+
+    // Fallback aggregation
+    const info = {};
+    try {
+      const w = await fetch(apiBase + '/wifi_status', { cache: 'no-store' });
+      if (w.ok) {
+        const j = await w.json();
+        info.wifi_connected = j.connected;
+        info.wifi_ssid = j.ssid;
+        info.wifi_rssi = j.rssi;
+        if (j.ip) info.ip = j.ip;
+      }
+    } catch {}
+    try {
+      const p = await fetch(apiBase + '/panel_info', { cache: 'no-store' });
+      if (p.ok) {
+        const j = await p.json();
+        info.panel = JSON.stringify(j);
+      }
+    } catch {}
+    try {
+      const c = await fetch(apiBase + '/yt_channel', { cache: 'no-store' });
+      if (c.ok) {
+        const j = await c.json();
+        if (j && j.id) info.youtube_channel = j.id;
+      }
+    } catch {}
+
+    // If we collected nothing, return null so UI shows message
+    return Object.keys(info).length ? info : null;
+  }
+
+  function renderSystemInfo(info) {
+    const wrap = $('sysInfoList'); if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!info) {
+      const span = document.createElement('span'); span.className='muted'; span.textContent='No system info available'; wrap.appendChild(span); return;
+    }
+    const addChip = (k, v) => {
+      const chip = document.createElement('div');
+      chip.className = 'tag';
+      chip.textContent = `${k}: ${v}`;
+      wrap.appendChild(chip);
+    };
+    if ('uptime_ms' in info) addChip('Uptime', Math.round(info.uptime_ms/1000)+'s');
+    if ('heap_free' in info) addChip('Heap Free', info.heap_free);
+    if ('heap_total' in info) addChip('Heap Total', info.heap_total);
+    if ('psram_free' in info) addChip('PSRAM Free', info.psram_free);
+    if ('fs_total' in info) addChip('FS Total', info.fs_total);
+    if ('fs_used' in info) addChip('FS Used', info.fs_used);
+    if ('cpu_freq_mhz' in info) addChip('CPU MHz', info.cpu_freq_mhz);
+    if ('wifi_rssi' in info) addChip('RSSI', info.wifi_rssi);
+    if ('loop_avg_ms' in info) addChip('Loop Avg ms', info.loop_avg_ms);
+    if ('last_error' in info) addChip('Last Error', info.last_error);
+
+    Object.keys(info).forEach(k => {
+      if (['uptime_ms','heap_free','heap_total','psram_free','fs_total','fs_used','cpu_freq_mhz','wifi_rssi','loop_avg_ms','last_error'].includes(k)) return;
+      addChip(k, info[k]);
+    });
+
+    const notes = $('sysNotes');
+    if (notes) {
+      const warnings = [];
+      if (info.heap_free !== undefined && info.heap_total !== undefined) {
+        const pct = 100 * (info.heap_free / Math.max(1, info.heap_total));
+        if (pct < 10) warnings.push('Low heap memory (<10%)');
+      }
+      if (info.fs_total !== undefined && info.fs_used !== undefined) {
+        const pct = 100 * (info.fs_used / Math.max(1, info.fs_total));
+        if (pct > 85) warnings.push('Storage nearly full (>85%)');
+      }
+      notes.textContent = warnings.length ? ('Warnings: ' + warnings.join(', ')) : 'No obvious issues detected.';
+    }
+  }
+
+  async function refreshSystemInfo() {
+    const st = $('sysStatus'); if (st) { st.textContent='Fetching...'; st.style.color='var(--muted)'; }
+    const info = await fetchSystemInfo();
+    renderSystemInfo(info);
+    if (st) { st.textContent = info ? '🟢' : 'Unavailable'; st.style.color = info ? '#00ff90' : 'var(--muted)'; }
+  }
+
+  function setupSysAutoRefresh() {
+    if (sysTimer) { clearInterval(sysTimer); sysTimer = 0; }
+    if (!sysAuto) return;
+    sysTimer = setInterval(() => { if (!$('videoConfig').classList.contains('hidden')) refreshSystemInfo(); }, 2000);
+  }
+
+  async function runLatencyTest() {
+    const st = $('sysStatus'); if (st) { st.textContent='Testing latency...'; st.style.color='var(--muted)'; }
+    const N = 5; const times = [];
+    for (let i=0;i<N;i++) {
+      const t0 = performance.now();
+      try { await fetch(apiBase + '/wifi_status', { cache:'no-store' }); } catch {}
+      times.push(performance.now()-t0);
+    }
+    const avg = times.reduce((a,b)=>a+b,0)/Math.max(1,times.length);
+    if (st) { st.textContent = `Latency ~ ${Math.round(avg)} ms`; st.style.color = (avg>250?'#ff9900':'#00ff90'); }
+  }
+  // ========= Timer (Pomodoro) =========
+  function formatMs(ms) {
+    ms = Math.max(0, Math.floor(ms/1000));
+    const m = Math.floor(ms/60);
+    const s = ms % 60;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function readTimerDurations() {
+    const s = parseInt(($('timerStudy') && $('timerStudy').value) || '25', 10);
+    const b = parseInt(($('timerBreak') && $('timerBreak').value) || '5', 10);
+    timerStudyMin = Math.max(1, isNaN(s)?25:s);
+    timerBreakMin = Math.max(1, isNaN(b)?5:b);
+  }
+
+  function initTimerState() {
+    readTimerDurations();
+    timerState = 'study';
+    timerRemainingMs = timerStudyMin * 60 * 1000;
+    timerLastTick = performance.now();
+    timerTransitionStart = 0; timerPrevLabel = ''; timerNextLabel='';
+  }
+
+  function switchTimerState(now) {
+    const prev = timerState;
+    if (timerState === 'study') { timerState = 'break'; timerRemainingMs = timerBreakMin * 60 * 1000; }
+    else { timerState = 'study'; timerRemainingMs = timerStudyMin * 60 * 1000; }
+    const prevIcon = (prev === 'study') ? '📚' : '🧘';
+    const nextIcon = (timerState === 'study') ? '📚' : '🧘';
+    timerPrevLabel = `${prevIcon} ${formatMs(0)}`;
+    timerNextLabel = `${nextIcon} ${formatMs(timerRemainingMs)}`;
+    timerTransitionStart = now;
+  }
+
+  function updateTimerStateTick(now) {
+    if (!timerRunning) return;
+    if (timerTransitionStart === 0) {
+      const dt = Math.min(1000, now - (timerLastTick || now));
+      timerRemainingMs -= dt;
+      timerLastTick = now;
+      if (timerRemainingMs <= 0) {
+        switchTimerState(now);
+      }
+    } else {
+      if (now - timerTransitionStart >= TIMER_TRANSITION_MS) {
+        timerTransitionStart = 0;
+        timerLastTick = now;
+      }
+    }
+  }
+
+  function drawTrees(ctx, _color, pw, ph, growthT=1.0) {
+    // Green trees with small variations, centered horizontally
+    ctx.save();
+    const foliageBase = '#00FF00';
+    const groundY = ph - 2; // near bottom (almost last pixel)
+    const baseSpacing = 12;
+
+    // Compute how many trees fit and center them
+    const margin = 8;
+    const usableW = Math.max(0, pw - margin * 2);
+    let count = Math.max(1, Math.floor(usableW / baseSpacing));
+    const spacing = count > 1 ? Math.floor(usableW / (count - 1)) : 0;
+    const firstX = count > 1 ? Math.round(pw / 2 - ((count - 1) * spacing) / 2) : Math.round(pw / 2);
+
+    // Deterministic variation function
+    const fract = (x) => x - Math.floor(x);
+    const rnd = (i) => fract(Math.sin(i * 12.9898 + 78.233) * 43758.5453);
+
+    const t = Math.max(0, Math.min(1, growthT));
+    for (let i = 0; i < count; i++) {
+      const x = firstX + i * spacing;
+      const r = rnd(i);
+      // Base ranges
+      const minH = 4;          // minimal seedling height
+      const maxH = 13;         // full-grown height
+      const baseH = minH + Math.round(r * (maxH - minH));
+      const treeH = Math.max(2, Math.round(minH + (baseH - minH) * t));
+
+      const minHalfW = 1;
+      const maxHalfW = 6;
+      const baseHalfW = minHalfW + Math.round(fract(r * 9.17) * (maxHalfW - minHalfW));
+      const halfW = Math.max(1, Math.round(minHalfW + (baseHalfW - minHalfW) * t));
+      // Slight shade variation
+      const shade = 180 + Math.round(fract(r * 5.3) * 75); // 180..255
+      ctx.fillStyle = `rgb(0,${shade},0)`; // green tones
+
+      // Foliage triangle
+      ctx.beginPath();
+      ctx.moveTo(x, groundY - treeH);
+      ctx.lineTo(x - halfW, groundY - 4);
+      ctx.lineTo(x + halfW, groundY - 4);
+      ctx.closePath();
+      ctx.fill();
+
+      // Trunk grows slightly with tree size
+      const trunkH = Math.max(2, Math.min(4, Math.round(2 + (treeH - minH) * 0.15)));
+      ctx.fillRect(x - 1, groundY - trunkH, 2, trunkH);
+    }
+    ctx.restore();
+  }
+
+  function drawTimerPreviewFrame() {
+    const pw = 128, ph = 64; c.width=pw; c.height=ph;
+    const color = ($('timerTextColor') && $('timerTextColor').value) || '#FFFFFF';
+    const bg = ($('timerBgColor') && $('timerBgColor').value) || '#000000';
+    const frame = ($('timerFrameStyle') && $('timerFrameStyle').value) || 'none';
+    const fam = getFontFamily();
+
+    if (!timerRunning && timerRemainingMs <= 0) initTimerState();
+    if (timerLastTick === 0) timerLastTick = performance.now();
+    updateTimerStateTick(performance.now());
+
+    // background
+    ctx.clearRect(0,0,pw,ph);
+    ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
+    if (frame !== 'none') drawFrameOnCanvas(ctx, frame, color, pw, ph);
+
+    // build label strings
+    const icon = (timerState === 'study') ? '📚' : '🧘';
+    const currentLabel = `${icon} ${formatMs(timerRemainingMs)}`;
+    // auto-fit font
+    let size = 22; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font = `bold ${size}px ${fam}`;
+    let tw = ctx.measureText(currentLabel).width;
+    while ((tw > pw - 8 || size > ph - 4) && size > 8) { size -= 1; ctx.font = `bold ${size}px ${fam}`; tw = ctx.measureText(currentLabel).width; }
+
+    // transition crossfade
+    if (timerTransitionStart > 0 && timerPrevLabel && timerNextLabel) {
+      const t = Math.min(1, (performance.now() - timerTransitionStart) / TIMER_TRANSITION_MS);
+      ctx.fillStyle = color; ctx.globalAlpha = 1 - t; ctx.fillText(timerPrevLabel, pw/2, ph/2);
+      ctx.globalAlpha = t; ctx.fillText(timerNextLabel, pw/2, ph/2);
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = color; ctx.fillText(currentLabel, pw/2, ph/2);
+    }
+
+    // optional trees
+    const treeMode = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
+    if (treeMode !== 'none') {
+      let grow = 1;
+      if (treeMode === 'animated' && timerState === 'study') {
+        const total = Math.max(1, timerStudyMin * 60 * 1000);
+        grow = Math.max(0, Math.min(1, 1 - (timerRemainingMs / total)));
+      } else { grow = 1; }
+      drawTrees(ctx, color, pw, ph, grow);
+    }
+  }
+
+  async function applyTimerBasic() {
+    // Upload a simple "Genz Timer" screen with selected colors and optional frame
+    await ensureFontsLoaded();
+    const pw = 128, ph = 64;
+    const temp = document.createElement('canvas'); temp.width=pw; temp.height=ph;
+    const tctx = temp.getContext('2d');
+    const color = ($('timerTextColor') && $('timerTextColor').value) || '#FFFFFF';
+    const bg = ($('timerBgColor') && $('timerBgColor').value) || '#000000';
+    const frame = ($('timerFrameStyle') && $('timerFrameStyle').value) || 'none';
+
+    // background
+    tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
+    if (frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
+    // text auto-fit
+    let size = 26; const fam = getFontFamily();
+    tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.font = `bold ${size}px ${fam}`;
+    let tw = tctx.measureText('Genz Timer').width;
+    while ((tw > pw - 8 || size > ph - 4) && size > 8) { size -= 1; tctx.font = `bold ${size}px ${fam}`; tw = tctx.measureText('Genz Timer').width; }
+    tctx.fillStyle = color; tctx.fillText('Genz Timer', pw/2, ph/2);
+
+    await uploadCanvasRGB565(temp, bg);
+  }
+
+  function startTimerPreview(reset=false) {
+    if (reset) initTimerState();
+    timerRunning = true;
+    if (timerPreviewTimer) clearInterval(timerPreviewTimer);
+    drawTimerPreviewFrame();
+    timerPreviewTimer = setInterval(drawTimerPreviewFrame, 200);
+  }
+
+  function requestTimerImmediateUpload() {
+    if (!timerLedTimer) return;
+    if (!timerUploadInFlight) {
+      renderAndUploadTimer();
+    } else {
+      timerPendingRefresh = true;
+    }
+  }
+
+  async function renderAndUploadTimer() {
+    if (activeMode !== 'timer') return;
+    if (timerUploadInFlight) { timerPendingRefresh = true; return; }
+    timerUploadInFlight = true;
+    await ensureFontsLoaded();
+    const pw = 128, ph = 64;
+    const temp = document.createElement('canvas'); temp.width = pw; temp.height = ph;
+    const tctx = temp.getContext('2d');
+
+    const color = ($('timerTextColor') && $('timerTextColor').value) || '#FFFFFF';
+    const bg = ($('timerBgColor') && $('timerBgColor').value) || '#000000';
+    const frame = ($('timerFrameStyle') && $('timerFrameStyle').value) || 'none';
+    const fam = getFontFamily();
+
+    // tick shared state
+    if (!timerRunning && timerRemainingMs <= 0) initTimerState();
+    if (timerLastTick === 0) timerLastTick = performance.now();
+    updateTimerStateTick(performance.now());
+
+    // background
+    tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
+    if (frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
+
+    // string
+    const icon = (timerState === 'study') ? '📚' : '🧘';
+    const currentLabel = `${icon} ${formatMs(timerRemainingMs)}`;
+    let size = 22; tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.font = `bold ${size}px ${fam}`;
+    let tw = tctx.measureText(currentLabel).width;
+    while ((tw > pw - 8 || size > ph - 4) && size > 8) { size -= 1; tctx.font = `bold ${size}px ${fam}`; tw = tctx.measureText(currentLabel).width; }
+
+    if (timerTransitionStart > 0 && timerPrevLabel && timerNextLabel) {
+      const t = Math.min(1, (performance.now() - timerTransitionStart) / TIMER_TRANSITION_MS);
+      tctx.fillStyle = color; tctx.globalAlpha = 1 - t; tctx.fillText(timerPrevLabel, pw/2, ph/2);
+      tctx.globalAlpha = t; tctx.fillText(timerNextLabel, pw/2, ph/2);
+      tctx.globalAlpha = 1;
+    } else {
+      tctx.fillStyle = color; tctx.fillText(currentLabel, pw/2, ph/2);
+    }
+
+    const treeMode2 = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
+    if (treeMode2 !== 'none') {
+      let grow = 1;
+      if (treeMode2 === 'animated' && timerState === 'study') {
+        const total = Math.max(1, timerStudyMin * 60 * 1000);
+        grow = Math.max(0, Math.min(1, 1 - (timerRemainingMs / total)));
+      } else { grow = 1; }
+      drawTrees(tctx, color, pw, ph, grow);
+    }
+
+    // pack and upload
+    const out = tctx.getImageData(0, 0, pw, ph);
+    const buf = new Uint8Array(4 + pw * ph * 2);
+    buf[0] = pw & 255; buf[1] = (pw >> 8) & 255; buf[2] = ph & 255; buf[3] = (ph >> 8) & 255;
+    let p = 4, d = out.data;
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const i = (y * pw + x) * 4; const r = d[i], g = d[i + 1], b = d[i + 2];
+      const v = rgb565(r, g, b); buf[p++] = v & 255; buf[p++] = (v >> 8) & 255;
+    }
+    const fd = new FormData();
+    fd.append('image', new Blob([buf], { type: 'application/octet-stream' }), 'timer.rgb565');
+    fd.append('bg', bg);
+    fd.append('bgMode', 'color');
+    fd.append('offx', 0);
+    fd.append('offy', 0);
+    fd.append('animate', 0);
+    fd.append('dir', 'none');
+    fd.append('speed', 0);
+    fd.append('interval', 0);
+    try { await fetch(apiBase + '/upload', { method: 'POST', body: fd }); } catch {}
+    finally {
+      timerUploadInFlight = false;
+      if (timerPendingRefresh) {
+        timerPendingRefresh = false;
+        // schedule a follow-up render soon (debounced)
+        if (timerImmediateId) { clearTimeout(timerImmediateId); timerImmediateId = 0; }
+        timerImmediateId = setTimeout(() => { timerImmediateId = 0; if (!timerUploadInFlight) renderAndUploadTimer(); }, 0);
+      }
+    }
+  }
+
+  async function startTimerStreaming() {
+    // Stop any existing
+    if (timerLedTimer) { clearInterval(timerLedTimer); timerLedTimer = 0; }
+    // Immediately render one frame and upload fast thereafter for smooth transition
+    await renderAndUploadTimer();
+    timerLedTimer = setInterval(async () => {
+      if (activeMode !== 'timer') return;
+      if (!timerUploadInFlight) await renderAndUploadTimer();
+    }, 200);
+  }
 })();

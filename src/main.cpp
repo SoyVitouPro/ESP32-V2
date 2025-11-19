@@ -18,6 +18,7 @@
 #include <nvs.h>
 #include "esp_system.h"
 #include "esp_heap_caps.h"
+#include <driver/i2s.h>
 
 // Panel configuration (defaults). Adjust via UI if needed.
 #ifndef PANEL_RES_X
@@ -69,7 +70,7 @@ VirtualMatrixPanel  *vdisplay = nullptr;
 
 // Wi-Fi SoftAP config
 static const char* AP_SSID = "KHMER_PANEL";
-static const char* AP_PASS = "12345678"; // 8+ chars required
+static const char* AP_PASS = "12341234"; // 8+ chars required
 
 WebServer server(80);
 
@@ -78,6 +79,151 @@ void sendCORSHeaders() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   server.sendHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+// ================= I2S Tick-Tock Sound (MAX98357A) =================
+// I2S pins — ensure they are not used by HUB75
+#define I2S_DOUT 12
+#define I2S_BCLK 13
+#define I2S_LRC  14
+#define I2S_PORT I2S_NUM_0
+#define SAMPLE_RATE 16000
+
+static bool i2sReady = false;
+enum SoundMode { SOUND_OFF=0, SOUND_CRICK=1, SOUND_SOFT=2, SOUND_WOOD=3, SOUND_BEEP=4 };
+static volatile SoundMode gSoundMode = SOUND_CRICK;
+static volatile int gSoundVolume = 80; // 0..100 percent
+
+static void setupI2S() {
+  if (i2sReady) return;
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+    .sample_rate = SAMPLE_RATE,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 4,
+    .dma_buf_len = 128,
+    .use_apll = true,
+    .tx_desc_auto_clear = true,
+    .fixed_mclk = 0
+  };
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_BCLK,
+    .ws_io_num = I2S_LRC,
+    .data_out_num = I2S_DOUT,
+    .data_in_num = I2S_PIN_NO_CHANGE
+  };
+  if (i2s_driver_install(I2S_PORT, &i2s_config, 0, NULL) != ESP_OK) {
+    Serial.println("i2s_driver_install failed");
+    return;
+  }
+  if (i2s_set_pin(I2S_PORT, &pin_config) != ESP_OK) {
+    Serial.println("i2s_set_pin failed");
+    return;
+  }
+  i2s_zero_dma_buffer(I2S_PORT);
+  i2sReady = true;
+}
+
+static bool writeI2SBuffer(int16_t* buf, size_t samplesStereo) {
+  size_t bytesToWrite = samplesStereo * sizeof(int16_t);
+  size_t bytesWritten = 0;
+  esp_err_t err = i2s_write(I2S_PORT, (const void*)buf, bytesToWrite, &bytesWritten, portMAX_DELAY);
+  return (err == ESP_OK) && (bytesWritten == bytesToWrite);
+}
+
+static void playTick() {
+  // Realistic "tick": short, bright band-passed noise burst with fast decay
+  const int duration_ms = 22; // ~22 ms
+  const int samples = (SAMPLE_RATE * duration_ms) / 1000;
+  const float dt = 1.0f / (float)SAMPLE_RATE;
+  // Band-pass via 1st-order highpass -> 1st-order lowpass
+  const float fcHP = 1500.0f; // remove rumble
+  const float fcLP = 6000.0f; // keep bright click (wider)
+  const float RC_HP = 1.0f / (2.0f * (float)M_PI * fcHP);
+  const float RC_LP = 1.0f / (2.0f * (float)M_PI * fcLP);
+  const float aHP = RC_HP / (RC_HP + dt);
+  const float aLP = dt / (RC_LP + dt);
+  const float amp = 30000.0f; // higher base amplitude
+  // Map 0..100 to 0..4.0 (allow up to ~4x loudness at 100)
+  const float vol = fmaxf(0.0f, fminf((float)gSoundVolume / 25.0f, 4.0f));
+
+  int16_t* buffer = (int16_t*)malloc(samples * 2 * sizeof(int16_t));
+  if (!buffer) return;
+  float xPrev = 0.0f, yHP = 0.0f, yBP = 0.0f;
+  uint32_t seed = micros();
+  for (int i = 0; i < samples; ++i) {
+    // white noise in [-1,1]
+    seed = 1664525U * seed + 1013904223U;
+    float wn = ((int32_t)(seed >> 9) % 2048) / 1024.0f - 1.0f;
+    // highpass
+    yHP = aHP * (yHP + wn - xPrev);
+    xPrev = wn;
+    // lowpass on highpass result (band-pass approx)
+    yBP += aLP * (yHP - yBP);
+    // fast exponential decay envelope
+    float env = expf(-6.0f * (float)i / (float)samples);
+    int16_t s = (int16_t)fmaxf(fminf(yBP * amp * env * vol, 32767.0f), -32768.0f);
+    buffer[i*2] = s; buffer[i*2+1] = s;
+  }
+  writeI2SBuffer(buffer, samples * 2);
+  free(buffer);
+}
+
+static void playTock() {
+  // Deeper "tock": lower resonant tone with slight downward pitch glide and slower decay
+  const int duration_ms = 55; // ~55 ms
+  const int samples = (SAMPLE_RATE * duration_ms) / 1000;
+  const float fStart = 900.0f, fEnd = 600.0f; // glide
+  const float amp = 26000.0f;
+  const float vol = fmaxf(0.0f, fminf((float)gSoundVolume / 25.0f, 4.0f));
+
+  int16_t* buffer = (int16_t*)malloc(samples * 2 * sizeof(int16_t));
+  if (!buffer) return;
+  float phase = 0.0f;
+  for (int i = 0; i < samples; ++i) {
+    float t = (float)i / (float)(samples - 1);
+    float f = fStart + (fEnd - fStart) * t;
+    float step = 2.0f * (float)M_PI * f / (float)SAMPLE_RATE;
+    // exponential decay envelope
+    float env = expf(-3.5f * t);
+    float sF = sinf(phase) * amp * env * vol;
+    int16_t s = (int16_t)fmaxf(fminf(sF, 32767.0f), -32768.0f);
+    buffer[i*2] = s; buffer[i*2+1] = s;
+    phase += step; if (phase > 2.0f * (float)M_PI) phase -= 2.0f * (float)M_PI;
+  }
+  writeI2SBuffer(buffer, samples * 2);
+  free(buffer);
+}
+
+// One-shot trigger, called per second from client for tight sync
+static void triggerTickTockOnce() {
+  setupI2S();
+  if (!i2sReady) return;
+  switch (gSoundMode) {
+    case SOUND_OFF: break;
+    case SOUND_CRICK: playTick(); break;
+    case SOUND_SOFT: {
+      // softer version of tick
+      const int duration_ms = 16;
+      const int samples = (SAMPLE_RATE * duration_ms) / 1000;
+      const float dt = 1.0f / (float)SAMPLE_RATE;
+      const float fcHP = 1000.0f, fcLP = 3500.0f;
+      const float RC_HP = 1.0f / (2.0f * (float)M_PI * fcHP);
+      const float RC_LP = 1.0f / (2.0f * (float)M_PI * fcLP);
+      const float aHP = RC_HP / (RC_HP + dt);
+      const float aLP = dt / (RC_LP + dt);
+      const float amp = 14000.0f;
+      const float vol = fmaxf(0.0f, fminf((float)gSoundVolume / 100.0f, 1.0f));
+      int16_t* buffer = (int16_t*)malloc(samples * 2 * sizeof(int16_t)); if (!buffer) return;
+      float xPrev=0,yHP=0,yBP=0; uint32_t seed=micros();
+      for (int i=0;i<samples;++i){ seed=1664525U*seed+1013904223U; float wn=((int32_t)(seed>>9)%2048)/1024.0f-1.0f; yHP=aHP*(yHP+wn-xPrev); xPrev=wn; yBP+=aLP*(yHP-yBP); float env=expf(-5.0f*(float)i/(float)samples); int16_t s=(int16_t)fmaxf(fminf(yBP*amp*env*vol,32767.0f),-32768.0f); buffer[i*2]=s; buffer[i*2+1]=s; }
+      writeI2SBuffer(buffer, samples * 2); free(buffer);
+      break; }
+    default: break;
+  }
 }
 
 // YouTube config
@@ -1390,6 +1536,30 @@ void setup() {
     }
     json += "\"ap_ip\":\"" + WiFi.softAPIP().toString() + "\"}";
     server.send(200, "application/json", json);
+  });
+  // Sound control: one-shot tick/tock (client alternates per second)
+  server.on("/sound_tick", HTTP_POST, [](){
+    sendCORSHeaders();
+    triggerTickTockOnce();
+    server.send(200, "application/json", "{\"status\":\"ok\"}");
+  });
+  // Sound mode selection: /sound_set?mode=off|crick|soft
+  server.on("/sound_set", HTTP_POST, [](){
+    sendCORSHeaders();
+    String mode = server.hasArg("mode") ? server.arg("mode") : "";
+    mode.toLowerCase();
+    if (mode == "off") gSoundMode = SOUND_OFF;
+    else if (mode == "crick") gSoundMode = SOUND_CRICK;
+    else if (mode == "soft") gSoundMode = SOUND_SOFT;
+    server.send(200, "application/json", String("{\"mode\":\"") + mode + "\"}");
+  });
+  // Sound volume: /sound_volume?level=0..100
+  server.on("/sound_volume", HTTP_POST, [](){
+    sendCORSHeaders();
+    int level = server.hasArg("level") ? server.arg("level").toInt() : 80;
+    if (level < 0) level = 0; if (level > 100) level = 100;
+    gSoundVolume = level;
+    server.send(200, "application/json", String("{\"volume\":") + level + "}");
   });
   // System info endpoint
   server.on("/sys_info", HTTP_GET, [](){

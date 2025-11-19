@@ -323,7 +323,7 @@
           <label for="clockFrameStyle">Frame</label>
           <div class="font-size-selection-wrapper">
             <div class="inline gap-12">
-              <button class="font-size-box clock-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box clock-frame-box active" data-frame="none">🚫</button>
               <button class="font-size-box clock-frame-box" data-frame="border">Border</button>
               <button class="font-size-box clock-frame-box" data-frame="neon">Neon</button>
             </div>
@@ -378,10 +378,6 @@
           <div class="inline wrap gap-12">
             <button id="btnSysRefresh" class="upload-btn">🔄 Refresh</button>
             <button id="btnSysLatency" class="icon-btn">⏱️ Latency Test</button>
-            <div class="inline gap-12 center" style="margin-left: 12px;">
-              <label class="muted">Auto-refresh</label>
-              <div id="sysAutoToggle" class="toggle-switch" data-checked="true"></div>
-            </div>
             <span id="sysStatus" class="muted">Idle</span>
           </div>
         </div>
@@ -393,12 +389,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <label>Notes</label>
-          <div class="muted" id="sysNotes" style="max-width: 680px;">
-            Shows ESP32 health from /sys_info if available. Latency test helps diagnose slow Apply.
-          </div>
-        </div>
+        
 
         <div class="spacer-200"></div>
       </div>
@@ -447,7 +438,7 @@
           <label for="youtubeFrameStyle">Frame</label>
           <div class="font-size-selection-wrapper">
             <div class="inline gap-12">
-              <button class="font-size-box youtube-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box youtube-frame-box active" data-frame="none">🚫</button>
               <button class="font-size-box youtube-frame-box" data-frame="border">Border</button>
               <button class="font-size-box youtube-frame-box" data-frame="neon">Neon</button>
             </div>
@@ -493,6 +484,77 @@
         </div>
 
         <div class="row">
+          <label>Study Emoji</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline wrap gap-12">
+              <button class="emoji-box timer-study-emoji" data-emoji="">🚫</button>
+              <button class="emoji-box timer-study-emoji active" data-emoji="⌛">⌛</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🍓">🍓</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🪼">🪼</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🎯">🎯</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🎓">🎓</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🥀">🥀</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="⏰">⏰</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🎄">🎄</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="❤️‍🔥">❤️‍🔥</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🇰🇭">🇰🇭</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🇰🇷">🇰🇷</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🇨🇳">🇨🇳</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="♨️">♨️</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="💲">💲</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🌲">🌲</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🪴">🪴</button>
+              <button class="emoji-box timer-study-emoji" data-emoji="🎁">🎁</button>
+              
+            </div>
+            <input type="hidden" id="timerStudyEmoji" value="📚" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label>Break Emoji</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline wrap gap-12">
+              <button class="emoji-box timer-break-emoji" data-emoji="">🚫</button>
+              <button class="emoji-box timer-break-emoji active" data-emoji="🍿">🍿</button>
+              <button class="emoji-box timer-break-emoji" data-emoji="🌿">🌿</button>
+              <button class="emoji-box timer-break-emoji" data-emoji="😌">😌</button>
+              <button class="emoji-box timer-break-emoji" data-emoji="💜">💜</button>
+              <button class="emoji-box timer-break-emoji" data-emoji="🧸">🧸</button>
+            </div>
+            <input type="hidden" id="timerBreakEmoji" value="☕" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="timerFontSize">Font Size</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box timer-font-size-box" data-size="16">16</button>
+              <button class="font-size-box timer-font-size-box" data-size="18">18</button>
+              <button class="font-size-box timer-font-size-box active" data-size="22">22</button>
+              <button class="font-size-box timer-font-size-box" data-size="26">26</button>
+              <button class="font-size-box timer-font-size-box" data-size="30">30</button>
+            </div>
+            <input type="hidden" id="timerFontSize" value="22" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="timerCharGap">Character Gap</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box timer-gap-box" data-gap="0">🚫</button>
+              <button class="font-size-box timer-gap-box" data-gap="2">2</button>
+              <button class="font-size-box timer-gap-box active" data-gap="3">3</button>
+              <button class="font-size-box timer-gap-box" data-gap="4">4</button>
+              <button class="font-size-box timer-gap-box" data-gap="6">6</button>
+            </div>
+            <input type="hidden" id="timerCharGap" value="3" />
+          </div>
+        </div>
+
+        <div class="row">
           <label for="timerTextColor">Text Color</label>
           <div class="clock-color-selection-wrapper">
             <div class="inline gap-12">
@@ -534,16 +596,47 @@
 
         <div class="row">
           <label>Trees</label>
-          <div class="inline gap-12">
-            <button class="font-size-box timer-tree-box" data-mode="static">Static</button>
-            <button class="font-size-box timer-tree-box" data-mode="animated">Animated</button>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="video-fit-box timer-tree-box active" data-mode="none">🚫</button>
+              <button class="video-fit-box timer-tree-box" data-mode="static">Static</button>
+              <button class="video-fit-box timer-tree-box" data-mode="animated">Animated</button>
+            </div>
+            <input type="hidden" id="timerTreeMode" value="none" />
           </div>
-          <input type="hidden" id="timerTreeMode" value="none" />
         </div>
 
         <div class="row">
-          <span class="muted">Preview and Apply show a live countdown on the LED.</span>
+          <label>Sound</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline wrap gap-12">
+              <button class="video-fit-box timer-sound-box" data-mode="off">🚫 Off</button>
+              <button class="video-fit-box timer-sound-box active" data-mode="crick">Crick</button>
+              <button class="video-fit-box timer-sound-box" data-mode="soft">Soft</button>
+            </div>
+            <input type="hidden" id="timerSound" value="crick" />
+          </div>
         </div>
+
+        <div class="row">
+          <label>Volume</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box timer-sound-vol-box" data-level="20">20</button>
+              <button class="font-size-box timer-sound-vol-box" data-level="40">40</button>
+              <button class="font-size-box timer-sound-vol-box" data-level="60">60</button>
+              <button class="font-size-box timer-sound-vol-box active" data-level="80">80</button>
+              <button class="font-size-box timer-sound-vol-box" data-level="100">100</button>
+            </div>
+            <input type="hidden" id="timerSoundVol" value="80" />
+          </div>
+        </div>
+
+        
+
+        
+
+        
 
         <div class="spacer-200"></div>
       </div>

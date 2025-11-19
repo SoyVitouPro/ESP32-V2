@@ -46,6 +46,7 @@
   let timerUploadInFlight = false;
   let timerPendingRefresh = false;
   let timerImmediateId = 0;
+  let timerLastSentSec = -1; // last second value uploaded to LED
   // GIF decode + animation state (gifuct-js)
   let gifFrames = [];
   let gifDelays = [];
@@ -63,9 +64,8 @@
   let videoUploadIntervalMs = 100;
   let videoUploadInFlight = false;
 
-  // System Health tab state
-  let sysTimer = 0; // interval id for auto-refresh
-  let sysAuto = true; // auto-refresh enabled by default
+  // System Health tab state (manual refresh only)
+  let sysTimer = 0; // kept for safety; no auto-refresh used
 
   // Theme file storage
   let originalThemeContent = '';
@@ -831,6 +831,8 @@
     }
   };
 
+  // (snake frame removed)
+
   const animatePreview = (ts) => {
     if (!$('animate').checked || $('text').value.trim().length === 0) {
       stopPreviewAnim(); drawPreviewFrame(false); return;
@@ -1222,7 +1224,7 @@
       if (which === 'clock') { tabClock.classList.add('active'); clockCfg.classList.remove('hidden'); }
       if (which === 'video') { tabVideo.classList.add('active'); videoCfg.classList.remove('hidden'); }
       if (which === 'wifi') { tabWifi.classList.add('active'); wifiCfg.classList.remove('hidden'); }
-      if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); drawYoutubePreviewFrame(); if (youtubePreviewTimer) clearInterval(youtubePreviewTimer); youtubePreviewTimer = setInterval(() => { if (!$('youtubeConfig').classList.contains('hidden')) drawYoutubePreviewFrame(); }, 67); }
+      if (which === 'youtube') { tabYoutube.classList.add('active'); youtubeCfg.classList.remove('hidden'); if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } }
       if (which === 'timer') { tabTimer.classList.add('active'); timerCfg.classList.remove('hidden'); drawTimerPreviewFrame(); }
 
       // Enable/disable Preview + Apply when on System tab
@@ -1267,9 +1269,6 @@
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
-      // Refresh system info on entering tab and ensure auto-refresh is configured
-      try { refreshSystemInfo(); } catch {}
-      setupSysAutoRefresh();
     });
     if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopTimerPreview(); timerRunning = false; stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
     if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); stopTimerPreview(); timerRunning = false; activate('youtube'); });
@@ -1483,6 +1482,7 @@
     if (ytFrame !== 'none') drawFrameOnCanvas(ctx, ytFrame, col, pw, ph);
   };
   const renderAndUploadYoutube = async () => {
+    if (activeMode !== 'youtube') { drawYoutubePreviewFrame(); return; }
     const pw=128, ph=64; const bg=$('youtubeBgColor').value; const col=$('youtubeTextColor').value;
     const canvas=document.createElement('canvas'); canvas.width=pw; canvas.height=ph; const tctx=canvas.getContext('2d');
     tctx.fillStyle=bg; tctx.fillRect(0,0,pw,ph);
@@ -2431,6 +2431,13 @@
       } else if (timerMode) {
         console.log('Timer: starting live countdown to LED');
         activeMode = 'timer';
+        // Ensure sound mode is set on device
+        try {
+          const mode = ($('timerSound') && $('timerSound').value) || 'crick';
+          await fetch(apiBase + '/sound_set?mode=' + encodeURIComponent(mode), { method: 'POST' });
+          const vol = ($('timerSoundVol') && $('timerSoundVol').value) || '80';
+          await fetch(apiBase + '/sound_volume?level=' + encodeURIComponent(vol), { method: 'POST' });
+        } catch {}
         startTimerPreview(true);
         await startTimerStreaming();
       }
@@ -3009,20 +3016,11 @@
     // Video loop
     if ($('videoLoop')) $('videoLoop').addEventListener('change', ()=>{ if (videoEl) videoEl.loop = $('videoLoop').checked; });
 
-    // System Health wiring
+    // System Health wiring (manual only)
     const btnSysRefresh = $('btnSysRefresh');
     const btnSysLatency = $('btnSysLatency');
-    const sysAutoToggle = $('sysAutoToggle');
     if (btnSysRefresh) btnSysRefresh.addEventListener('click', refreshSystemInfo);
     if (btnSysLatency) btnSysLatency.addEventListener('click', runLatencyTest);
-    if (sysAutoToggle) sysAutoToggle.addEventListener('click', () => {
-      const isChecked = sysAutoToggle.getAttribute('data-checked') === 'true';
-      const newState = !isChecked;
-      sysAutoToggle.setAttribute('data-checked', newState);
-      sysAutoToggle.classList.toggle('checked', newState);
-      sysAuto = newState;
-      setupSysAutoRefresh();
-    });
 
     // Timer color pickers
     document.querySelectorAll('#timerConfig .clock-color-box').forEach(box=>{
@@ -3034,11 +3032,70 @@
         if (timerLedTimer) { requestTimerImmediateUpload(); }
       });
     });
+    // Timer emoji pickers
+    document.querySelectorAll('#timerConfig .timer-study-emoji').forEach(btn => {
+      btn.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .timer-study-emoji').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        if ($('timerStudyEmoji')) $('timerStudyEmoji').value = this.getAttribute('data-emoji');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    // Timer sound selectors
+    document.querySelectorAll('#timerConfig .timer-sound-box').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        document.querySelectorAll('#timerConfig .timer-sound-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        const mode = this.getAttribute('data-mode') || 'crick';
+        if ($('timerSound')) $('timerSound').value = mode;
+        try { await fetch(apiBase + '/sound_set?mode=' + encodeURIComponent(mode), { method: 'POST' }); } catch {}
+      });
+    });
+    // Timer volume selector boxes
+    document.querySelectorAll('#timerConfig .timer-sound-vol-box').forEach(btn => {
+      btn.addEventListener('click', async function(){
+        document.querySelectorAll('#timerConfig .timer-sound-vol-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        const level = this.getAttribute('data-level') || '80';
+        if ($('timerSoundVol')) $('timerSoundVol').value = level;
+        try { await fetch(apiBase + '/sound_volume?level=' + encodeURIComponent(level), { method: 'POST' }); } catch {}
+      });
+    });
+    document.querySelectorAll('#timerConfig .timer-break-emoji').forEach(btn => {
+      btn.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .timer-break-emoji').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        if ($('timerBreakEmoji')) $('timerBreakEmoji').value = this.getAttribute('data-emoji');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
     document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(box=>{
       box.addEventListener('click', function(){
         document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('timerBgColor').value = this.getAttribute('data-color');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    // Timer font size controls
+    document.querySelectorAll('#timerConfig .timer-font-size-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .timer-font-size-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('timerFontSize').value = this.getAttribute('data-size');
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
+    // Timer character gap controls
+    document.querySelectorAll('#timerConfig .timer-gap-box').forEach(box=>{
+      box.addEventListener('click', function(){
+        document.querySelectorAll('#timerConfig .timer-gap-box').forEach(b=>b.classList.remove('active'));
+        this.classList.add('active');
+        $('timerCharGap').value = this.getAttribute('data-gap');
         if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
         if (timerLedTimer) { requestTimerImmediateUpload(); }
       });
@@ -3058,17 +3115,13 @@
     if (studyInput) studyInput.addEventListener('input', () => { timerStudyMin = Math.max(1, parseInt(studyInput.value||'25',10)); if (!timerRunning) { timerState='study'; timerRemainingMs = timerStudyMin*60*1000; drawTimerPreviewFrame(); } });
     if (breakInput) breakInput.addEventListener('input', () => { timerBreakMin = Math.max(1, parseInt(breakInput.value||'5',10)); if (!timerRunning && timerState==='break') { timerRemainingMs = timerBreakMin*60*1000; drawTimerPreviewFrame(); } });
 
-    // Timer tree mode buttons (static/animated with tri-state off)
+    // Timer tree mode buttons: None | Static | Animated
     document.querySelectorAll('#timerConfig .timer-tree-box').forEach(btn => {
       btn.addEventListener('click', () => {
-        const mode = btn.getAttribute('data-mode');
-        const current = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
-        // Toggle off if clicking the active one
-        const next = (current === mode) ? 'none' : mode;
-        if ($('timerTreeMode')) $('timerTreeMode').value = next;
-        // Update active visuals
+        const mode = btn.getAttribute('data-mode') || 'none';
+        if ($('timerTreeMode')) $('timerTreeMode').value = mode;
         document.querySelectorAll('#timerConfig .timer-tree-box').forEach(b => b.classList.remove('active'));
-        if (next !== 'none') btn.classList.add('active');
+        btn.classList.add('active');
         // Preview + LED update
         if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
         if (timerLedTimer) { requestTimerImmediateUpload(); }
@@ -3268,9 +3321,6 @@
     initPanelConfig();
     initChannelModal();
     ensureFontsLoaded().then(() => drawPreview());
-    // System: initial refresh and auto-refresh timer
-    setTimeout(() => { try { refreshSystemInfo(); } catch {} }, 200);
-    setupSysAutoRefresh();
   };
 
   const initChannelModal = () => {
@@ -3392,42 +3442,38 @@
     const wrap = $('sysInfoList'); if (!wrap) return;
     wrap.innerHTML = '';
     if (!info) {
-      const span = document.createElement('span'); span.className='muted'; span.textContent='No system info available'; wrap.appendChild(span); return;
+      const span = document.createElement('span');
+      span.className='muted';
+      span.textContent='No system info available';
+      wrap.appendChild(span);
+      return;
     }
-    const addChip = (k, v) => {
+
+    const fmtBytes = (n) => {
+      if (!Number.isFinite(n)) return String(n);
+      if (n >= 1024*1024) return (n/1048576).toFixed(2) + ' MB';
+      if (n >= 1024) return Math.round(n/1024) + ' KB';
+      return n + ' B';
+    };
+
+    // Heap (RAM): show Free / Total
+    if (info.heap_free !== undefined || info.heap_total !== undefined) {
       const chip = document.createElement('div');
       chip.className = 'tag';
-      chip.textContent = `${k}: ${v}`;
+      const free = info.heap_free !== undefined ? fmtBytes(info.heap_free) : '—';
+      const total = info.heap_total !== undefined ? fmtBytes(info.heap_total) : '—';
+      chip.textContent = `Heap (RAM): ${free} free / ${total} total`;
       wrap.appendChild(chip);
-    };
-    if ('uptime_ms' in info) addChip('Uptime', Math.round(info.uptime_ms/1000)+'s');
-    if ('heap_free' in info) addChip('Heap Free', info.heap_free);
-    if ('heap_total' in info) addChip('Heap Total', info.heap_total);
-    if ('psram_free' in info) addChip('PSRAM Free', info.psram_free);
-    if ('fs_total' in info) addChip('FS Total', info.fs_total);
-    if ('fs_used' in info) addChip('FS Used', info.fs_used);
-    if ('cpu_freq_mhz' in info) addChip('CPU MHz', info.cpu_freq_mhz);
-    if ('wifi_rssi' in info) addChip('RSSI', info.wifi_rssi);
-    if ('loop_avg_ms' in info) addChip('Loop Avg ms', info.loop_avg_ms);
-    if ('last_error' in info) addChip('Last Error', info.last_error);
+    }
 
-    Object.keys(info).forEach(k => {
-      if (['uptime_ms','heap_free','heap_total','psram_free','fs_total','fs_used','cpu_freq_mhz','wifi_rssi','loop_avg_ms','last_error'].includes(k)) return;
-      addChip(k, info[k]);
-    });
-
-    const notes = $('sysNotes');
-    if (notes) {
-      const warnings = [];
-      if (info.heap_free !== undefined && info.heap_total !== undefined) {
-        const pct = 100 * (info.heap_free / Math.max(1, info.heap_total));
-        if (pct < 10) warnings.push('Low heap memory (<10%)');
-      }
-      if (info.fs_total !== undefined && info.fs_used !== undefined) {
-        const pct = 100 * (info.fs_used / Math.max(1, info.fs_total));
-        if (pct > 85) warnings.push('Storage nearly full (>85%)');
-      }
-      notes.textContent = warnings.length ? ('Warnings: ' + warnings.join(', ')) : 'No obvious issues detected.';
+    // SPI Flash: use filesystem as proxy (Used / Total)
+    if (info.fs_total !== undefined || info.fs_used !== undefined) {
+      const chip = document.createElement('div');
+      chip.className = 'tag';
+      const used = info.fs_used !== undefined ? fmtBytes(info.fs_used) : '—';
+      const total = info.fs_total !== undefined ? fmtBytes(info.fs_total) : '—';
+      chip.textContent = `SPI Flash (Storage): ${used} used / ${total} total`;
+      wrap.appendChild(chip);
     }
   }
 
@@ -3439,9 +3485,9 @@
   }
 
   function setupSysAutoRefresh() {
+    // Auto-refresh disabled: always clear and do nothing.
     if (sysTimer) { clearInterval(sysTimer); sysTimer = 0; }
-    if (!sysAuto) return;
-    sysTimer = setInterval(() => { if (!$('videoConfig').classList.contains('hidden')) refreshSystemInfo(); }, 2000);
+    return;
   }
 
   async function runLatencyTest() {
@@ -3456,6 +3502,101 @@
     if (st) { st.textContent = `Latency ~ ${Math.round(avg)} ms`; st.style.color = (avg>250?'#ff9900':'#00ff90'); }
   }
   // ========= Timer (Pomodoro) =========
+  // Timer rendering helpers: stable, fixed-cell digits with custom gaps
+  const TIMER_BASELINE_OFFSET = -2; // net shift up ~2px (1px down from previous)
+  const getTimerCharGap = () => {
+    const v = ($('timerCharGap') && parseInt($('timerCharGap').value, 10));
+    return Number.isFinite(v) ? v : 3;
+  };
+
+  const measureDigitCell = (ctx) => {
+    // Max width among digits '0'-'9' in current font
+    const digits = '0123456789';
+    let maxW = 0;
+    for (let i = 0; i < digits.length; i++) {
+      const w = ctx.measureText(digits[i]).width;
+      if (w > maxW) maxW = w;
+    }
+    // Ensure at least 1px
+    return Math.max(1, Math.ceil(maxW));
+  };
+
+  const drawFixedCellsText = (ctx, text, xCenter, baselineY, color) => {
+    // Draw each char in a cell; digits share max digit cell; ':' uses tighter cell
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    const n = text.length;
+    const gap = getTimerCharGap();
+    const digitCell = measureDigitCell(ctx);
+    const cellW = new Array(n);
+    let totalW = 0;
+    for (let i = 0; i < n; i++) {
+      const ch = text[i];
+      cellW[i] = /[0-9]/.test(ch) ? digitCell : Math.max(1, Math.ceil(ctx.measureText(ch).width));
+      totalW += cellW[i];
+    }
+    totalW += Math.max(0, n - 1) * gap;
+    let x = Math.round(xCenter - totalW / 2);
+    ctx.fillStyle = color;
+    for (let i = 0; i < n; i++) {
+      const ch = text[i];
+      const w = ctx.measureText(ch).width;
+      const cw = cellW[i];
+      const cx = Math.round(x + (cw - w) / 2);
+      ctx.fillText(ch, cx, baselineY);
+      x += cw + gap;
+    }
+  };
+
+  const measureTimeGroupWidth = (ctx, timeText) => {
+    const gap = getTimerCharGap();
+    let sum = 0;
+    const digitCell = measureDigitCell(ctx);
+    for (let i = 0; i < timeText.length; i++) {
+      const ch = timeText[i];
+      sum += (/[0-9]/.test(ch)) ? digitCell : Math.max(1, Math.ceil(ctx.measureText(ch).width));
+    }
+    sum += Math.max(0, timeText.length - 1) * gap;
+    return sum;
+  };
+
+  const computeTimerLayout = (ctx, icon, timeText, desiredSize, maxW, maxH, fam) => {
+    let s = desiredSize;
+    let iconW = 0, timeW = 0, totalW = 0;
+    const joinGapBase = getTimerCharGap();
+    while (s > 8) {
+      ctx.font = `bold ${s}px ${fam}`;
+      iconW = ctx.measureText(icon).width;
+      timeW = measureTimeGroupWidth(ctx, timeText);
+      const joinGap = (icon && icon.length) ? joinGapBase : 0;
+      totalW = iconW + joinGap + timeW;
+      const fitsW = totalW <= maxW - 8;
+      const fitsH = s <= maxH - 4;
+      if (fitsW && fitsH) break;
+      s -= 1;
+    }
+    if (s < 8) s = 8;
+    ctx.font = `bold ${s}px ${fam}`;
+    // Recompute with final size to ensure accurate widths
+    iconW = ctx.measureText(icon).width;
+    timeW = measureTimeGroupWidth(ctx, timeText);
+    const joinGap = (icon && icon.length) ? joinGapBase : 0;
+    totalW = iconW + joinGap + timeW;
+    return { size: s, iconW, timeW, totalW, joinGap };
+  };
+
+  const getGroupMetrics = (ctx, text) => {
+    let A = 0, D = 0;
+    for (let i = 0; i < text.length; i++) {
+      const m = ctx.measureText(text[i]);
+      const a = m.actualBoundingBoxAscent || 0;
+      const d = m.actualBoundingBoxDescent || 0;
+      if (a > A) A = a;
+      if (d > D) D = d;
+    }
+    return { A, D };
+  };
+
   function formatMs(ms) {
     ms = Math.max(0, Math.floor(ms/1000));
     const m = Math.floor(ms/60);
@@ -3571,26 +3712,29 @@
     // background
     ctx.clearRect(0,0,pw,ph);
     ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
-    if (frame !== 'none') drawFrameOnCanvas(ctx, frame, color, pw, ph);
-
-    // build label strings
-    const icon = (timerState === 'study') ? '📚' : '🧘';
-    const currentLabel = `${icon} ${formatMs(timerRemainingMs)}`;
-    // auto-fit font
-    let size = 22; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font = `bold ${size}px ${fam}`;
-    let tw = ctx.measureText(currentLabel).width;
-    while ((tw > pw - 8 || size > ph - 4) && size > 8) { size -= 1; ctx.font = `bold ${size}px ${fam}`; tw = ctx.measureText(currentLabel).width; }
-
-    // transition crossfade
-    if (timerTransitionStart > 0 && timerPrevLabel && timerNextLabel) {
-      const t = Math.min(1, (performance.now() - timerTransitionStart) / TIMER_TRANSITION_MS);
-      ctx.fillStyle = color; ctx.globalAlpha = 1 - t; ctx.fillText(timerPrevLabel, pw/2, ph/2);
-      ctx.globalAlpha = t; ctx.fillText(timerNextLabel, pw/2, ph/2);
-      ctx.globalAlpha = 1;
-    } else {
-      ctx.fillStyle = color; ctx.fillText(currentLabel, pw/2, ph/2);
+    if (frame && frame !== 'none') {
+      drawFrameOnCanvas(ctx, frame, color, pw, ph);
     }
+
+    // Build strings: render time with fixed cells for stability; draw icon separately
+    const icon = (timerState === 'study') ? ( ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '📚') ) : ( ($('timerBreakEmoji') ? $('timerBreakEmoji').value : '☕') );
+    const timeText = formatMs(timerRemainingMs); // mm:ss
+
+    // Auto-fit font size for time text using fixed-cell metrics
+    // User-selected size; fit combined icon + time as one centered group
+    let desired = parseInt(($('timerFontSize') && $('timerFontSize').value) || '26', 10) || 26;
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    const { size, iconW, timeW, totalW, joinGap } = computeTimerLayout(ctx, icon, timeText, desired, pw, ph, fam);
+    // Vertical centering using font metrics of combined string
+    const metrics = getGroupMetrics(ctx, (icon || '') + timeText);
+    const totalH = (metrics.A + metrics.D) || size; // fallback size
+    const baselineY = Math.round(ph/2 + (metrics.A - totalH/2)) + TIMER_BASELINE_OFFSET;
+    const startX = Math.round(pw/2 - totalW/2);
+    // Draw icon then time group, centered together
+    ctx.fillStyle = color;
+    if (icon && icon.length) ctx.fillText(icon, startX, baselineY);
+    const timeCenter = Math.round(startX + iconW + joinGap + timeW / 2);
+    drawFixedCellsText(ctx, timeText, timeCenter, baselineY, color);
 
     // optional trees
     const treeMode = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
@@ -3616,7 +3760,9 @@
 
     // background
     tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
-    if (frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
+    if (frame && frame !== 'none') {
+      drawFrameOnCanvas(tctx, frame, color, pw, ph);
+    }
     // text auto-fit
     let size = 26; const fam = getFontFamily();
     tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.font = `bold ${size}px ${fam}`;
@@ -3638,13 +3784,13 @@
   function requestTimerImmediateUpload() {
     if (!timerLedTimer) return;
     if (!timerUploadInFlight) {
-      renderAndUploadTimer();
+      renderAndUploadTimer(true);
     } else {
       timerPendingRefresh = true;
     }
   }
 
-  async function renderAndUploadTimer() {
+  async function renderAndUploadTimer(force = false) {
     if (activeMode !== 'timer') return;
     if (timerUploadInFlight) { timerPendingRefresh = true; return; }
     timerUploadInFlight = true;
@@ -3663,25 +3809,34 @@
     if (timerLastTick === 0) timerLastTick = performance.now();
     updateTimerStateTick(performance.now());
 
+    // Only upload to LED when the displayed seconds change, unless forced
+    const currentSec = Math.max(0, Math.floor(timerRemainingMs / 1000));
+    const secChanged = (timerLastSentSec !== currentSec);
+    if (!force && !secChanged) {
+      timerUploadInFlight = false;
+      return;
+    }
+
     // background
     tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
     if (frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
 
-    // string
-    const icon = (timerState === 'study') ? '📚' : '🧘';
-    const currentLabel = `${icon} ${formatMs(timerRemainingMs)}`;
-    let size = 22; tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.font = `bold ${size}px ${fam}`;
-    let tw = tctx.measureText(currentLabel).width;
-    while ((tw > pw - 8 || size > ph - 4) && size > 8) { size -= 1; tctx.font = `bold ${size}px ${fam}`; tw = tctx.measureText(currentLabel).width; }
+    // strings
+    const icon = (timerState === 'study') ? ( ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '📚') ) : ( ($('timerBreakEmoji') ? $('timerBreakEmoji').value : '☕') );
+    const timeText = formatMs(timerRemainingMs);
 
-    if (timerTransitionStart > 0 && timerPrevLabel && timerNextLabel) {
-      const t = Math.min(1, (performance.now() - timerTransitionStart) / TIMER_TRANSITION_MS);
-      tctx.fillStyle = color; tctx.globalAlpha = 1 - t; tctx.fillText(timerPrevLabel, pw/2, ph/2);
-      tctx.globalAlpha = t; tctx.fillText(timerNextLabel, pw/2, ph/2);
-      tctx.globalAlpha = 1;
-    } else {
-      tctx.fillStyle = color; tctx.fillText(currentLabel, pw/2, ph/2);
-    }
+    // Auto-fit font for stable time rendering
+    let desired2 = parseInt(($('timerFontSize') && $('timerFontSize').value) || '26', 10) || 26;
+    tctx.textAlign='left'; tctx.textBaseline='alphabetic';
+    const { size, iconW, timeW, totalW, joinGap } = computeTimerLayout(tctx, icon, timeText, desired2, pw, ph, fam);
+    const metrics2 = getGroupMetrics(tctx, (icon || '') + timeText);
+    const totalH2 = (metrics2.A + metrics2.D) || size;
+    const baselineY2 = Math.round(ph/2 + (metrics2.A - totalH2/2)) + TIMER_BASELINE_OFFSET;
+    const startX2 = Math.round(pw/2 - totalW/2);
+    tctx.fillStyle = color;
+    if (icon && icon.length) tctx.fillText(icon, startX2, baselineY2);
+    const timeCenter2 = Math.round(startX2 + iconW + joinGap + timeW / 2);
+    drawFixedCellsText(tctx, timeText, timeCenter2, baselineY2, color);
 
     const treeMode2 = ($('timerTreeMode') && $('timerTreeMode').value) || 'none';
     if (treeMode2 !== 'none') {
@@ -3712,14 +3867,19 @@
     fd.append('dir', 'none');
     fd.append('speed', 0);
     fd.append('interval', 0);
-    try { await fetch(apiBase + '/upload', { method: 'POST', body: fd }); } catch {}
+    try {
+      // Play synchronized tick/tock only when second actually changes
+      if (secChanged) { try { await fetch(apiBase + '/sound_tick', { method: 'POST' }); } catch {} }
+      await fetch(apiBase + '/upload', { method: 'POST', body: fd });
+      timerLastSentSec = currentSec;
+    } catch {}
     finally {
       timerUploadInFlight = false;
       if (timerPendingRefresh) {
         timerPendingRefresh = false;
         // schedule a follow-up render soon (debounced)
         if (timerImmediateId) { clearTimeout(timerImmediateId); timerImmediateId = 0; }
-        timerImmediateId = setTimeout(() => { timerImmediateId = 0; if (!timerUploadInFlight) renderAndUploadTimer(); }, 0);
+        timerImmediateId = setTimeout(() => { timerImmediateId = 0; if (!timerUploadInFlight) renderAndUploadTimer(true); }, 0);
       }
     }
   }
@@ -3728,10 +3888,11 @@
     // Stop any existing
     if (timerLedTimer) { clearInterval(timerLedTimer); timerLedTimer = 0; }
     // Immediately render one frame and upload fast thereafter for smooth transition
-    await renderAndUploadTimer();
+    timerLastSentSec = -1; // reset last sent second
+    await renderAndUploadTimer(true);
     timerLedTimer = setInterval(async () => {
       if (activeMode !== 'timer') return;
-      if (!timerUploadInFlight) await renderAndUploadTimer();
+      if (!timerUploadInFlight) await renderAndUploadTimer(false);
     }, 200);
   }
 })();

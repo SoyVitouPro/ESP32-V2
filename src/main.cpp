@@ -90,6 +90,7 @@ void sendCORSHeaders() {
 #define SAMPLE_RATE 16000
 
 static bool i2sReady = false;
+static bool soundBuffersReady = false;
 enum SoundMode { SOUND_OFF=0, SOUND_CRICK=1, SOUND_SOFT=2, SOUND_WOOD=3, SOUND_BEEP=4 };
 static volatile SoundMode gSoundMode = SOUND_CRICK;
 static volatile int gSoundVolume = 80; // 0..100 percent
@@ -134,42 +135,67 @@ static bool writeI2SBuffer(int16_t* buf, size_t samplesStereo) {
   return (err == ESP_OK) && (bytesWritten == bytesToWrite);
 }
 
-static void playTick() {
-  // Realistic "tick": short, bright band-passed noise burst with fast decay
-  const int duration_ms = 22; // ~22 ms
-  const int samples = (SAMPLE_RATE * duration_ms) / 1000;
-  const float dt = 1.0f / (float)SAMPLE_RATE;
-  // Band-pass via 1st-order highpass -> 1st-order lowpass
-  const float fcHP = 1500.0f; // remove rumble
-  const float fcLP = 6000.0f; // keep bright click (wider)
-  const float RC_HP = 1.0f / (2.0f * (float)M_PI * fcHP);
-  const float RC_LP = 1.0f / (2.0f * (float)M_PI * fcLP);
-  const float aHP = RC_HP / (RC_HP + dt);
-  const float aLP = dt / (RC_LP + dt);
-  const float amp = 30000.0f; // higher base amplitude
-  // Map 0..100 to 0..4.0 (allow up to ~4x loudness at 100)
-  const float vol = fmaxf(0.0f, fminf((float)gSoundVolume / 25.0f, 4.0f));
+// ================= Preloaded Sound Buffers =================
+// Precompute for discrete volume levels to avoid per-play scaling
+static const int kVolLevels[5] = {20, 40, 60, 80, 100};
+static volatile int gSoundVolIndex = 3; // default 80% -> index 3
 
-  int16_t* buffer = (int16_t*)malloc(samples * 2 * sizeof(int16_t));
-  if (!buffer) return;
-  float xPrev = 0.0f, yHP = 0.0f, yBP = 0.0f;
-  uint32_t seed = micros();
+// Max stereo samples we will store (for ~30ms at 16kHz: 480 mono -> 960 stereo)
+static const int kMaxStereo = 1200;
+static int16_t gCrickBuf[5][kMaxStereo];
+static int16_t gSoftBuf[5][kMaxStereo];
+static int gCrickLenStereo = 0;
+static int gSoftLenStereo = 0;
+
+static void buildClickInto(int16_t* outStereo, int& outLenStereo,
+                           float f1, float f2, int durationMs, float baseAmp, int volPercent) {
+  const int samples = (SAMPLE_RATE * durationMs) / 1000;
+  const int stereo = samples * 2;
+  outLenStereo = stereo;
+  if (outLenStereo > kMaxStereo) outLenStereo = kMaxStereo;
+  float p1 = 0.0f, p2 = 0.0f;
+  const float s1 = 2.0f * (float)M_PI * f1 / (float)SAMPLE_RATE;
+  const float s2 = 2.0f * (float)M_PI * f2 / (float)SAMPLE_RATE;
+  // Map 0..100 to 0..4.0 with safety clamp
+  const float vol = fmaxf(0.0f, fminf((float)volPercent / 25.0f, 4.0f));
+  const int fadeInN = (int)fminf(12.0f, durationMs * SAMPLE_RATE / 1000.0f * 0.006f);   // ~0.6% of duration
+  const int fadeOutN = (int)fminf(20.0f, durationMs * SAMPLE_RATE / 1000.0f * 0.012f);  // ~1.2% of duration
   for (int i = 0; i < samples; ++i) {
-    // white noise in [-1,1]
-    seed = 1664525U * seed + 1013904223U;
-    float wn = ((int32_t)(seed >> 9) % 2048) / 1024.0f - 1.0f;
-    // highpass
-    yHP = aHP * (yHP + wn - xPrev);
-    xPrev = wn;
-    // lowpass on highpass result (band-pass approx)
-    yBP += aLP * (yHP - yBP);
-    // fast exponential decay envelope
-    float env = expf(-6.0f * (float)i / (float)samples);
-    int16_t s = (int16_t)fmaxf(fminf(yBP * amp * env * vol, 32767.0f), -32768.0f);
-    buffer[i*2] = s; buffer[i*2+1] = s;
+    float t = (float)i / (float)(samples - 1);
+    // Base envelopes: fast decay for crick, gentle for soft (handled via baseAmp and freqs)
+    float env = expf(-7.0f * t);
+    // Micro fade-in/out to avoid clicks at start/end
+    float fade = 1.0f;
+    if (fadeInN > 0 && i < fadeInN) fade = (float)i / (float)fadeInN;
+    if (fadeOutN > 0 && i >= samples - fadeOutN) {
+      float r = (float)(samples - i) / (float)fadeOutN;
+      if (r < fade) fade = r;
+    }
+    float y = (sinf(p1) * 0.65f + sinf(p2) * 0.35f) * baseAmp * env * vol * fade;
+    int16_t v = (int16_t)fmaxf(fminf(y, 32767.0f), -32768.0f);
+    if ((i * 2 + 1) < kMaxStereo) { outStereo[i * 2] = v; outStereo[i * 2 + 1] = v; }
+    p1 += s1; if (p1 > 2.0f * (float)M_PI) p1 -= 2.0f * (float)M_PI;
+    p2 += s2; if (p2 > 2.0f * (float)M_PI) p2 -= 2.0f * (float)M_PI;
   }
-  writeI2SBuffer(buffer, samples * 2);
-  free(buffer);
+}
+
+static void buildSoundBuffers() {
+  if (soundBuffersReady) return;
+  // Crick: bright
+  for (int i = 0; i < 5; ++i) buildClickInto(gCrickBuf[i], gCrickLenStereo, 3800.0f, 5600.0f, 20, 28000.0f, kVolLevels[i]);
+  // Soft: gentler
+  for (int i = 0; i < 5; ++i) buildClickInto(gSoftBuf[i], gSoftLenStereo, 2400.0f, 3200.0f, 18, 20000.0f, kVolLevels[i]);
+  soundBuffersReady = true;
+}
+
+static void playTick() {
+  if (!soundBuffersReady) buildSoundBuffers();
+  writeI2SBuffer(gCrickBuf[gSoundVolIndex], gCrickLenStereo);
+}
+
+static void playSoft() {
+  if (!soundBuffersReady) buildSoundBuffers();
+  writeI2SBuffer(gSoftBuf[gSoundVolIndex], gSoftLenStereo);
 }
 
 static void playTock() {
@@ -199,31 +225,62 @@ static void playTock() {
 }
 
 // One-shot trigger, called per second from client for tight sync
+// One-shot (kept for compatibility)
 static void triggerTickTockOnce() {
   setupI2S();
   if (!i2sReady) return;
   switch (gSoundMode) {
     case SOUND_OFF: break;
     case SOUND_CRICK: playTick(); break;
-    case SOUND_SOFT: {
-      // softer version of tick
-      const int duration_ms = 16;
-      const int samples = (SAMPLE_RATE * duration_ms) / 1000;
-      const float dt = 1.0f / (float)SAMPLE_RATE;
-      const float fcHP = 1000.0f, fcLP = 3500.0f;
-      const float RC_HP = 1.0f / (2.0f * (float)M_PI * fcHP);
-      const float RC_LP = 1.0f / (2.0f * (float)M_PI * fcLP);
-      const float aHP = RC_HP / (RC_HP + dt);
-      const float aLP = dt / (RC_LP + dt);
-      const float amp = 14000.0f;
-      const float vol = fmaxf(0.0f, fminf((float)gSoundVolume / 100.0f, 1.0f));
-      int16_t* buffer = (int16_t*)malloc(samples * 2 * sizeof(int16_t)); if (!buffer) return;
-      float xPrev=0,yHP=0,yBP=0; uint32_t seed=micros();
-      for (int i=0;i<samples;++i){ seed=1664525U*seed+1013904223U; float wn=((int32_t)(seed>>9)%2048)/1024.0f-1.0f; yHP=aHP*(yHP+wn-xPrev); xPrev=wn; yBP+=aLP*(yHP-yBP); float env=expf(-5.0f*(float)i/(float)samples); int16_t s=(int16_t)fmaxf(fminf(yBP*amp*env*vol,32767.0f),-32768.0f); buffer[i*2]=s; buffer[i*2+1]=s; }
-      writeI2SBuffer(buffer, samples * 2); free(buffer);
-      break; }
+    case SOUND_SOFT: playSoft(); break;
     default: break;
   }
+}
+
+// Periodic sound timer (avoids request latency)
+static TaskHandle_t gSoundTask = nullptr;
+static volatile bool gSoundRun = false;
+static volatile uint32_t gSoundPeriodMs = 1000;
+static void soundTimerTask(void* arg) {
+  setupI2S();
+  // Align to next exact period boundary to reduce perceived lag/jitter
+  uint32_t now = millis();
+  uint32_t rem = gSoundPeriodMs ? (gSoundPeriodMs - (now % gSoundPeriodMs)) % gSoundPeriodMs : 0;
+  if (rem) vTaskDelay(pdMS_TO_TICKS(rem));
+  TickType_t last = xTaskGetTickCount();
+  TickType_t period = pdMS_TO_TICKS(gSoundPeriodMs);
+  uint32_t lastPlay = millis();
+  while (gSoundRun) {
+    uint32_t t = millis();
+    // Ensure minimum 800 ms between plays to avoid overlap/double-trigger effects
+    if ((int32_t)(t - lastPlay) >= 800) {
+      lastPlay = t;
+      switch (gSoundMode) {
+        case SOUND_OFF: break;
+        case SOUND_CRICK: playTick(); break;
+        case SOUND_SOFT: playSoft(); break;
+        default: break;
+      }
+    }
+    vTaskDelayUntil(&last, period);
+  }
+  vTaskDelete(NULL);
+}
+
+static void startSoundTimer(uint32_t periodMs) {
+  if (gSoundTask) return;
+  // Enforce minimum period 800 ms to avoid overlaps
+  if (periodMs < 800) periodMs = 800;
+  gSoundPeriodMs = periodMs;
+  buildSoundBuffers(); // ensure prebuilt buffers exist before first tick
+  gSoundRun = true;
+  // Pin to core 1 with slightly higher priority to avoid jitter
+  xTaskCreatePinnedToCore(soundTimerTask, "snd_timer", 4096, nullptr, 3, &gSoundTask, 1);
+}
+
+static void stopSoundTimer() {
+  gSoundRun = false;
+  if (gSoundTask) { TaskHandle_t t = gSoundTask; gSoundTask = nullptr; vTaskDelete(t); }
 }
 
 // YouTube config
@@ -1540,7 +1597,8 @@ void setup() {
   // Sound control: one-shot tick/tock (client alternates per second)
   server.on("/sound_tick", HTTP_POST, [](){
     sendCORSHeaders();
-    triggerTickTockOnce();
+    // Ignore one-shots if periodic timer is running to avoid duplicates
+    if (!gSoundRun) triggerTickTockOnce();
     server.send(200, "application/json", "{\"status\":\"ok\"}");
   });
   // Sound mode selection: /sound_set?mode=off|crick|soft
@@ -1559,7 +1617,24 @@ void setup() {
     int level = server.hasArg("level") ? server.arg("level").toInt() : 80;
     if (level < 0) level = 0; if (level > 100) level = 100;
     gSoundVolume = level;
-    server.send(200, "application/json", String("{\"volume\":") + level + "}");
+    // Map to nearest prebuilt index in kVolLevels
+    int bestIdx = 0; int bestDiff = 1000;
+    for (int i=0;i<5;i++){ int d = abs(kVolLevels[i] - level); if (d < bestDiff){ bestDiff = d; bestIdx = i; } }
+    gSoundVolIndex = bestIdx;
+    server.send(200, "application/json", String("{\"volume\":") + level + ",\"index\":" + bestIdx + "}");
+  });
+  // Sound periodic timer start/stop
+  server.on("/sound_timer_start", HTTP_POST, [](){
+    sendCORSHeaders();
+    uint32_t period = server.hasArg("period") ? (uint32_t)server.arg("period").toInt() : 1000U;
+    stopSoundTimer(); // ensure single instance
+    startSoundTimer(period);
+    server.send(200, "application/json", String("{\"period\":") + period + "}");
+  });
+  server.on("/sound_timer_stop", HTTP_POST, [](){
+    sendCORSHeaders();
+    stopSoundTimer();
+    server.send(200, "application/json", "{\"status\":\"stopped\"}");
   });
   // System info endpoint
   server.on("/sys_info", HTTP_GET, [](){

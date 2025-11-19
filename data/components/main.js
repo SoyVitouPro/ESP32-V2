@@ -619,7 +619,8 @@
     try {
       await Promise.all([
         fetch(apiBase + '/stop_clock', { method: 'POST' }),
-        fetch(apiBase + '/stop_theme', { method: 'POST' })
+        fetch(apiBase + '/stop_theme', { method: 'POST' }),
+        fetch(apiBase + '/sound_timer_stop', { method: 'POST' })
       ]);
       console.log('✅ All modes stopped successfully');
     } catch (error) {
@@ -1243,7 +1244,7 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
-      stopTimerPreview(); timerRunning = false;
+      stopTimerPreview();
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('text');
@@ -1254,7 +1255,7 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
-      stopTimerPreview(); timerRunning = false;
+      stopTimerPreview();
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('clock');
@@ -1265,14 +1266,14 @@
       if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; }
       if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; }
       if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; }
-      stopTimerPreview(); timerRunning = false;
+      stopTimerPreview();
       stopGifAnimation();
       const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none';
       activate('video');
     });
-    if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopTimerPreview(); timerRunning = false; stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
-    if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); stopTimerPreview(); timerRunning = false; activate('youtube'); });
-    if (tabTimer) tabTimer.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('timer'); });
+    if (tabWifi) tabWifi.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopTimerPreview(); stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('wifi'); });
+    if (tabYoutube) tabYoutube.addEventListener('click', () => { stopClockTemplate(); stopTimerPreview(); activate('youtube'); });
+    if (tabTimer) tabTimer.addEventListener('click', () => { stopClockTemplate(); if (youtubeTimer) { clearInterval(youtubeTimer); youtubeTimer = 0; } if (youtubeAnimTimer) { clearInterval(youtubeAnimTimer); youtubeAnimTimer = 0; } if (youtubePreviewTimer) { clearInterval(youtubePreviewTimer); youtubePreviewTimer = 0; } stopGifAnimation(); const overlay = document.getElementById('ytPreviewImg'); if (overlay) overlay.style.display='none'; activate('timer'); drawTimerPreviewFrame(); if (timerRunning && !timerPreviewTimer) { timerPreviewTimer = setInterval(drawTimerPreviewFrame, 200); } });
 
     // default
     activate('text');
@@ -2437,6 +2438,7 @@
           await fetch(apiBase + '/sound_set?mode=' + encodeURIComponent(mode), { method: 'POST' });
           const vol = ($('timerSoundVol') && $('timerSoundVol').value) || '80';
           await fetch(apiBase + '/sound_volume?level=' + encodeURIComponent(vol), { method: 'POST' });
+          await fetch(apiBase + '/sound_timer_start?period=1000', { method: 'POST' });
         } catch {}
         startTimerPreview(true);
         await startTimerStreaming();
@@ -3868,8 +3870,7 @@
     fd.append('speed', 0);
     fd.append('interval', 0);
     try {
-      // Play synchronized tick/tock only when second actually changes
-      if (secChanged) { try { await fetch(apiBase + '/sound_tick', { method: 'POST' }); } catch {} }
+      // Upload LED frame only; sound is handled by ESP periodic timer
       await fetch(apiBase + '/upload', { method: 'POST', body: fd });
       timerLastSentSec = currentSec;
     } catch {}

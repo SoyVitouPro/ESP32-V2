@@ -470,16 +470,18 @@
       <!-- TIMER CONFIG -->
       <div id="timerConfig" class="card hidden">
         <div class="row">
-          <label>Durations (minutes)</label>
-          <div class="inline gap-12">
-            <div class="inline gap-8 center">
-              <span class="muted">Study</span>
-              <input id="timerStudy" type="number" min="1" max="120" value="25" class="w-80" />
+          <label>Duration</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box timer-duration-box" data-min="10">10</button>
+              <button class="font-size-box timer-duration-box active" data-min="25">25</button>
+              <button class="font-size-box timer-duration-box" data-min="60">60</button>
+              <button class="font-size-box timer-duration-box" data-min="120">2h</button>
+              <button class="font-size-box timer-duration-box" data-min="240">4h</button>
+              <button class="font-size-box timer-duration-box" data-min="480">8h</button>
+              <button class="font-size-box timer-duration-box" data-min="960">16h</button>
             </div>
-            <div class="inline gap-8 center" style="margin-left: 16px;">
-              <span class="muted">Break</span>
-              <input id="timerBreak" type="number" min="1" max="60" value="5" class="w-80" />
-            </div>
+            <input type="hidden" id="timerDurationMin" value="25" />
           </div>
         </div>
 
@@ -511,20 +513,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <label>Break Emoji</label>
-          <div class="font-size-selection-wrapper">
-            <div class="inline wrap gap-12">
-              <button class="emoji-box timer-break-emoji" data-emoji="">🚫</button>
-              <button class="emoji-box timer-break-emoji active" data-emoji="🍿">🍿</button>
-              <button class="emoji-box timer-break-emoji" data-emoji="🌿">🌿</button>
-              <button class="emoji-box timer-break-emoji" data-emoji="😌">😌</button>
-              <button class="emoji-box timer-break-emoji" data-emoji="💜">💜</button>
-              <button class="emoji-box timer-break-emoji" data-emoji="🧸">🧸</button>
-            </div>
-            <input type="hidden" id="timerBreakEmoji" value="☕" />
-          </div>
-        </div>
+        
 
         <div class="row">
           <label for="timerFontSize">Font Size</label>
@@ -582,11 +571,26 @@
           <input type="hidden" id="timerBgColor" value="#000000" />
         </div>
 
+        <div class="row">
+          <label>Background Style</label>
+          <div class="font-size-selection-wrapper">
+            <div class="inline gap-12">
+              <button class="font-size-box timer-bg-style-box active" data-style="none">🚫</button>
+              <button class="font-size-box timer-bg-style-box" data-style="stars">✨ Stars</button>
+              <button class="font-size-box timer-bg-style-box" data-style="matrix">🟩 Matrix</button>
+              <button class="font-size-box timer-bg-style-box" data-style="snow">❄️ Snow</button>
+              <button class="font-size-box timer-bg-style-box" data-style="dots">◼️ Dots</button>
+              <button class="font-size-box timer-bg-style-box" data-style="futuristic">💠 Future</button>
+            </div>
+            <input type="hidden" id="timerBgStyle" value="none" />
+          </div>
+        </div>
+
         <div class="row" id="timerFrameRow">
           <label for="timerFrameStyle">Frame</label>
           <div class="font-size-selection-wrapper">
             <div class="inline gap-12">
-              <button class="font-size-box clock-frame-box active" data-frame="none">None</button>
+              <button class="font-size-box clock-frame-box active" data-frame="none">🚫</button>
               <button class="font-size-box clock-frame-box" data-frame="border">Border</button>
               <button class="font-size-box clock-frame-box" data-frame="neon">Neon</button>
             </div>
@@ -606,31 +610,7 @@
           </div>
         </div>
 
-        <div class="row">
-          <label>Sound</label>
-          <div class="font-size-selection-wrapper">
-            <div class="inline wrap gap-12">
-              <button class="video-fit-box timer-sound-box" data-mode="off">🚫 Off</button>
-              <button class="video-fit-box timer-sound-box active" data-mode="crick">Crick</button>
-              <button class="video-fit-box timer-sound-box" data-mode="soft">Soft</button>
-            </div>
-            <input type="hidden" id="timerSound" value="crick" />
-          </div>
-        </div>
-
-        <div class="row">
-          <label>Volume</label>
-          <div class="font-size-selection-wrapper">
-            <div class="inline gap-12">
-              <button class="font-size-box timer-sound-vol-box" data-level="20">20</button>
-              <button class="font-size-box timer-sound-vol-box" data-level="40">40</button>
-              <button class="font-size-box timer-sound-vol-box" data-level="60">60</button>
-              <button class="font-size-box timer-sound-vol-box active" data-level="80">80</button>
-              <button class="font-size-box timer-sound-vol-box" data-level="100">100</button>
-            </div>
-            <input type="hidden" id="timerSoundVol" value="80" />
-          </div>
-        </div>
+        
 
         
 

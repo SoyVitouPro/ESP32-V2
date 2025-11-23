@@ -34,7 +34,7 @@
   let timerRunning = false;
   let timerState = 'study'; // 'study' | 'break'
   let timerStudyMin = 25;
-  let timerBreakMin = 5;
+  // break removed
   let timerRemainingMs = 25 * 60 * 1000;
   let timerLastTick = 0;
   let timerTransitionStart = 0;
@@ -46,6 +46,7 @@
   let timerUploadInFlight = false;
   let timerPendingRefresh = false;
   let timerImmediateId = 0;
+  // Timer audio removed
   let timerLastSentSec = -1; // last second value uploaded to LED
   // GIF decode + animation state (gifuct-js)
   let gifFrames = [];
@@ -619,9 +620,9 @@
     try {
       await Promise.all([
         fetch(apiBase + '/stop_clock', { method: 'POST' }),
-        fetch(apiBase + '/stop_theme', { method: 'POST' }),
-        fetch(apiBase + '/sound_timer_stop', { method: 'POST' })
+        fetch(apiBase + '/stop_theme', { method: 'POST' })
       ]);
+      stopTimerAudio();
       console.log('✅ All modes stopped successfully');
     } catch (error) {
       console.warn('⚠️ Failed to stop some modes:', error);
@@ -808,20 +809,20 @@
       ctx.save();
       ctx.strokeStyle = base;
       ctx.lineWidth = 1;
-      // Draw on the last pixel (outermost edge): 0.5 aligns the 1px stroke on device pixels
-      ctx.strokeRect(0.5, 0.5, pw-1, ph-1);
+      // Draw slightly inset to avoid clipping and give content breathing room
+      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
       ctx.restore();
     } else if (style === 'neon') {
       ctx.save();
-      // Outer bright edge on last pixel
+      // Outer bright edge inset
       ctx.strokeStyle = base;
       ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, pw-1, ph-1);
-      // Inset glow rings (inside the edge): 1.5, 2.5, 3.5
+      ctx.strokeRect(1.5, 1.5, pw-3, ph-3);
+      // Inset glow rings a bit further
       const rings = [
-        { inset: 1, a: 0.35 },
-        { inset: 2, a: 0.20 },
-        { inset: 3, a: 0.10 }
+        { inset: 2, a: 0.35 },
+        { inset: 3, a: 0.20 },
+        { inset: 4, a: 0.10 }
       ];
       rings.forEach(({ inset, a }) => {
         ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
@@ -833,6 +834,72 @@
   };
 
   // (snake frame removed)
+
+  // ===== Timer Background Styles =====
+  function drawTimerBgStyle(ctx, pw, ph, style) {
+    if (!style || style === 'none') return;
+    const seed = 123456789;
+    const rand = (() => {
+      let s = seed;
+      return () => { s = (1103515245 * s + 12345) >>> 0; return s / 0xFFFFFFFF; };
+    })();
+    if (style === 'stars') {
+      const n = 40;
+      for (let i=0;i<n;i++) {
+        const x = Math.floor(rand()*pw), y = Math.floor(rand()*ph);
+        const a = 0.6 + rand()*0.4;
+        const sz = rand() < 0.2 ? 2 : 1;
+        ctx.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
+        ctx.fillRect(x, y, sz, sz);
+      }
+    } else if (style === 'matrix') {
+      ctx.fillStyle = 'rgba(0,255,90,0.7)';
+      const step = 6;
+      for (let x=2;x<pw-2;x+=step) for (let y=1;y<ph-1;y+=step) ctx.fillRect(x, y, 1, 2);
+    } else if (style === 'snow') {
+      const n = 28;
+      for (let i=0;i<n;i++) {
+        const x = Math.floor(rand()*pw), y = Math.floor(rand()*ph);
+        const sz = rand() < 0.3 ? 2 : 1;
+        ctx.fillStyle = 'rgba(230,240,255,0.85)';
+        ctx.fillRect(x, y, sz, sz);
+      }
+    } else if (style === 'dots') {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      for (let y=2;y<ph-2;y+=4) for (let x=2;x<pw-2;x+=4) ctx.fillRect(x, y, 1, 1);
+    } else if (style === 'futuristic') {
+      // Futuristic digital sci‑fi: glowing blue dots + vertical trails
+      // Base glow dots
+      const dots = 28;
+      for (let i=0;i<dots;i++) {
+        const x = Math.floor(rand()*pw), y = Math.floor(rand()*ph);
+        const r = rand()*1.5 + 0.5; // radius 0.5..2
+        const a = 0.4 + rand()*0.5;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r*3);
+        grad.addColorStop(0, `rgba(80,180,255,${a.toFixed(2)})`);
+        grad.addColorStop(1, 'rgba(80,180,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(x, y, r*3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = `rgba(150,220,255,${(a*0.9).toFixed(2)})`;
+        ctx.fillRect(Math.max(0,x-1), Math.max(0,y-1), 2, 2);
+      }
+      // Vertical light trails
+      const trails = 10;
+      for (let i=0;i<trails;i++) {
+        const x = Math.floor(rand()*pw);
+        const len = Math.floor(rand()*ph*0.6) + Math.floor(ph*0.2);
+        const y0 = Math.floor(rand()*(ph-len));
+        const a = 0.18 + rand()*0.22;
+        const grad = ctx.createLinearGradient(x, y0, x, y0+len);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.2, `rgba(80,200,255,${a.toFixed(2)})`);
+        grad.addColorStop(0.8, `rgba(80,200,255,${(a*0.6).toFixed(2)})`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y0, 1, len);
+      }
+    }
+  }
 
   const animatePreview = (ts) => {
     if (!$('animate').checked || $('text').value.trim().length === 0) {
@@ -2433,13 +2500,6 @@
         console.log('Timer: starting live countdown to LED');
         activeMode = 'timer';
         // Ensure sound mode is set on device
-        try {
-          const mode = ($('timerSound') && $('timerSound').value) || 'crick';
-          await fetch(apiBase + '/sound_set?mode=' + encodeURIComponent(mode), { method: 'POST' });
-          const vol = ($('timerSoundVol') && $('timerSoundVol').value) || '80';
-          await fetch(apiBase + '/sound_volume?level=' + encodeURIComponent(vol), { method: 'POST' });
-          await fetch(apiBase + '/sound_timer_start?period=1000', { method: 'POST' });
-        } catch {}
         startTimerPreview(true);
         await startTimerStreaming();
       }
@@ -2975,10 +3035,10 @@
       });
     });
 
-    // Video fit selection
-    document.querySelectorAll('.video-fit-box').forEach(box=>{
+    // Video fit selection (limit to video config scope only)
+    document.querySelectorAll('#videoConfig .video-fit-box').forEach(box=>{
       box.addEventListener('click', function(){
-        document.querySelectorAll('.video-fit-box').forEach(b=>b.classList.remove('active'));
+        document.querySelectorAll('#videoConfig .video-fit-box').forEach(b=>b.classList.remove('active'));
         this.classList.add('active');
         $('videoFit').value = this.getAttribute('data-fit');
       });
@@ -3044,35 +3104,8 @@
         if (timerLedTimer) { requestTimerImmediateUpload(); }
       });
     });
-    // Timer sound selectors
-    document.querySelectorAll('#timerConfig .timer-sound-box').forEach(btn => {
-      btn.addEventListener('click', async function(){
-        document.querySelectorAll('#timerConfig .timer-sound-box').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        const mode = this.getAttribute('data-mode') || 'crick';
-        if ($('timerSound')) $('timerSound').value = mode;
-        try { await fetch(apiBase + '/sound_set?mode=' + encodeURIComponent(mode), { method: 'POST' }); } catch {}
-      });
-    });
-    // Timer volume selector boxes
-    document.querySelectorAll('#timerConfig .timer-sound-vol-box').forEach(btn => {
-      btn.addEventListener('click', async function(){
-        document.querySelectorAll('#timerConfig .timer-sound-vol-box').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        const level = this.getAttribute('data-level') || '80';
-        if ($('timerSoundVol')) $('timerSoundVol').value = level;
-        try { await fetch(apiBase + '/sound_volume?level=' + encodeURIComponent(level), { method: 'POST' }); } catch {}
-      });
-    });
-    document.querySelectorAll('#timerConfig .timer-break-emoji').forEach(btn => {
-      btn.addEventListener('click', function(){
-        document.querySelectorAll('#timerConfig .timer-break-emoji').forEach(b=>b.classList.remove('active'));
-        this.classList.add('active');
-        if ($('timerBreakEmoji')) $('timerBreakEmoji').value = this.getAttribute('data-emoji');
-        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
-        if (timerLedTimer) { requestTimerImmediateUpload(); }
-      });
-    });
+    // Sound removed
+    // break emoji removed
     document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(box=>{
       box.addEventListener('click', function(){
         document.querySelectorAll('#timerConfig .clock-bg-color-box').forEach(b=>b.classList.remove('active'));
@@ -3111,11 +3144,27 @@
         if (timerLedTimer) { requestTimerImmediateUpload(); }
       });
     });
-    // Timer duration inputs
-    const studyInput = $('timerStudy');
-    const breakInput = $('timerBreak');
-    if (studyInput) studyInput.addEventListener('input', () => { timerStudyMin = Math.max(1, parseInt(studyInput.value||'25',10)); if (!timerRunning) { timerState='study'; timerRemainingMs = timerStudyMin*60*1000; drawTimerPreviewFrame(); } });
-    if (breakInput) breakInput.addEventListener('input', () => { timerBreakMin = Math.max(1, parseInt(breakInput.value||'5',10)); if (!timerRunning && timerState==='break') { timerRemainingMs = timerBreakMin*60*1000; drawTimerPreviewFrame(); } });
+    // Timer duration boxes
+    document.querySelectorAll('#timerConfig .timer-duration-box').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#timerConfig .timer-duration-box').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const mins = parseInt(btn.getAttribute('data-min')||'25', 10);
+        if ($('timerDurationMin')) $('timerDurationMin').value = mins;
+        if (!timerRunning) { timerRemainingMs = mins * 60 * 1000; drawTimerPreviewFrame(); }
+      });
+    });
+    // Timer background style boxes
+    document.querySelectorAll('#timerConfig .timer-bg-style-box').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#timerConfig .timer-bg-style-box').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        const style = btn.getAttribute('data-style') || 'none';
+        if ($('timerBgStyle')) $('timerBgStyle').value = style;
+        if (!$('timerConfig').classList.contains('hidden')) drawTimerPreviewFrame();
+        if (timerLedTimer) { requestTimerImmediateUpload(); }
+      });
+    });
 
     // Timer tree mode buttons: None | Static | Animated
     document.querySelectorAll('#timerConfig .timer-tree-box').forEach(btn => {
@@ -3601,16 +3650,16 @@
 
   function formatMs(ms) {
     ms = Math.max(0, Math.floor(ms/1000));
-    const m = Math.floor(ms/60);
+    const h = Math.floor(ms/3600);
+    const m = Math.floor((ms%3600)/60);
     const s = ms % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
 
   function readTimerDurations() {
-    const s = parseInt(($('timerStudy') && $('timerStudy').value) || '25', 10);
-    const b = parseInt(($('timerBreak') && $('timerBreak').value) || '5', 10);
+    const s = parseInt(($('timerDurationMin') && $('timerDurationMin').value) || '25', 10);
     timerStudyMin = Math.max(1, isNaN(s)?25:s);
-    timerBreakMin = Math.max(1, isNaN(b)?5:b);
   }
 
   function initTimerState() {
@@ -3621,16 +3670,7 @@
     timerTransitionStart = 0; timerPrevLabel = ''; timerNextLabel='';
   }
 
-  function switchTimerState(now) {
-    const prev = timerState;
-    if (timerState === 'study') { timerState = 'break'; timerRemainingMs = timerBreakMin * 60 * 1000; }
-    else { timerState = 'study'; timerRemainingMs = timerStudyMin * 60 * 1000; }
-    const prevIcon = (prev === 'study') ? '📚' : '🧘';
-    const nextIcon = (timerState === 'study') ? '📚' : '🧘';
-    timerPrevLabel = `${prevIcon} ${formatMs(0)}`;
-    timerNextLabel = `${nextIcon} ${formatMs(timerRemainingMs)}`;
-    timerTransitionStart = now;
-  }
+  function switchTimerState(now) { /* removed break state */ }
 
   function updateTimerStateTick(now) {
     if (!timerRunning) return;
@@ -3639,7 +3679,8 @@
       timerRemainingMs -= dt;
       timerLastTick = now;
       if (timerRemainingMs <= 0) {
-        switchTimerState(now);
+        timerRemainingMs = 0;
+        timerRunning = false;
       }
     } else {
       if (now - timerTransitionStart >= TIMER_TRANSITION_MS) {
@@ -3714,12 +3755,12 @@
     // background
     ctx.clearRect(0,0,pw,ph);
     ctx.fillStyle = bg; ctx.fillRect(0,0,pw,ph);
-    if (frame && frame !== 'none') {
-      drawFrameOnCanvas(ctx, frame, color, pw, ph);
-    }
+    const bgStyle = ($('timerBgStyle') && $('timerBgStyle').value) || 'none';
+    if (bgStyle && bgStyle !== 'none') drawTimerBgStyle(ctx, pw, ph, bgStyle);
+    if (frame && frame !== 'none') { drawFrameOnCanvas(ctx, frame, color, pw, ph); }
 
     // Build strings: render time with fixed cells for stability; draw icon separately
-    const icon = (timerState === 'study') ? ( ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '📚') ) : ( ($('timerBreakEmoji') ? $('timerBreakEmoji').value : '☕') );
+    const icon = ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '');
     const timeText = formatMs(timerRemainingMs); // mm:ss
 
     // Auto-fit font size for time text using fixed-cell metrics
@@ -3762,9 +3803,9 @@
 
     // background
     tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
-    if (frame && frame !== 'none') {
-      drawFrameOnCanvas(tctx, frame, color, pw, ph);
-    }
+    const bgStyle2 = ($('timerBgStyle') && $('timerBgStyle').value) || 'none';
+    if (bgStyle2 && bgStyle2 !== 'none') drawTimerBgStyle(tctx, pw, ph, bgStyle2);
+    if (frame && frame !== 'none') { drawFrameOnCanvas(tctx, frame, color, pw, ph); }
     // text auto-fit
     let size = 26; const fam = getFontFamily();
     tctx.textAlign='center'; tctx.textBaseline='middle'; tctx.font = `bold ${size}px ${fam}`;
@@ -3821,10 +3862,12 @@
 
     // background
     tctx.fillStyle = bg; tctx.fillRect(0,0,pw,ph);
-    if (frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
+    const bgStyle2 = ($('timerBgStyle') && $('timerBgStyle').value) || 'none';
+    if (bgStyle2 && bgStyle2 !== 'none') drawTimerBgStyle(tctx, pw, ph, bgStyle2);
+    if (frame && frame !== 'none') drawFrameOnCanvas(tctx, frame, color, pw, ph);
 
     // strings
-    const icon = (timerState === 'study') ? ( ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '📚') ) : ( ($('timerBreakEmoji') ? $('timerBreakEmoji').value : '☕') );
+    const icon = ($('timerStudyEmoji') ? $('timerStudyEmoji').value : '');
     const timeText = formatMs(timerRemainingMs);
 
     // Auto-fit font for stable time rendering
